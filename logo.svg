@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="200" height="200"
+     viewBox="0 0 200 200">
+
+  <!-- 1) MDPI text (drawn first, larger size) -->
+  <text x="100" y="120"
+        text-anchor="middle"
+        font-family="Montserrat, sans-serif"
+        font-weight="800"
+        font-size="72"
+        fill="#36406B">
+    MDPI
+  </text>
+
+  <!-- 2) Red “no” circle & slash (drawn on top) -->
+  <circle cx="100" cy="100" r="90"
+          fill="none"
+          stroke="#E2211C"
+          stroke-width="12"/>
+  <line x1="50" y1="50" x2="150" y2="150"
+        stroke="#E2211C"
+        stroke-width="12"
+        stroke-linecap="round"/>
+</svg>

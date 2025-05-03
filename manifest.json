@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "MDPI Filter",
+  "version": "1.0",
+  "description": "Hide or highlight MDPI publications in literature searches",
+
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://www.google.com/*",
+    "*://scholar.google.com/*",
+    "*://pubmed.ncbi.nlm.nih.gov/*"
+  ],
+
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+
+  "action": {
+    "default_icon": "icons/48.png",
+    "default_title": "MDPI Filter"
+  },
+
+  "options_page": "options.html",
+
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.google.com/search*",
+        "*://scholar.google.com/scholar*",
+        "*://pubmed.ncbi.nlm.nih.gov/*"
+      ],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

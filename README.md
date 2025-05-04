@@ -40,4 +40,4 @@
 ## 📄 License
 
 - **Code**: [AGPL-3.0](LICENSE)  
-- **Logo**: [CC-BY-SA-4.0] (LICENSE)
+- **Logo**: [CC-BY-SA-4.0](LICENSE)

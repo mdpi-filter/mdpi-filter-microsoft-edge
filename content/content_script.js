@@ -58,9 +58,9 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
       const hasMdpiText = item.textContent?.includes(MDPI_DOI); // Check text content for DOI
-      // Check for common MDPI journal names (case-insensitive)
-      const hasMdpiJournal = /Nutrients|Int J Mol Sci|IJMS/i.test(item.textContent); // Uncommented and added IJMS abbreviation
-      return hasMdpiLink || hasMdpiText || hasMdpiJournal; // Added hasMdpiJournal check
+      // Check for common MDPI journal names (case-insensitive), using word boundaries
+      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS)\b/i.test(item.textContent); // Added word boundaries \b
+      return hasMdpiLink || hasMdpiText || hasMdpiJournal;
     };
 
     // 1. Process search‐site results *only* on the four engines

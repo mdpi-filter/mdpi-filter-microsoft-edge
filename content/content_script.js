@@ -79,8 +79,31 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       return isMdpi;
     };
 
+    // Function to check if the current page is one of the configured search sites
+    const isSearchSite = () => {
+      const host = location.hostname;
+      const path = location.pathname;
+      for (const cfg of Object.values(domains)) {
+        const matchHost = cfg.host
+          ? host === cfg.host
+          : cfg.hostRegex?.test(host);
+        const matchPath = !cfg.path || cfg.path.test(path);
+        if (matchHost && matchPath) {
+          return true; // It's a configured search site
+        }
+      }
+      return false; // Not a configured search site
+    };
+
     // Function to update badge count
     const updateBadgeCount = () => {
+        // Only update badge if NOT on a configured search site
+        if (isSearchSite()) {
+             // Explicitly clear badge on search sites by sending 0
+             chrome.runtime.sendMessage({ type: 'mdpiCount', count: 0 });
+             return;
+        }
+
         const count = uniqueMdpiReferences.size;
         // Send count to background script only if > 0
         if (count > 0) {
@@ -90,7 +113,6 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
              chrome.runtime.sendMessage({ type: 'mdpiCount', count: 0 });
         }
     };
-
 
     // 1. Process search‐site results *only* on the four engines
     function processSearchSites() {

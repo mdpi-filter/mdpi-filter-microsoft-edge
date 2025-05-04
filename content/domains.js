@@ -20,7 +20,7 @@ window.MDPIFilterDomains = {
   // PubMed (no outbound links, only DOI in text)
   pubmed: {
     host: 'pubmed.ncbi.nlm.nih.gov',
-    itemSelector: 'article.full-docsum',
+    itemSelector: 'li.full-docsum', // Changed from 'article.full-docsum'
     doiPattern: '10.3390'
   },
 

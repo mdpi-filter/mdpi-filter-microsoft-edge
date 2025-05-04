@@ -21,7 +21,10 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     'li.html-xx',                       // MDPI article reference items (newer style?)
     'div.citation',                     // Common citation container class
     'div.reference',                    // Common reference container class
-    'li.separated-list-item'            // EuropePMC search results
+    'li.separated-list-item',           // EuropePMC search results
+    'li[id^="CR"]',                     // Common ID pattern (e.g., PMC, TandF)
+    'li[id^="ref-"]',                   // Common ID pattern
+    'li[id^="reference-"]'              // Common ID pattern
     // Removed 'ol > li', 'ul > li' as they were too general
   ].join(',');
 

@@ -166,25 +166,39 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
             }
           });
 
-        } else if (cfg.container && cfg.linkSelector) {
-          // Google / Scholar style:
-          // Find containers that have an MDPI link OR contain MDPI DOI text
+        } else if (cfg.container /* && cfg.linkSelector - No longer strictly needed here */) {
+          // Google / Scholar style: Check ALL containers for MDPI DOI text
           document.querySelectorAll(cfg.container).forEach(row => {
-            const hasMdpiLink = row.querySelector(cfg.linkSelector); // Check for mdpi.com link
-            const hasMdpiDoiText = row.textContent.includes(MDPI_DOI); // Check for DOI text in the container
+            // Check if the container's text content includes the MDPI DOI
+            const hasMdpiDoiText = row.textContent.includes(MDPI_DOI);
 
-            if (hasMdpiLink || hasMdpiDoiText) {
+            if (hasMdpiDoiText) {
               // Apply the main style (hide/highlight border) to the whole row
               styleSearch(row);
 
-              // Find specific links within this MDPI row to apply direct styling
-              // This includes the original MDPI link and any PubMed/PMC links found within the same result block
-              row.querySelectorAll(
-                'a[href*="mdpi.com"], a[href*="pubmed.ncbi.nlm.nih.gov"], a[href*="pmc.ncbi.nlm.nih.gov"]'
-              ).forEach(link => {
+              // Find the primary link within this row to apply direct styling
+              // This link could point to MDPI, PMC, PubMed, ResearchGate, PDF, etc.
+              // Prioritize links with h3, then the specific Google link selector, then any link
+              const primaryLink = row.querySelector('a h3') // Link containing h3
+                                  ?.closest('a')
+                                  || row.querySelector('a[jsname="UWckNb"]') // Google specific link structure
+                                  || row.querySelector('a[href]'); // Fallback to first link
+
+              if (primaryLink) {
                 // Apply the title-specific styling (red text, dotted underline)
-                styleDirectLink(link);
-              });
+                styleDirectLink(primaryLink);
+              }
+            }
+            // Fallback: If no DOI text found, check specifically for an mdpi.com link
+            // This catches cases where the link is present but the DOI might be missing from the snippet
+            else {
+                 const mdpiLink = row.querySelector(cfg.linkSelector); // Use the original selector for mdpi.com links
+                 if (mdpiLink) {
+                     // Apply the main style (hide/highlight border) to the whole row
+                     styleSearch(row);
+                     // Apply the title-specific styling to the MDPI link itself
+                     styleDirectLink(mdpiLink);
+                 }
             }
           });
         }

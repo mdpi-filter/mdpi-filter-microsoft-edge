@@ -149,7 +149,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         if (!matchHost || !matchPath) continue;
 
         if (cfg.itemSelector && cfg.doiPattern) {
-          // PubMed style: look for DOI in text
+          // PubMed style (on pubmed.ncbi.nlm.nih.gov): look for DOI in text
           document.querySelectorAll(cfg.itemSelector).forEach(item => {
             if (item.textContent.includes(cfg.doiPattern)) {
               styleSearch(item);
@@ -167,14 +167,26 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
           });
 
         } else if (cfg.container && cfg.linkSelector) {
-          // Google / Scholar style: hide row if MDPI link found
-          document
-            .querySelectorAll(`${cfg.container} ${cfg.linkSelector}`)
-            .forEach(a => {
-              const row = a.closest(cfg.container);
+          // Google / Scholar style:
+          // Find containers that have an MDPI link OR contain MDPI DOI text
+          document.querySelectorAll(cfg.container).forEach(row => {
+            const hasMdpiLink = row.querySelector(cfg.linkSelector); // Check for mdpi.com link
+            const hasMdpiDoiText = row.textContent.includes(MDPI_DOI); // Check for DOI text in the container
+
+            if (hasMdpiLink || hasMdpiDoiText) {
+              // Apply the main style (hide/highlight border) to the whole row
               styleSearch(row);
-              // Note: Search results are styled but not counted towards badge
-            });
+
+              // Find specific links within this MDPI row to apply direct styling
+              // This includes the original MDPI link and any PubMed/PMC links found within the same result block
+              row.querySelectorAll(
+                'a[href*="mdpi.com"], a[href*="pubmed.ncbi.nlm.nih.gov"], a[href*="pmc.ncbi.nlm.nih.gov"]'
+              ).forEach(link => {
+                // Apply the title-specific styling (red text, dotted underline)
+                styleDirectLink(link);
+              });
+            }
+          });
         }
       }
     }

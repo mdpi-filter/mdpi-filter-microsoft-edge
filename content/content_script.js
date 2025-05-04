@@ -9,15 +9,15 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
   const domains     = window.MDPIFilterDomains;
   const debounce    = window.debounce;
 
-  // Common selectors for reference list items
+  // Common selectors for reference list items - Made more specific
   const referenceListSelectors = [
-    'li.c-article-references__item',
-    'div.References p.ReferencesCopy1',
-    'ol > li',
-    'ul > li',
-    'div.citation',
-    'div.reference',
-    'li.separated-list-item'
+    'li.c-article-references__item',    // Nature, BioMed Central, etc.
+    'div.References p.ReferencesCopy1', // Some reference styles
+    'li.html-x',                        // MDPI article reference items
+    'div.citation',                     // Common citation container class
+    'div.reference',                    // Common reference container class
+    'li.separated-list-item'            // EuropePMC search results
+    // Removed 'ol > li', 'ul > li' as they were too general
   ].join(',');
 
   // Retrieve user preference (default = highlight)
@@ -135,29 +135,17 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
     // Run all processing functions
     function runAll() {
-      const hostNow = location.hostname; // Get current hostname dynamically
       processSearchSites(); // This already checks domains internally
-
-      // Only process citations/references if NOT on mdpi.com or its subdomains
-      const isOnMdpiSite = (hostNow === MDPI_DOMAIN || hostNow.endsWith('.' + MDPI_DOMAIN));
-      if (!isOnMdpiSite) {
-        processInlineCitations();
-        processReferenceLists();
-      }
+      processInlineCitations();
+      processReferenceLists();
     }
 
     // Initial + dynamic (SPA/infinite scroll, etc.)
     runAll(); // Initial run
     new MutationObserver(debounce(() => {
-        const hostNow = location.hostname; // Get current hostname dynamically on mutation
         processSearchSites(); // Always run search site check
-
-        // Only run citation/reference checks if NOT on mdpi.com or its subdomains
-        const isOnMdpiSite = (hostNow === MDPI_DOMAIN || hostNow.endsWith('.' + MDPI_DOMAIN));
-        if (!isOnMdpiSite) {
-          processInlineCitations();
-          processReferenceLists();
-        }
+        processInlineCitations();
+        processReferenceLists();
     })).observe(document.body, {
       childList: true,
       subtree:   true

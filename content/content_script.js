@@ -23,6 +23,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
   // Retrieve user preference (default = highlight)
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     const highlightStyle = '2px solid red';
+    const currentHost = location.hostname; // Get the current hostname
 
     // A: Hide or highlight a search‐result element
     const styleSearch = el => {
@@ -133,16 +134,28 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       });
     }
 
-    // Run all three
+    // Run all processing functions
     function runAll() {
-      processSearchSites();
-      processInlineCitations();
-      processReferenceLists();
+      processSearchSites(); // This already checks domains internally
+
+      // Only process citations/references if NOT on mdpi.com
+      if (currentHost !== MDPI_DOMAIN) {
+        processInlineCitations();
+        processReferenceLists();
+      }
     }
 
     // Initial + dynamic (SPA/infinite scroll, etc.)
     runAll();
-    new MutationObserver(debounce(runAll)).observe(document.body, {
+    new MutationObserver(debounce(() => {
+        processSearchSites(); // Always run search site check
+
+        // Only run citation/reference checks if NOT on mdpi.com
+        if (currentHost !== MDPI_DOMAIN) {
+          processInlineCitations();
+          processReferenceLists();
+        }
+    })).observe(document.body, {
       childList: true,
       subtree:   true
     });

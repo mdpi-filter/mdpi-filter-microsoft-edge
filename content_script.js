@@ -1,77 +1,107 @@
 // content_script.js
 
-// Patterns to detect MDPI content
-const MDPI_DOMAIN = 'mdpi.com';
+// ——————————————————————————
+// 1. MDPI detection patterns
+// ——————————————————————————
+const MDPI_DOMAIN     = 'mdpi.com';
 const MDPI_DOI_PREFIX = '10.3390/';
 
-// Site definitions for Google & Scholar
-const SITE_SELECTORS = [
-  { match: /www\.google\.com/, container: '.g' },
-  { match: /scholar\.google\.com/, container: '.gs_r' }
-];
-
-// Load user preference, defaulting to "highlight"
+// ——————————————————————————
+// 2. Load user preference
+// ——————————————————————————
 chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
   const highlightStyle = '2px solid red';
 
-  /**
-   * Hide or highlight any result elements containing a link to mdpi.com
-   * on Google or Google Scholar.
-   */
-  function processGoogleLike() {
-    const hostname = window.location.hostname;
-    const site = SITE_SELECTORS.find(s => s.match.test(hostname));
-    if (!site) return;
+  // helper to either hide or highlight an element
+  function styleResult(el) {
+    if (mode === 'hide') {
+      el.style.display = 'none';
+    } else {
+      el.style.border  = highlightStyle;
+      el.style.padding = '5px';
+    }
+  }
 
-    document.querySelectorAll(`${site.container} a[href*="${MDPI_DOMAIN}"]`)
+  // ——————————————————————————
+  // 3. Per-site processing functions
+  // ——————————————————————————
+
+  // 3.a Google.com web search (results live under <div class="g">…)
+  function processGoogleWeb() {
+    document
+      .querySelectorAll(`div.g a[href*="${MDPI_DOMAIN}"]`)
       .forEach(link => {
-        const resultEl = link.closest(site.container);
-        if (!resultEl) return;
+        const row = link.closest('div.g');
+        if (row) styleResult(row);
+      });
+  }
 
-        if (mode === 'hide') {
-          resultEl.style.display = 'none';
-        } else {
-          resultEl.style.border = highlightStyle;
-          resultEl.style.padding = '5px';
+  // 3.b Google Scholar (<div class="gs_r">…)
+  function processScholar() {
+    document
+      .querySelectorAll(`div.gs_r a[href*="${MDPI_DOMAIN}"]`)
+      .forEach(link => {
+        const row = link.closest('div.gs_r');
+        if (row) styleResult(row);
+      });
+  }
+
+  // 3.c PubMed (look for DOI prefix 10.3390/ in the full-citation span)
+  function processPubmed() {
+    document
+      .querySelectorAll('article.full-docsum')
+      .forEach(item => {
+        const cit = item.querySelector('.docsum-journal-citation.full-journal-citation');
+        if (cit && cit.textContent.includes(MDPI_DOI_PREFIX)) {
+          styleResult(item);
         }
       });
   }
 
-  /**
-   * Hide or highlight any PubMed results whose
-   * DOI begins with 10.3390/ (all MDPI DOIs).
-   */
-  function processPubmed() {
-    document.querySelectorAll('article.full-docsum').forEach(item => {
-      const citation = item.querySelector('.docsum-journal-citation.full-journal-citation');
-      if (!citation) return;
-
-      if (citation.textContent.includes(MDPI_DOI_PREFIX)) {
-        if (mode === 'hide') {
-          item.style.display = 'none';
-        } else {
-          item.style.border = highlightStyle;
-          item.style.padding = '5px';
+  // 3.d Europe PMC (any <li.separated-list-item> whose .citation text includes “MDPI”)
+  function processEuropePMC() {
+    document
+      .querySelectorAll('li.separated-list-item .citation')
+      .forEach(citDiv => {
+        // many EuropePMC citations bold “MDPI” in the description
+        if (citDiv.innerHTML.includes('<b>MDPI</b>')) {
+          const row = citDiv.closest('li.separated-list-item');
+          if (row) styleResult(row);
         }
-      }
-    });
+      });
   }
 
-  /**
-   * Dispatch to the correct processor based on which site we're on.
-   */
-  function processResults() {
-    if (/pubmed\.ncbi\.nlm\.nih\.gov/.test(location.hostname)) {
+  // ——————————————————————————
+  // 4. Dispatch based on host
+  // ——————————————————————————
+  function processAll() {
+    const host = location.hostname;
+
+    // Google Web
+    if (host === 'www.google.com' && location.pathname === '/search') {
+      processGoogleWeb();
+    }
+
+    // Google Scholar
+    if (host === 'scholar.google.com') {
+      processScholar();
+    }
+
+    // PubMed
+    if (host === 'pubmed.ncbi.nlm.nih.gov') {
       processPubmed();
-    } else {
-      processGoogleLike();
+    }
+
+    // Europe PMC
+    if (host.endsWith('europepmc.org')) {
+      processEuropePMC();
     }
   }
 
-  // Initial run
-  processResults();
+  // run once now…
+  processAll();
 
-  // Re-run on dynamic updates (infinite scroll, AJAX, etc.)
-  new MutationObserver(processResults)
+  // …and whenever the page mutates (infinite scroll, AJAX, etc.)
+  new MutationObserver(processAll)
     .observe(document.body, { childList: true, subtree: true });
 });

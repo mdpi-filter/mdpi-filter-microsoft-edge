@@ -138,8 +138,9 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       const hostNow = location.hostname; // Get current hostname dynamically
       processSearchSites(); // This already checks domains internally
 
-      // Only process citations/references if NOT on mdpi.com
-      if (hostNow !== MDPI_DOMAIN) {
+      // Only process citations/references if NOT on mdpi.com or its subdomains
+      const isOnMdpiSite = (hostNow === MDPI_DOMAIN || hostNow.endsWith('.' + MDPI_DOMAIN));
+      if (!isOnMdpiSite) {
         processInlineCitations();
         processReferenceLists();
       }
@@ -151,8 +152,9 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         const hostNow = location.hostname; // Get current hostname dynamically on mutation
         processSearchSites(); // Always run search site check
 
-        // Only run citation/reference checks if NOT on mdpi.com
-        if (hostNow !== MDPI_DOMAIN) {
+        // Only run citation/reference checks if NOT on mdpi.com or its subdomains
+        const isOnMdpiSite = (hostNow === MDPI_DOMAIN || hostNow.endsWith('.' + MDPI_DOMAIN));
+        if (!isOnMdpiSite) {
           processInlineCitations();
           processReferenceLists();
         }

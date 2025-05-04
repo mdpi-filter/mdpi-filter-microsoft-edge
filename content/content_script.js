@@ -23,7 +23,6 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
   // Retrieve user preference (default = highlight)
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     const highlightStyle = '2px solid red';
-    const currentHost = location.hostname; // Get the current hostname
 
     // A: Hide or highlight a search‐result element
     const styleSearch = el => {
@@ -136,22 +135,24 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
     // Run all processing functions
     function runAll() {
+      const hostNow = location.hostname; // Get current hostname dynamically
       processSearchSites(); // This already checks domains internally
 
       // Only process citations/references if NOT on mdpi.com
-      if (currentHost !== MDPI_DOMAIN) {
+      if (hostNow !== MDPI_DOMAIN) {
         processInlineCitations();
         processReferenceLists();
       }
     }
 
     // Initial + dynamic (SPA/infinite scroll, etc.)
-    runAll();
+    runAll(); // Initial run
     new MutationObserver(debounce(() => {
+        const hostNow = location.hostname; // Get current hostname dynamically on mutation
         processSearchSites(); // Always run search site check
 
         // Only run citation/reference checks if NOT on mdpi.com
-        if (currentHost !== MDPI_DOMAIN) {
+        if (hostNow !== MDPI_DOMAIN) {
           processInlineCitations();
           processReferenceLists();
         }

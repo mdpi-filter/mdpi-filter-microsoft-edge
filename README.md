@@ -39,5 +39,5 @@
 
 ## 📄 License
 
-- **Code**: [AGPL-3.0](LICENSE)  
-- **Logo**: [CC-BY-SA-4.0](LICENSE)
+- **Code**: [AGPL-3.0](LICENSE-CODE)  
+- **Logo**: [CC-BY-SA-4.0](LICENSE-LOGO)

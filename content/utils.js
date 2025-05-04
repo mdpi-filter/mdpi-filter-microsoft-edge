@@ -1,8 +1,8 @@
 // content/utils.js
 window.debounce = (fn, ms = 200) => {
-  let timeout;
+  let timer;
   return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), ms);
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
   };
 };

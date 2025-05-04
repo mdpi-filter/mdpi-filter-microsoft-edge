@@ -169,23 +169,25 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         } else if (cfg.container) {
           // Google / Scholar style:
           document.querySelectorAll(cfg.container).forEach(row => {
+            const rowText = row.textContent || ''; // Cache text content
+
             // Check 1: Does the row contain the MDPI DOI text?
-            const hasMdpiDoiText = row.textContent.includes(MDPI_DOI);
+            const hasMdpiDoiText = rowText.includes(MDPI_DOI);
             // Check 2: Does the row contain a direct MDPI link?
             const mdpiLink = row.querySelector(cfg.linkSelector); // 'a[href*="mdpi.com"]'
             // Check 3: Does the row contain any link with the MDPI DOI in its href or a data attribute?
             const hasLinkWithMdpiDoi = row.querySelector(`a[href*="${MDPI_DOI}"], a[data-doi*="${MDPI_DOI}"], a[data-article-id*="${MDPI_DOI}"]`);
             // Check 4: Does the row text mention "MDPI" (case-insensitive)?
-            const hasMdpiMention = /MDPI/i.test(row.textContent);
+            const hasMdpiMention = /MDPI/i.test(rowText);
+            // Check 5: Does the row text mention a known MDPI journal (using word boundaries)?
+            const hasMdpiJournalMention = /\b(Nutrients|Int\.? J\.? Mol\.? Sci\.?|IJMS|Sensors|Materials|Remote Sens\.|Sustainability|Cancers|Viruses|Toxins|Molecules|Polymers|Energies|Water|Cells|Genes|Pharmaceuticals|Catalysts|Coatings|Electronics|Fermentation|Foods|Inorganics|Land|Marine Drugs|Metabolites|Minerals|Nanomaterials|Plants|Religions|Vaccines|Animals|Antibiotics|Antioxidants|Appl\. Sci\.|Atmosphere|Axioms|Behavioral Sci\.|Biomedicines|Buildings|Chemosensors|Children|Climate|Computation|Cosmetics|Cryptography|Crystals|Data|Diagnostics|Diversity|Drones|Econometrics|Education Sci\.|Environments|Fibers|Fluids|Forests|Future Internet|Galaxies|Games|Gels|Geosciences|Healthcare|Horticulturae|Humans|Hydrology|Information|Insects|Instruments|IoT|ISPRS J Geoinf|J\. Clin\. Med\.|JCM|J\. Dev\. Biol\.|JDB|J\. Funct\. Biomater\.|JFB|J\. Fungi|J\. Imaging|JI|J\. Intell\.|J\. Mar\. Sci\. Eng\.|JMSE|J\. Pers\. Med\.|JPM|J\. Theor\. Appl\. Electron\. Commer\. Res\.|JTAER|Life|Logistics|Lubricants|Machines|Magnetochemistry|Mathematics|Medicina|Membranes|Metals|Micromachines|Molbank|Nanomaterials|Photonics|Processes|Prosthesis|Quantum Beam Sci\.|Quaternary|Recycling|Risks|Robotics|Sci|Separations|Smart Cities|Societies|Soils Syst\.|Stats|Surfaces|Symmetry|Systems|Technologies|Toxics|Universe|Urban Sci\.|Vet\. Sci\.|Vibration|World Electr\. Veh\. J\.|WEVJ)\b/i.test(rowText); // Added more journals, case-insensitive
 
-            // Condition: Style if DOI text is found OR a direct MDPI link is found OR a link with the DOI is found OR "MDPI" is mentioned
-            if (hasMdpiDoiText || mdpiLink || hasLinkWithMdpiDoi || hasMdpiMention) {
+            // Condition: Style if any check passes
+            if (hasMdpiDoiText || mdpiLink || hasLinkWithMdpiDoi || hasMdpiMention || hasMdpiJournalMention) {
               // Apply the main style (hide/highlight border) to the whole row
               styleSearch(row);
 
               // Find the primary link within this row to apply title styling
-              // This link could point to MDPI, PMC, PubMed, ResearchGate, PDF, etc.
-              // Prioritize links with h3, then the specific Google link selector, then any link
               const primaryLink = row.querySelector('a h3') // Link containing h3
                                   ?.closest('a')
                                   || row.querySelector('a[jsname="UWckNb"]') // Google specific link structure
@@ -196,7 +198,6 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
                 styleDirectLink(primaryLink);
               }
             }
-            // No 'else' block needed as the combined 'if' handles all cases
           });
         }
       }

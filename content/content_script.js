@@ -13,7 +13,8 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
   const referenceListSelectors = [
     'li.c-article-references__item',    // Nature, BioMed Central, etc.
     'div.References p.ReferencesCopy1', // Some reference styles
-    'li.html-x',                        // MDPI article reference items
+    'li.html-x',                        // MDPI article reference items (older style?)
+    'li.html-xx',                       // MDPI article reference items (newer style?)
     'div.citation',                     // Common citation container class
     'div.reference',                    // Common reference container class
     'li.separated-list-item'            // EuropePMC search results

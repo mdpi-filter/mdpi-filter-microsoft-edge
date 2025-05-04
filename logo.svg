@@ -2,7 +2,10 @@
      width="200" height="200"
      viewBox="0 0 200 200">
 
-  <!-- 1) MDPI text (drawn first, larger size) -->
+  <!-- 1) Background circle -->
+  <circle cx="100" cy="100" r="100" fill="#FFFFFF"/>
+
+  <!-- 2) MDPI text (drawn first, larger size) -->
   <text x="100" y="120"
         text-anchor="middle"
         font-family="Montserrat, sans-serif"
@@ -12,7 +15,7 @@
     MDPI
   </text>
 
-  <!-- 2) Red “no” circle & slash (drawn on top) -->
+  <!-- 3) Red “no” circle & slash (drawn on top) -->
   <circle cx="100" cy="100" r="90"
           fill="none"
           stroke="#E2211C"

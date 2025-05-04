@@ -59,10 +59,24 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       }
     };
 
-    // D: Style direct links to MDPI articles
+    // D: Style direct links to MDPI articles - Target inner element like H3
     const styleDirectLink = link => {
-      link.style.color = '#E2211C'; // Use the same red color
-      link.style.borderBottom = '1px dotted #E2211C'; // Add a subtle underline
+      // Try to find the main title element (often H3 on search results)
+      const titleElement = link.querySelector('h3');
+      // Apply style to the title element if found, otherwise fallback to the link itself
+      const targetElement = titleElement || link;
+      targetElement.style.color = '#E2211C'; // Use the same red color
+      // Apply underline only to the specific target, not the whole block link
+      targetElement.style.borderBottom = '1px dotted #E2211C';
+      // Ensure the target is displayed in a way that border-bottom works as expected
+      if (targetElement !== link) {
+         // If we styled an inner element, ensure the parent link doesn't have conflicting underlines
+         link.style.textDecoration = 'none'; // Remove default underline from parent <a> if needed
+      }
+       // Ensure the target element is at least inline-block for border-bottom to potentially show correctly
+       if (window.getComputedStyle(targetElement).display === 'inline') {
+           targetElement.style.display = 'inline-block';
+       }
     };
 
     // Function to check if a list item element is MDPI and add to set
@@ -205,12 +219,10 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       const mdpiArticleRegex = /^https?:\/\/www\.mdpi\.com\/\d{4}-\d{4}\/\d+\/\d+\/\d+(\/.*)?$/;
       document.querySelectorAll(`a[href^="https://www.mdpi.com/"]`).forEach(a => {
         const href = a.getAttribute('href');
-        if (href && mdpiArticleRegex.test(href)) {
-          // Check if it's already part of a styled reference item to avoid double styling
-          if (!a.closest(referenceListSelectors.split(',').map(s => s.trim() + '[style*="border"]').join(','))) {
-            styleDirectLink(a);
+        // Check if the link matches the article pattern AND is not already inside a styled reference item
+        if (href && mdpiArticleRegex.test(href) && !a.closest(referenceListSelectors.split(',').map(s => s.trim() + '[style*="border"]').join(','))) {
+            styleDirectLink(a); // Pass the <a> tag to the styling function
             // Note: Direct links are styled but not counted towards the badge count
-          }
         }
       });
     }

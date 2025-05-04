@@ -58,8 +58,8 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
       const hasMdpiText = item.textContent?.includes(MDPI_DOI); // Check text content for DOI
-      // Check for common MDPI journal names (case-insensitive), using word boundaries
-      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS)\b/i.test(item.textContent); // Added word boundaries \b
+      // Check for common MDPI journal names (case-sensitive), using word boundaries
+      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS)\b/.test(item.textContent); // Removed 'i' flag for case-sensitivity
       return hasMdpiLink || hasMdpiText || hasMdpiJournal;
     };
 

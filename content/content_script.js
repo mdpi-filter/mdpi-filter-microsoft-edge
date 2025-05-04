@@ -56,6 +56,12 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       }
     };
 
+    // D: Style direct links to MDPI articles
+    const styleDirectLink = link => {
+      link.style.color = '#E2211C'; // Use the same red color
+      link.style.borderBottom = '1px dotted #E2211C'; // Add a subtle underline
+    };
+
     // Function to check if a list item element is MDPI and add to set
     const isMdpiReferenceItem = (item) => {
       if (!item) return false;
@@ -189,12 +195,29 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       });
     }
 
+    // 4. Process direct links to MDPI articles everywhere
+    function processDirectMdpiLinks() {
+      // Regex to match mdpi.com URLs with typical article path structure (e.g., /issn/volume/issue/article)
+      const mdpiArticleRegex = /^https?:\/\/www\.mdpi\.com\/\d{4}-\d{4}\/\d+\/\d+\/\d+(\/.*)?$/;
+      document.querySelectorAll(`a[href^="https://www.mdpi.com/"]`).forEach(a => {
+        const href = a.getAttribute('href');
+        if (href && mdpiArticleRegex.test(href)) {
+          // Check if it's already part of a styled reference item to avoid double styling
+          if (!a.closest(referenceListSelectors.split(',').map(s => s.trim() + '[style*="border"]').join(','))) {
+            styleDirectLink(a);
+            // Note: Direct links are styled but not counted towards the badge count
+          }
+        }
+      });
+    }
+
     // Run all processing functions
     function runAll() {
       uniqueMdpiReferences.clear(); // Clear set before reprocessing
       processSearchSites(); // This already checks domains internally
       processInlineCitations();
       processReferenceLists();
+      processDirectMdpiLinks(); // Add processing for direct links
       updateBadgeCount(); // Update badge after processing
     }
 

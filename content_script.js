@@ -7,7 +7,7 @@ const MDPI_DOMAIN     = 'mdpi.com';
 const MDPI_DOI_PREFIX = '10.3390/';
 
 // ——————————————————————————
-// 2. Load user preference
+// 2. Load user preference (default: highlight)
 // ——————————————————————————
 chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
   const highlightStyle = '2px solid red';
@@ -26,7 +26,7 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
   // 3. Per-site processing functions
   // ——————————————————————————
 
-  // 3.a Google.com web search (results live under <div class="g">…)
+  // 3.a Google Web Search
   function processGoogleWeb() {
     document
       .querySelectorAll(`div.g a[href*="${MDPI_DOMAIN}"]`)
@@ -36,7 +36,7 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
       });
   }
 
-  // 3.b Google Scholar (<div class="gs_r">…)
+  // 3.b Google Scholar
   function processScholar() {
     document
       .querySelectorAll(`div.gs_r a[href*="${MDPI_DOMAIN}"]`)
@@ -46,7 +46,7 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
       });
   }
 
-  // 3.c PubMed (look for DOI prefix 10.3390/ in the full-citation span)
+  // 3.c PubMed (by DOI prefix)
   function processPubmed() {
     document
       .querySelectorAll('article.full-docsum')
@@ -58,15 +58,34 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
       });
   }
 
-  // 3.d Europe PMC (any <li.separated-list-item> whose .citation text includes “MDPI”)
+  // 3.d Europe PMC (by bolded “MDPI”)
   function processEuropePMC() {
     document
       .querySelectorAll('li.separated-list-item .citation')
       .forEach(citDiv => {
-        // many EuropePMC citations bold “MDPI” in the description
         if (citDiv.innerHTML.includes('<b>MDPI</b>')) {
           const row = citDiv.closest('li.separated-list-item');
           if (row) styleResult(row);
+        }
+      });
+  }
+
+  // 3.e In-text reference citations (outline & red sup)
+  function processInlineCitations() {
+    // Any anchor that acts as a bibliographic reference control
+    document
+      .querySelectorAll('a[role="doc-biblioref"]')
+      .forEach(a => {
+        // outline the entire dropBlock if present, otherwise the <a> itself
+        const dropBlock = a.closest('.dropBlock') || a;
+        dropBlock.style.outline       = highlightStyle;
+        dropBlock.style.outlineOffset = '2px';
+
+        // find the <sup> inside and color it red
+        const sup = a.querySelector('sup');
+        if (sup) {
+          sup.style.color = '#E2211C';
+          sup.style.fontWeight = 'bold';
         }
       });
   }
@@ -77,31 +96,30 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
   function processAll() {
     const host = location.hostname;
 
-    // Google Web
     if (host === 'www.google.com' && location.pathname === '/search') {
       processGoogleWeb();
     }
 
-    // Google Scholar
     if (host === 'scholar.google.com') {
       processScholar();
     }
 
-    // PubMed
     if (host === 'pubmed.ncbi.nlm.nih.gov') {
       processPubmed();
     }
 
-    // Europe PMC
     if (host.endsWith('europepmc.org')) {
       processEuropePMC();
     }
+
+    // run inline-citation styling on **any** page
+    processInlineCitations();
   }
 
-  // run once now…
+  // Initial run
   processAll();
 
-  // …and whenever the page mutates (infinite scroll, AJAX, etc.)
+  // Re-run on dynamic updates (infinite scroll, AJAX, etc.)
   new MutationObserver(processAll)
     .observe(document.body, { childList: true, subtree: true });
 });

@@ -9,6 +9,17 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
   const domains     = window.MDPIFilterDomains;
   const debounce    = window.debounce;
 
+  // Common selectors for reference list items
+  const referenceListSelectors = [
+    'li.c-article-references__item',
+    'div.References p.ReferencesCopy1',
+    'ol > li',
+    'ul > li',
+    'div.citation',
+    'div.reference',
+    'li.separated-list-item'
+  ].join(',');
+
   // Retrieve user preference (default = highlight)
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     const highlightStyle = '2px solid red';
@@ -38,6 +49,18 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         label.style.color      = '#E2211C';
         label.style.fontWeight = 'bold';
       }
+    };
+
+    // Function to check if a list item element is MDPI
+    const isMdpiReferenceItem = (item) => {
+      if (!item) return false;
+      const hasMdpiLink = item.querySelector(
+        `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
+      );
+      const hasMdpiText = item.textContent?.includes(MDPI_DOI); // Check text content for DOI
+      // Could add journal name checks here in the future if needed
+      // const hasMdpiJournal = /Nutrients|Int J Mol Sci/i.test(item.textContent);
+      return hasMdpiLink || hasMdpiText; // || hasMdpiJournal;
     };
 
     // 1. Process search‐site results *only* on the four engines
@@ -80,19 +103,20 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
     // 2. Process inline footnotes everywhere
     function processInlineCitations() {
-      // Grab all anchors that point to a fragment
-      document.querySelectorAll('a[href*="#"]').forEach(a => { // Changed selector from 'a[href^="#"]'
+      document.querySelectorAll('a[href*="#"]').forEach(a => {
         const href = a.getAttribute('href');
-        if (!href || !href.includes('#')) return; // Ensure href exists and contains #
-        const frag = href.slice(href.lastIndexOf('#') + 1); // Extract fragment after the last #
-        if (!frag) return; // Skip if fragment is empty
+        if (!href || !href.includes('#')) return;
+        const frag = href.slice(href.lastIndexOf('#') + 1);
+        if (!frag) return;
 
         const refEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
         if (!refEl) return;
 
-        const html = refEl.innerHTML;
-        if (html.includes(MDPI_DOMAIN) || html.includes(MDPI_DOI)) {
-          // If there's a <sup> inside, style that; otherwise style the <a>
+        // Find the ancestor list item using the common selectors
+        const listItem = refEl.closest(referenceListSelectors);
+
+        // Check the list item (not just the target element) for MDPI indicators
+        if (isMdpiReferenceItem(listItem)) {
           const sup = a.querySelector('sup');
           styleSup(sup || a);
         }
@@ -101,20 +125,9 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
     // 3. Process reference‐list entries everywhere
     function processReferenceLists() {
-      const selectors = [
-        'li.c-article-references__item',
-        'div.References p.ReferencesCopy1',
-        'ol > li',
-        'ul > li',
-        'div.citation',
-        'div.reference',
-        'li.separated-list-item'
-      ].join(',');
-      document.querySelectorAll(selectors).forEach(item => {
-        // Detect MDPI by link, DOI or data-track-item_id
-        if (item.querySelector(
-          `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
-        )) {
+      document.querySelectorAll(referenceListSelectors).forEach(item => {
+        // Use the common check function
+        if (isMdpiReferenceItem(item)) {
           styleRef(item);
         }
       });

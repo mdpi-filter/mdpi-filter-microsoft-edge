@@ -17,13 +17,13 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     }
   }
 
-  // (B) Inline <sup> citation styling (always)
+  // (B) Inline <sup> citation styling
   function styleInlineSup(sup) {
     sup.style.color      = '#E2211C';
     sup.style.fontWeight = 'bold';
   }
 
-  // (C) Reference-list entry styling (always)
+  // (C) Reference-list entry styling
   function styleRefEntry(item) {
     item.style.border  = highlightStyle;
     item.style.padding = '5px';
@@ -37,52 +37,49 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
   // 1. Search-site filters
   function processSearchSites() {
     const h = location.hostname;
+    // Google Web
     if (h === 'www.google.com' && location.pathname.startsWith('/search')) {
-      document
-        .querySelectorAll(`div.g a[href*="${MDPI_DOMAIN}"]`)
+      document.querySelectorAll(`div.g a[href*="${MDPI_DOMAIN}"]`)
         .forEach(link => styleSearchResult(link.closest('div.g')));
     }
+    // Google Scholar
     if (h === 'scholar.google.com') {
-      document
-        .querySelectorAll(`div.gs_r a[href*="${MDPI_DOMAIN}"]`)
+      document.querySelectorAll(`div.gs_r a[href*="${MDPI_DOMAIN}"]`)
         .forEach(link => styleSearchResult(link.closest('div.gs_r')));
     }
+    // PubMed
     if (h === 'pubmed.ncbi.nlm.nih.gov') {
-      document
-        .querySelectorAll('article.full-docsum')
-        .forEach(item => {
-          const cit = item.querySelector('.docsum-journal-citation.full-journal-citation');
-          if (cit?.textContent.includes(MDPI_DOI_PREFIX)) {
-            styleSearchResult(item);
-          }
-        });
+      document.querySelectorAll('article.full-docsum').forEach(item => {
+        const cit = item.querySelector('.docsum-journal-citation.full-journal-citation');
+        if (cit?.textContent.includes(MDPI_DOI_PREFIX)) {
+          styleSearchResult(item);
+        }
+      });
     }
+    // Europe PMC
     if (h.endsWith('europepmc.org')) {
-      document
-        .querySelectorAll('li.separated-list-item .citation')
-        .forEach(citDiv => {
-          if (citDiv.innerHTML.includes('<b>MDPI</b>')) {
-            styleSearchResult(citDiv.closest('li.separated-list-item'));
-          }
-        });
+      document.querySelectorAll('li.separated-list-item .citation').forEach(citDiv => {
+        if (citDiv.innerHTML.includes('<b>MDPI</b>')) {
+          styleSearchResult(citDiv.closest('li.separated-list-item'));
+        }
+      });
     }
   }
 
   // 2. Universal inline <sup> citation styling
   function processInlineCitations() {
-    // jissn-style footnote anchors
-    document
-      .querySelectorAll('a[data-test="citation-ref"]')
-      .forEach(a => {
-        // Get only the text node or <sup> inside
-        const sup = a.querySelector('sup') || a;
-        // Resolve the fragment to find the reference paragraph
-        const frag = a.getAttribute('href')?.split('#')[1];
-        const p    = frag && document.getElementById(frag);
-        if (p?.innerHTML.includes(MDPI_DOMAIN) || p?.innerHTML.includes(MDPI_DOI_PREFIX)) {
-          styleInlineSup(sup);
-        }
-      });
+    // PubPeer-style & JISSN-style
+    document.querySelectorAll(
+      'a[role="doc-biblioref"] sup, a[data-test="citation-ref"] sup'
+    ).forEach(sup => {
+      // Resolve the fragment to find the reference block
+      const frag = sup.closest('a')?.getAttribute('href')?.split('#')[1];
+      const refEl = frag && document.getElementById(frag);
+      if (refEl?.innerHTML.includes(MDPI_DOMAIN) ||
+          refEl?.innerHTML.includes(MDPI_DOI_PREFIX)) {
+        styleInlineSup(sup);
+      }
+    });
   }
 
   // 3. Universal reference-list styling
@@ -97,14 +94,15 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     ].join(',');
     document.querySelectorAll(selectors).forEach(item => {
       if (item.querySelector(
-        `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI_PREFIX}"], a[data-track-item_id*="${MDPI_DOI_PREFIX}"]`
+        `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI_PREFIX}"], ` +
+        `a[data-track-item_id*="${MDPI_DOI_PREFIX}"]`
       )) {
         styleRefEntry(item);
       }
     });
   }
 
-  // Run all routines
+  // 4. Run all, and re-run on dynamic updates
   function runAll() {
     processSearchSites();
     processInlineCitations();

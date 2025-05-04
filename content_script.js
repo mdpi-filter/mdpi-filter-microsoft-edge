@@ -1,18 +1,14 @@
 // content_script.js
 
-// ——————————————————————————
 // 1. MDPI detection patterns
-// ——————————————————————————
 const MDPI_DOMAIN     = 'mdpi.com';
 const MDPI_DOI_PREFIX = '10.3390/';
 
-// ——————————————————————————
 // 2. Load user preference (default: highlight)
-// ——————————————————————————
 chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
   const highlightStyle = '2px solid red';
 
-  // helper to either hide or highlight an element
+  // helper to hide or highlight an element
   function styleResult(el) {
     if (!el) return;
     if (mode === 'hide') {
@@ -23,22 +19,17 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     }
   }
 
-  // ——————————————————————————
-  // 3. MDPI filters for search sites
-  // ——————————————————————————
-
+  // 3. Search-site filters (unchanged)
   function processGoogleWeb() {
     document
       .querySelectorAll(`div.g a[href*="${MDPI_DOMAIN}"]`)
       .forEach(link => styleResult(link.closest('div.g')));
   }
-
   function processScholar() {
     document
       .querySelectorAll(`div.gs_r a[href*="${MDPI_DOMAIN}"]`)
       .forEach(link => styleResult(link.closest('div.gs_r')));
   }
-
   function processPubmed() {
     document
       .querySelectorAll('article.full-docsum')
@@ -49,7 +40,6 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
         }
       });
   }
-
   function processEuropePMC() {
     document
       .querySelectorAll('li.separated-list-item .citation')
@@ -60,41 +50,57 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
       });
   }
 
-  // ——————————————————————————
-  // 4. Citation styling everywhere
-  // ——————————————————————————
-
-  // 4.a In-text <sup> citations (color only)
+  // 4.a Inline <sup> citations — only if they point to MDPI
   function processInlineCitations() {
     document
-      .querySelectorAll('a[role="doc-biblioref"] sup')
-      .forEach(sup => {
-        sup.style.color      = '#E2211C';
-        sup.style.fontWeight = 'bold';
+      .querySelectorAll('a[role="doc-biblioref"]')
+      .forEach(a => {
+        const sup = a.querySelector('sup');
+        if (!sup) return;
+
+        // Find the associated dropBlock holder by matching data-db-target
+        const targetFor = a.getAttribute('data-db-target-for');
+        let citationNode = null;
+        if (targetFor) {
+          const holder = document.querySelector(
+            `.dropBlock__holder[data-db-target-of="${targetFor}"]`
+          );
+          citationNode = holder && holder.querySelector('.citation');
+        }
+
+        // If that citation block contains an MDPI DOI or link, color the <sup>
+        if (
+          citationNode &&
+          (
+            citationNode.innerHTML.includes(MDPI_DOMAIN) ||
+            citationNode.innerHTML.includes(MDPI_DOI_PREFIX)
+          )
+        ) {
+          sup.style.color      = '#E2211C';
+          sup.style.fontWeight = 'bold';
+        }
       });
   }
 
-  // 4.b Reference-list entries (outline only MDPI ones)
+  // 4.b Reference-list entries — outline only MDPI ones, and red-bold their label
   function processReferenceLists() {
-    // common reference-list selectors across journals
-    const refSelectors = [
-      'ol > li',                // numbered lists
-      'ul > li',                // bullet lists
-      'div.citation',           // EuropePMC & others
-      'div.reference',          // generic
-      'li.separated-list-item'  // EuropePMC
+    const selectors = [
+      'ol > li',
+      'ul > li',
+      'div.citation',
+      'div.reference',
+      'li.separated-list-item'
     ];
     document
-      .querySelectorAll(refSelectors.join(','))
+      .querySelectorAll(selectors.join(','))
       .forEach(item => {
-        // if there's a direct MDPI link or DOI in here
         if (item.querySelector(`a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI_PREFIX}"]`)) {
           styleResult(item);
-
-          // also color the leading number/label if present
-          const label = item.querySelector('.label') || // some sites
-                        item.querySelector('> span')   || // fallback
-                        item.firstChild;                 // very fallback
+          // colour the leading number/label if present
+          const label =
+            item.querySelector('.label') ||
+            item.querySelector('> span')   ||
+            item.firstChild;
           if (label && label.style) {
             label.style.color      = '#E2211C';
             label.style.fontWeight = 'bold';
@@ -103,12 +109,9 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
       });
   }
 
-  // ——————————————————————————
-  // 5. Dispatch based on host & then global citation styling
-  // ——————————————————————————
+  // 5. Dispatch
   function processAll() {
     const host = location.hostname;
-
     if (host === 'www.google.com' && location.pathname.startsWith('/search')) {
       processGoogleWeb();
     }
@@ -122,13 +125,15 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
       processEuropePMC();
     }
 
-    // Citation tweaks on **any** page:
+    // Always run the two citation routines
     processInlineCitations();
     processReferenceLists();
   }
 
-  // initial run + dynamic updates
+  // Initial + dynamic
   processAll();
-  new MutationObserver(processAll)
-    .observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(processAll).observe(document.body, {
+    childList: true,
+    subtree:   true
+  });
 });

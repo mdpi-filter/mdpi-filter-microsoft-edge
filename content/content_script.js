@@ -5,27 +5,27 @@ const MDPI_DOI    = '10.3390';
 const domains     = window.MDPIFilterDomains;
 const debounce    = window.debounce;
 
-// Load user mode (highlight or hide)
+// Retrieve user preference (default = highlight)
 chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
   const highlightStyle = '2px solid red';
 
-  // A: Style search-site results
+  // A: Hide or highlight a search‐result element
   const styleSearch = el => {
     if (!el) return;
     if (mode === 'hide') el.style.display = 'none';
     else {
-      el.style.border = highlightStyle;
+      el.style.border  = highlightStyle;
       el.style.padding = '5px';
     }
   };
 
-  // B: Style inline <sup> footnotes
-  const styleSup = sup => {
-    sup.style.color      = '#E2211C';
-    sup.style.fontWeight = 'bold';
+  // B: Color an inline footnote (<sup> or <a>) red
+  const styleSup = supOrA => {
+    supOrA.style.color      = '#E2211C';
+    supOrA.style.fontWeight = 'bold';
   };
 
-  // C: Style MDPI reference-list entries
+  // C: Outline an entry in a reference list
   const styleRef = item => {
     item.style.border  = highlightStyle;
     item.style.padding = '5px';
@@ -36,57 +36,74 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     }
   };
 
-  // 1. Search-site filtering
+  // 1. Process search‐site results *only* on the four engines
   function processSearchSites() {
-    const h = location.hostname;
+    const host = location.hostname;
     for (const cfg of Object.values(domains)) {
-      const matchHost = cfg.host ? h === cfg.host : cfg.hostRegex.test(h);
+      const matchHost = cfg.host
+        ? host === cfg.host
+        : cfg.hostRegex?.test(host);
       const matchPath = !cfg.path || cfg.path.test(location.pathname);
-      if (matchHost && matchPath) {
-        if (cfg.itemSelector && cfg.doiPattern) {
-          // PubMed‐style
-          document.querySelectorAll(cfg.itemSelector).forEach(item => {
-            if (item.textContent.includes(cfg.doiPattern)) {
-              styleSearch(item);
-            }
-          });
-        } else {
-          // Google/WebSchol
-          document.querySelectorAll(
-            `${cfg.container} ${cfg.linkSelector}`
-          ).forEach(a => {
+      if (!matchHost || !matchPath) continue;
+
+      if (cfg.itemSelector && cfg.doiPattern) {
+        // PubMed style: look for DOI in text
+        document.querySelectorAll(cfg.itemSelector).forEach(item => {
+          if (item.textContent.includes(cfg.doiPattern)) {
+            styleSearch(item);
+          }
+        });
+
+      } else if (cfg.itemSelector && cfg.htmlContains) {
+        // EuropePMC style: look for HTML snippet
+        document.querySelectorAll(cfg.itemSelector).forEach(item => {
+          if (item.innerHTML.includes(cfg.htmlContains)) {
+            styleSearch(item);
+          }
+        });
+
+      } else if (cfg.container && cfg.linkSelector) {
+        // Google / Scholar style: hide row if MDPI link found
+        document
+          .querySelectorAll(`${cfg.container} ${cfg.linkSelector}`)
+          .forEach(a => {
             const row = a.closest(cfg.container);
             styleSearch(row);
           });
-        }
       }
     }
   }
 
-  // 2. Inline citations globally
+  // 2. Process inline footnotes everywhere
   function processInlineCitations() {
-    document
-      .querySelectorAll('a[role="doc-biblioref"] sup, a[data-test="citation-ref"] sup')
-      .forEach(sup => {
-        const anchor = sup.closest('a');
-        const frag   = anchor?.href.split('#')[1];
-        const refEl  = frag && document.getElementById(frag);
-        if (refEl?.innerHTML.includes(MDPI_DOMAIN) ||
-            refEl?.innerHTML.includes(MDPI_DOI)) {
-          styleSup(sup);
-        }
-      });
+    // Grab all anchors that point to a fragment
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      const frag = a.getAttribute('href').slice(1);
+      const refEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
+      if (!refEl) return;
+
+      const html = refEl.innerHTML;
+      if (html.includes(MDPI_DOMAIN) || html.includes(MDPI_DOI)) {
+        // If there's a <sup> inside, style that; otherwise style the <a>
+        const sup = a.querySelector('sup');
+        styleSup(sup || a);
+      }
+    });
   }
 
-  // 3. Reference-list entries globally
+  // 3. Process reference‐list entries everywhere
   function processReferenceLists() {
-    const sel = [
+    const selectors = [
       'li.c-article-references__item',
-      'ol>li', 'ul>li',
-      'div.citation', 'div.reference',
+      'div.References p.ReferencesCopy1',
+      'ol > li',
+      'ul > li',
+      'div.citation',
+      'div.reference',
       'li.separated-list-item'
     ].join(',');
-    document.querySelectorAll(sel).forEach(item => {
+    document.querySelectorAll(selectors).forEach(item => {
+      // Detect MDPI by link, DOI or data-track-item_id
       if (item.querySelector(
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       )) {
@@ -95,14 +112,14 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     });
   }
 
-  // Orchestrator
+  // Run all three
   function runAll() {
     processSearchSites();
     processInlineCitations();
     processReferenceLists();
   }
 
-  // Initial + dynamic
+  // Initial + dynamic (SPA/infinite scroll, etc.)
   runAll();
   new MutationObserver(debounce(runAll)).observe(document.body, {
     childList: true,

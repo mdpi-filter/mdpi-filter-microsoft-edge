@@ -8,6 +8,10 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
   const MDPI_DOI    = '10.3390';
   const domains     = window.MDPIFilterDomains;
   const debounce    = window.debounce;
+  const sanitize    = window.sanitize; // Ensure sanitizer is available
+
+  // Store unique identifiers for MDPI references found
+  const uniqueMdpiReferences = new Set();
 
   // Common selectors for reference list items - Made more specific
   const referenceListSelectors = [
@@ -52,17 +56,41 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       }
     };
 
-    // Function to check if a list item element is MDPI
+    // Function to check if a list item element is MDPI and add to set
     const isMdpiReferenceItem = (item) => {
       if (!item) return false;
       const hasMdpiLink = item.querySelector(
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
-      const hasMdpiText = item.textContent?.includes(MDPI_DOI); // Check text content for DOI
+      const textContent = item.textContent || '';
+      const hasMdpiText = textContent.includes(MDPI_DOI); // Check text content for DOI
       // Check for common MDPI journal names (case-sensitive), using word boundaries
-      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS)\b/.test(item.textContent); // Removed 'i' flag for case-sensitivity
-      return hasMdpiLink || hasMdpiText || hasMdpiJournal;
+      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS)\b/.test(textContent); // Removed 'i' flag for case-sensitivity
+
+      const isMdpi = hasMdpiLink || hasMdpiText || hasMdpiJournal;
+
+      if (isMdpi) {
+        // Use sanitized text content as a unique key
+        const key = sanitize(textContent).trim().slice(0, 100); // Use first 100 chars of sanitized text
+        if (key) {
+            uniqueMdpiReferences.add(key);
+        }
+      }
+      return isMdpi;
     };
+
+    // Function to update badge count
+    const updateBadgeCount = () => {
+        const count = uniqueMdpiReferences.size;
+        // Send count to background script only if > 0
+        if (count > 0) {
+            chrome.runtime.sendMessage({ type: 'mdpiCount', count: count });
+        } else {
+            // Optionally send 0 or a specific message to clear the badge
+             chrome.runtime.sendMessage({ type: 'mdpiCount', count: 0 });
+        }
+    };
+
 
     // 1. Process search‐site results *only* on the four engines
     function processSearchSites() {
@@ -79,6 +107,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
           document.querySelectorAll(cfg.itemSelector).forEach(item => {
             if (item.textContent.includes(cfg.doiPattern)) {
               styleSearch(item);
+              // Note: Search results are styled but not counted towards badge
             }
           });
 
@@ -87,6 +116,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
           document.querySelectorAll(cfg.itemSelector).forEach(item => {
             if (item.innerHTML.includes(cfg.htmlContains)) {
               styleSearch(item);
+              // Note: Search results are styled but not counted towards badge
             }
           });
 
@@ -97,6 +127,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
             .forEach(a => {
               const row = a.closest(cfg.container);
               styleSearch(row);
+              // Note: Search results are styled but not counted towards badge
             });
         }
       }
@@ -117,6 +148,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         const listItem = refEl.closest(referenceListSelectors);
 
         // Check the list item (not just the target element) for MDPI indicators
+        // This will also add the item's key to uniqueMdpiReferences if it's MDPI
         if (isMdpiReferenceItem(listItem)) {
           const sup = a.querySelector('sup');
           styleSup(sup || a);
@@ -128,6 +160,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     function processReferenceLists() {
       document.querySelectorAll(referenceListSelectors).forEach(item => {
         // Use the common check function
+        // This will also add the item's key to uniqueMdpiReferences if it's MDPI
         if (isMdpiReferenceItem(item)) {
           styleRef(item);
         }
@@ -136,17 +169,17 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
     // Run all processing functions
     function runAll() {
+      uniqueMdpiReferences.clear(); // Clear set before reprocessing
       processSearchSites(); // This already checks domains internally
       processInlineCitations();
       processReferenceLists();
+      updateBadgeCount(); // Update badge after processing
     }
 
     // Initial + dynamic (SPA/infinite scroll, etc.)
     runAll(); // Initial run
     new MutationObserver(debounce(() => {
-        processSearchSites(); // Always run search site check
-        processInlineCitations();
-        processReferenceLists();
+        runAll(); // Rerun all checks and update badge
     })).observe(document.body, {
       childList: true,
       subtree:   true

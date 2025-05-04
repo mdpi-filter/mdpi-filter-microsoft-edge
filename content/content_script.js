@@ -103,6 +103,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
     // Function to update badge count
     const updateBadgeCount = () => {
+      try { // Add try block here
         // Only update badge if NOT on a configured search site
         if (isSearchSite()) {
              // Explicitly clear badge on search sites by sending 0
@@ -111,13 +112,13 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         }
 
         const count = uniqueMdpiReferences.size;
-        // Send count to background script only if > 0
-        if (count > 0) {
-            chrome.runtime.sendMessage({ type: 'mdpiCount', count: count });
-        } else {
-            // Optionally send 0 or a specific message to clear the badge
-             chrome.runtime.sendMessage({ type: 'mdpiCount', count: 0 });
-        }
+        // Send count to background script
+        chrome.runtime.sendMessage({ type: 'mdpiCount', count: count });
+
+      } catch (error) {
+          // Ignore errors, context might be invalidated during navigation/reload
+          // console.warn("MDPI Filter: Could not send message to background:", error.message);
+      }
     };
 
     // 1. Process search‐site results *only* on the four engines

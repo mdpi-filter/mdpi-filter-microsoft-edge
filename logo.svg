@@ -18,10 +18,10 @@
   <!-- 3) Red “no” circle & slash (drawn on top) -->
   <circle cx="100" cy="100" r="90"
           fill="none"
-          stroke="#E2211C"
+          stroke="#AC1A15"
           stroke-width="12"/>
   <line x1="50" y1="50" x2="150" y2="150"
-        stroke="#E2211C"
+        stroke="#AC1A15"
         stroke-width="12"
         stroke-linecap="round"/>
 </svg>

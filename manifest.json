@@ -10,17 +10,19 @@
   "host_permissions": [
     "*://www.google.com/*",
     "*://scholar.google.com/*",
-    "*://pubmed.ncbi.nlm.nih.gov/*"
+    "*://pubmed.ncbi.nlm.nih.gov/*",
+    "*://*.europepmc.org/*",
+    "*://www.thelancet.com/*"
   ],
 
   "icons": {
-    "16": "logo.svg",
-    "48": "logo.svg",
+    "16":  "logo.svg",
+    "48":  "logo.svg",
     "128": "logo.svg"
   },
 
   "action": {
-    "default_icon": "logo.svg",
+    "default_icon":  "logo.svg",
     "default_title": "MDPI Filter"
   },
 
@@ -31,10 +33,12 @@
       "matches": [
         "*://www.google.com/search*",
         "*://scholar.google.com/scholar*",
-        "*://pubmed.ncbi.nlm.nih.gov/*"
+        "*://pubmed.ncbi.nlm.nih.gov/*",
+        "*://*.europepmc.org/*",
+        "*://www.thelancet.com/*"
       ],
-      "js": ["content_script.js"],
-      "run_at": "document_idle"
+      "js":       ["content_script.js"],
+      "run_at":   "document_idle"
     }
   ]
 }

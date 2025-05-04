@@ -15,14 +15,25 @@
     "*://www.thelancet.com/*"
   ],
 
-  "icons": {
-    "16":  "logo.svg",
-    "48":  "logo.svg",
-    "128": "logo.svg"
-  },
+- "icons": {
+-   "16":  "logo.svg",
+-   "48":  "logo.svg",
+-   "128": "logo.svg"
+- },
++ "icons": {
++   "16":  "icons/icon-16.png",
++   "48":  "icons/icon-48.png",
++   "128": "icons/icon-128.png"
++ },
 
-  "action": {
-    "default_icon":  "logo.svg",
+- "action": {
+-   "default_icon":  "logo.svg",
++ "action": {
++   "default_icon": {
++     "16":  "icons/icon-16.png",
++     "48":  "icons/icon-48.png",
++     "128": "icons/icon-128.png"
++   },
     "default_title": "MDPI Filter"
   },
 

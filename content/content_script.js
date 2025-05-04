@@ -174,10 +174,12 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
             // Check 2: Does the row contain a direct MDPI link?
             const mdpiLink = row.querySelector(cfg.linkSelector); // 'a[href*="mdpi.com"]'
             // Check 3: Does the row contain any link with the MDPI DOI in its href or a data attribute?
-            const hasLinkWithMdpiDoi = row.querySelector(`a[href*="${MDPI_DOI}"], a[data-doi*="${MDPI_DOI}"], a[data-article-id*="${MDPI_DOI}"]`); // Added more potential attributes
+            const hasLinkWithMdpiDoi = row.querySelector(`a[href*="${MDPI_DOI}"], a[data-doi*="${MDPI_DOI}"], a[data-article-id*="${MDPI_DOI}"]`);
+            // Check 4: Does the row text mention "MDPI" (case-insensitive)?
+            const hasMdpiMention = /MDPI/i.test(row.textContent);
 
-            // Condition: Style if DOI text is found OR a direct MDPI link is found OR a link with the DOI is found
-            if (hasMdpiDoiText || mdpiLink || hasLinkWithMdpiDoi) {
+            // Condition: Style if DOI text is found OR a direct MDPI link is found OR a link with the DOI is found OR "MDPI" is mentioned
+            if (hasMdpiDoiText || mdpiLink || hasLinkWithMdpiDoi || hasMdpiMention) {
               // Apply the main style (hide/highlight border) to the whole row
               styleSearch(row);
 

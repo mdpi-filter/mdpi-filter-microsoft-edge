@@ -77,8 +77,12 @@ chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
   // 2. Process inline footnotes everywhere
   function processInlineCitations() {
     // Grab all anchors that point to a fragment
-    document.querySelectorAll('a[href^="#"]').forEach(a => {
-      const frag = a.getAttribute('href').slice(1);
+    document.querySelectorAll('a[href*="#"]').forEach(a => { // Changed selector from 'a[href^="#"]'
+      const href = a.getAttribute('href');
+      if (!href || !href.includes('#')) return; // Ensure href exists and contains #
+      const frag = href.slice(href.lastIndexOf('#') + 1); // Extract fragment after the last #
+      if (!frag) return; // Skip if fragment is empty
+
       const refEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
       if (!refEl) return;
 

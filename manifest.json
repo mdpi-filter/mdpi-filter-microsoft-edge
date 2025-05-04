@@ -3,12 +3,17 @@
   "name": "MDPI Filter",
   "version": "1.0",
   "description": "Hide or highlight MDPI publications in literature searches",
-  "permissions": ["storage"],
-  "host_permissions": ["<all_urls>"],
-  "icons": {
-    "16":  "icons/icon-16.png",
-    "48":  "icons/icon-48.png",
-    "128": "icons/icon-128.png"
+  "permissions": [
+    "storage",
+    "scripting",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_icon": {
@@ -19,18 +24,5 @@
     "default_title": "MDPI Filter",
     "default_popup": "popup.html"
   },
-  "options_page": "options.html",
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js":      ["content_script.js"],
-      "run_at":  "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["popup.html","popup.js","popup.css"],
-      "matches":   ["<all_urls>"]
-    }
-  ]
+  "options_page": "options.html"
 }

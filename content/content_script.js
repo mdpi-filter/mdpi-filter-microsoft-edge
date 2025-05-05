@@ -189,11 +189,11 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
             const mdpiLink = row.querySelector(cfg.linkSelector); // 'a[href*="mdpi.com"]'
             // Check 3: Does the row contain any link with the MDPI DOI in its href or a data attribute?
             const hasLinkWithMdpiDoi = row.querySelector(`a[href*="${MDPI_DOI}"], a[data-doi*="${MDPI_DOI}"], a[data-article-id*="${MDPI_DOI}"]`);
-            // Check 4: Does the row text mention "MDPI" (case-insensitive)?
-            const hasMdpiMention = /MDPI/i.test(rowText);
+            // REMOVED Check 4: Text mention "MDPI" check was causing false positives
+            // const hasMdpiMention = /MDPI/i.test(rowText);
 
-            // Condition: Style if any of the reliable checks pass
-            if (hasMdpiDoiText || mdpiLink || hasLinkWithMdpiDoi || hasMdpiMention) {
+            // Condition: Style if any of the reliable checks pass (DOI text, direct MDPI link, link with DOI)
+            if (hasMdpiDoiText || mdpiLink || hasLinkWithMdpiDoi) {
               // Apply the main style (hide/highlight border) to the whole row
               styleSearch(row); // Applies border/padding to the row (div.g or div.gs_r)
 

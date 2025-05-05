@@ -254,16 +254,23 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         if (!frag) return;
 
         // Find the element targeted by the fragment ID/name
-        const targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
-        if (!targetEl) return;
+        // Original attempt:
+        let targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
+
+        // Fallback for ScienceDirect: Look for an element (likely an anchor) whose ID *ends with* -frag
+        if (!targetEl) {
+            targetEl = document.querySelector(`a[id$="-${frag}"]`); // Match elements like id="ref-id-b0040"
+        }
+
+        if (!targetEl) return; // Still couldn't find a target
 
         // Find the associated reference list item (LI)
         let listItem = null;
-        // Scenario 1: Target is the LI itself (less likely but possible)
+        // Scenario 1: Target is the LI itself
         if (targetEl.matches('li')) {
             listItem = targetEl;
         }
-        // Scenario 2: Target is inside an LI (most common)
+        // Scenario 2: Target is inside an LI (most common, including the ScienceDirect case)
         else {
             listItem = targetEl.closest('li');
         }
@@ -276,8 +283,10 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
                 // Style the original inline link (<a> or its <sup> child if present)
                 const sup = a.querySelector('sup');
                 styleSup(sup || a);
-                // ALSO style the reference list item itself
-                styleRef(listItem); // <<< Styles the LI
+                // ALSO style the reference list item itself if not already styled
+                if (!listItem.style.border.includes('red')) {
+                    styleRef(listItem);
+                }
             }
         }
       });

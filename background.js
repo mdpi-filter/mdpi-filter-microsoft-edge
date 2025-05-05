@@ -53,6 +53,7 @@ async function injectModules(tabId, triggerSource = "unknown") {
   const modules = [
     'content/domains.js',
     'content/sanitizer.js',
+    'content/utils.js', // Add utils.js here
     'content/content_script.js'
   ];
   try {
@@ -107,13 +108,23 @@ chrome.webNavigation.onCompleted.addListener(
     if (details.frameId === 0) {
       console.log(`[MDPI Filter BG] Injecting scripts into main frame of tab ${details.tabId}`);
       chrome.scripting.executeScript({
-        target: { tabId: details.tabId, allFrames: false },
+        target: { tabId: details.tabId, allFrames: false }, // Inject only into the main frame
         files: [
           'content/domains.js',
           'content/sanitizer.js',
+          'content/utils.js', // Add utils.js here
           'content/content_script.js'
         ]
-      }).catch(e => { /* Ignore common injection errors */ });
+      }).catch(e => {
+          // Ignore common injection errors, especially during navigation
+          if (!(e.message.includes('Cannot access') ||
+                e.message.includes('Receiving end does not exist') ||
+                e.message.includes('context invalidated') ||
+                e.message.includes('Could not establish connection') ||
+                e.message.includes('No tab with id'))) {
+             console.warn(`[MDPI Filter BG] Failed to inject modules into main frame of tab ${details.tabId} (onCompleted):`, e);
+          }
+      });
     }
   },
   { url: [{ schemes: ['http','https'] }] }

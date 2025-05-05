@@ -106,19 +106,21 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
       // --- DEBUGGING START ---
       console.log("[MDPI Filter] Checking item:", item); // Log the element itself
-      const textContent = item.textContent || '';
-      console.log("[MDPI Filter] Text content:", JSON.stringify(textContent)); // Log the extracted text, JSON.stringify helps show hidden chars
+      const textContent = item.textContent || ''; // Keep for DOI text check and logging
+      const innerHTML = item.innerHTML || ''; // Get innerHTML for journal check
+      console.log("[MDPI Filter] Text content:", JSON.stringify(textContent));
+      // console.log("[MDPI Filter] Inner HTML:", JSON.stringify(innerHTML)); // Optional: log innerHTML too
       // --- DEBUGGING END ---
 
       const hasMdpiLink = item.querySelector(
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
       const hasMdpiText = textContent.includes(MDPI_DOI); // Check text content for DOI
-      // Check for common MDPI journal names (case-insensitive)
-      // Allow match if preceded by start-of-string or non-word char, require word boundary after.
-      const journalRegex = /(?:^|[^A-Za-z0-9_])(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i; // Refined regex
-      const hasMdpiJournal = journalRegex.test(textContent); // Test against text
-      console.log(`[MDPI Filter] Regex ${journalRegex} test result on text:`, hasMdpiJournal); // Log the regex result
+
+      // Check for common MDPI journal names (case-insensitive) using word boundaries on innerHTML
+      const journalRegex = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i;
+      const hasMdpiJournal = journalRegex.test(innerHTML); // Test against innerHTML
+      console.log(`[MDPI Filter] Regex ${journalRegex} test result on innerHTML:`, hasMdpiJournal); // Log the regex result
 
       const isMdpi = !!(hasMdpiLink || hasMdpiText || hasMdpiJournal); // Ensure boolean
       console.log("[MDPI Filter] isMdpi evaluated as:", isMdpi); // Log the final boolean result
@@ -128,8 +130,8 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       item.dataset.mdpiResult = isMdpi;
 
       if (isMdpi) {
-        // Use sanitized text content as a unique key
-        const key = sanitize(textContent).trim().slice(0, 100); // Use first 100 chars of sanitized text
+        // Use sanitized text content as a unique key (still use textContent for consistency)
+        const key = sanitize(textContent).trim().slice(0, 100);
         if (key) {
             uniqueMdpiReferences.add(key);
         }

@@ -78,61 +78,42 @@ async function injectModules(tabId, triggerSource = "unknown") {
 
 // --- Simplified Event Listeners ---
 
-// 1. Clear badge on new load start
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // Only clear badge when the main frame starts loading a new URL
-    if (changeInfo.status === 'loading' && changeInfo.url) {
-         console.log(`[MDPI Filter BG] tabs.onUpdated status 'loading' for tab ${tabId}. Clearing badge.`);
-         try {
-            chrome.action.setBadgeText({ text: '', tabId: tabId });
-         } catch (error) { /* Ignore error if tab closed */ }
-    }
-    // REMOVED loadingTabs logic
+// 1) Clear badge when a tab starts loading a new URL
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === 'loading' && changeInfo.url) {
+    chrome.action.setBadgeText({ text: '', tabId });
+  }
 });
 
-// 2. Inject on initial completion (Primary Trigger for Full Loads)
+// 2) Inject on every full load (main frame)
 chrome.webNavigation.onCompleted.addListener(
   details => {
-    // Inject only when the main frame finishes loading
     if (details.frameId === 0) {
-      console.log(`[MDPI Filter BG] webNavigation.onCompleted triggered for main frame of tab ${details.tabId}.`);
-      injectModules(details.tabId, "onCompleted");
+      chrome.scripting.executeScript({
+        target: { tabId: details.tabId, allFrames: true },
+        files: [
+          'content/domains.js',
+          'content/sanitizer.js',
+          'content/utils.js',         // if you still need debounce inside content-script
+          'content/content_script.js'
+        ]
+      }).catch(e => {
+        // ignore navigation‐race errors
+      });
     }
   },
   { url: [{ schemes: ['http','https'] }] }
 );
 
-// 3. Inject on history updates (Debounced Trigger for Fragment/SPA Nav)
-chrome.webNavigation.onHistoryStateUpdated.addListener(
-  details => {
-     // Inject only for main frame history updates
-     if (details.frameId === 0) {
-        console.log(`[MDPI Filter BG] webNavigation.onHistoryStateUpdated triggered for main frame of tab ${details.tabId}. Queueing debounced injection.`);
-        debouncedInjectForHistory(details.tabId, "onHistoryStateUpdated"); // Pass trigger source
-    }
-  },
-  { url: [{ schemes: ['http','https'] }] }
-);
-
-// 4. Listen for messages (Badge Update Logic)
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'mdpiCount' && sender.tab?.id) {
-    const count = message.count;
-    const text = count > 0 ? count.toString() : '';
-    // REMOVED loadingTabs check - rely on message timing
-    try {
-        chrome.action.setBadgeText({ text: text, tabId: sender.tab.id });
-        if (count > 0) {
-            chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId: sender.tab.id });
-        }
-        // console.log(`[MDPI Filter BG] Set badge text '${text}' for tab ${sender.tab.id}`);
-    } catch (error) {
-        // Ignore errors setting badge if tab is closed etc.
-        // console.log(`[MDPI Filter BG] Error setting badge for tab ${sender.tab.id}: ${error.message}`);
+// 3) Badge update listener
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg.type === 'mdpiCount' && sender.tab?.id) {
+    const text = msg.count > 0 ? String(msg.count) : '';
+    chrome.action.setBadgeText({ text, tabId: sender.tab.id });
+    if (msg.count > 0) {
+      chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId: sender.tab.id });
     }
   }
-  // Indicate async response possibility if needed in the future
-  // return true;
 });
 
 // Optional: Clean up debounce map if a tab is closed

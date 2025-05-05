@@ -1,7 +1,6 @@
 // content/content_script.js
 
-// Prevent multiple injections/executions in the same context
-if (typeof window.mdpiFilterInjected === 'undefined') {
+if (!window.mdpiFilterInjected) {
   window.mdpiFilterInjected = true;
   console.log("[MDPI Filter] Content script executing (mdpiFilterInjected set).");
 
@@ -336,15 +335,14 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       }
     }
 
-    // Check dependencies before initial run
-    if (window.MDPIFilterDomains && window.sanitize) {
-        console.log("[MDPI Filter] Dependencies loaded. Executing initial runAll.");
-        runAll();
-    } else {
-        console.error("[MDPI Filter] Initial runAll skipped: Dependencies (domains/sanitizer) not loaded.");
-    }
+    // Initial run
+    runAll();
 
-    console.log("[MDPI Filter] MutationObserver setup removed.");
+    // Re-run on hash changes
+    window.addEventListener('hashchange', () => {
+      console.log("[MDPI Filter] hashchange, rerunning");
+      runAll();
+    });
 
   }); // End storage.sync.get
 

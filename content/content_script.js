@@ -366,15 +366,30 @@ if (!window.mdpiFilterInjected) {
 
     function runAll(source = "initial") {
       console.log(`[MDPI Filter] runAll triggered by: ${source}`);
-      uniqueMdpiReferences.clear();
-      document.querySelectorAll('[data-mdpi-checked]').forEach(el => {
+      // --- Reset state ---
+      // Clear previously marked items (important for re-runs)
+      document.querySelectorAll('[data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
+        el.style.border = ''; // Reset border
+        el.style.padding = ''; // Reset padding
+        el.style.display = ''; // Reset display (for hide mode)
+        // Reset specific styles applied by styleSup, styleRef, styleDirectLink, styleLinkElement if necessary
+        // This might require more specific resetting depending on exact styles applied
         delete el.dataset.mdpiChecked;
         delete el.dataset.mdpiResult;
-      });
-      // Clear the processed flag when runAll executes
-      document.querySelectorAll('[data-mdpi-cited-by-processed]').forEach(el => {
         delete el.dataset.mdpiCitedByProcessed;
       });
+       // Reset styles on previously styled links/sups outside of list items if needed
+       document.querySelectorAll('[style*="color: rgb(226, 33, 28)"]').forEach(el => {
+           el.style.color = '';
+           el.style.fontWeight = '';
+           el.style.borderBottom = '';
+           el.style.textDecoration = '';
+           el.style.display = ''; // Reset display if it was changed
+       });
+
+      uniqueMdpiReferences.clear(); // Clear the set for a fresh count
+      // --- End Reset state ---
+
 
       try {
         if (!window.MDPIFilterDomains || !window.sanitize) {
@@ -382,10 +397,10 @@ if (!window.mdpiFilterInjected) {
           return;
         }
         processSearchSites();
-        processCitedByEntries();
-        processAllReferences();
-        styleInlineFootnotes();
-        processDirectMdpiLinks();
+        processCitedByEntries(); // Process specific 'citedBy' sections
+        processAllReferences();  // Process general reference lists (including PDF viewer spans)
+        styleInlineFootnotes();  // Style links pointing to MDPI refs
+        processDirectMdpiLinks(); // Style direct links to MDPI articles
         updateBadgeCount();
       } catch (error) {
         console.error(`[MDPI Filter] Error during runAll (source: ${source}):`, error);
@@ -395,18 +410,57 @@ if (!window.mdpiFilterInjected) {
     }
 
     // --- Observer Setup ---
-    // Note: Wiley pages might load references dynamically when an accordion is expanded.
-    // A MutationObserver might be needed on '.accordion__content' or its parent
-    // if references aren't processed correctly on initial load or expansion.
+
+    // Debounced version of runAll for the main observer
+    const debouncedRunAll = window.debounce(runAll, 500); // Use a slightly longer debounce (500ms)
+
+    // Observer for general page mutations (e.g., PDF viewer loading content)
+    function setupMainObserver() {
+        const targetNode = document.body; // Watch the whole body for broad compatibility
+        if (!targetNode) {
+            console.error("[MDPI Filter] Cannot find document.body to observe.");
+            return;
+        }
+
+        console.log("[MDPI Filter] Setting up Main observer for document.body");
+
+        const observerConfig = {
+            childList: true, // Watch for added/removed nodes
+            subtree: true    // Watch descendants
+        };
+
+        const observer = new MutationObserver((mutationsList, observer) => {
+            // Check if nodes were added, indicating potential content loading
+            let nodesAdded = false;
+            for (const mutation of mutationsList) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    nodesAdded = true;
+                    break;
+                }
+            }
+
+            if (nodesAdded) {
+                console.log("[MDPI Filter] Main observer detected added nodes. Triggering debounced runAll.");
+                debouncedRunAll("main observer"); // Pass source for logging
+            }
+        });
+
+        observer.observe(targetNode, observerConfig);
+        console.log("[MDPI Filter] Main observer started.");
+
+        // Optional: Disconnect observer if needed later
+        // window.addEventListener('beforeunload', () => observer.disconnect());
+    }
+
+
+    // Observer specifically for Wiley's 'Cited By' section (keep this)
     function setupCitedByObserver() {
         const targetNode = document.getElementById('cited-by__content');
         if (!targetNode) {
             console.log("[MDPI Filter] Cited By observer target '#cited-by__content' not found.");
-            // Optionally retry after a delay
-            // setTimeout(setupCitedByObserver, 1000);
-            return;
+            return; // Don't retry indefinitely, it might just not exist on the page
         }
-
+        // ... (rest of setupCitedByObserver remains the same) ...
         console.log("[MDPI Filter] Setting up Cited By observer for:", targetNode);
 
         const observerConfig = {
@@ -417,44 +471,42 @@ if (!window.mdpiFilterInjected) {
         const observer = new MutationObserver((mutationsList, observer) => {
             // We only care that *something* changed inside, so we run the debounced check
             console.log("[MDPI Filter] Cited By observer detected mutations.");
-            debouncedProcessCitedByEntries();
+            debouncedProcessCitedByEntries(); // Use the specific debounced function for this section
         });
 
         observer.observe(targetNode, observerConfig);
         console.log("[MDPI Filter] Cited By observer started.");
-
-        // Optional: Disconnect observer if needed later, e.g., on page unload
-        // window.addEventListener('beforeunload', () => observer.disconnect());
     }
     // ---
 
-    // Initial run - Use requestAnimationFrame
+    // Initial run & Observer Activation
     if (window.MDPIFilterDomains && window.sanitize) {
-      console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll.");
+      console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll and setting up observers.");
       requestAnimationFrame(() => {
         console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
         runAll("initial load");
-        // Setup the observer AFTER the initial processing run
-        setupCitedByObserver();
+        // Setup observers AFTER the initial processing run
+        setupCitedByObserver(); // Setup the specific observer first
+        setupMainObserver();    // Then setup the general observer
       });
     } else {
-      console.error("[MDPI Filter] Initial runAll skipped: Dependencies (domains/sanitizer) not loaded.");
+      console.error("[MDPI Filter] Initial run/observer setup skipped: Dependencies not loaded.");
     }
 
-    // Re-run on hash changes - Use requestAnimationFrame
+    // Re-run on hash changes (keep this, might be relevant for some SPAs)
     window.addEventListener('hashchange', () => {
       console.log("[MDPI Filter] hashchange detected. Requesting runAll.");
       requestAnimationFrame(() => {
         console.log("[MDPI Filter] Running runAll via requestAnimationFrame after hashchange.");
         runAll("hashchange");
-        // Re-setup observer in case the target element was replaced during navigation
-        // Note: This might create multiple observers if not handled carefully.
-        // A more robust solution might involve checking if an observer already exists.
-        setupCitedByObserver();
+        // Re-setup observers might be needed if the page structure changes drastically,
+        // but let's rely on the main observer for now unless issues arise.
+        // setupCitedByObserver();
+        // setupMainObserver(); // Avoid re-adding main observer if it's already on body
       });
     });
 
-    console.log("[MDPI Filter] Initial setup complete, hashchange listener added.");
+    console.log("[MDPI Filter] Initial setup complete, listeners/observers added.");
 
   }); // End storage.sync.get
 

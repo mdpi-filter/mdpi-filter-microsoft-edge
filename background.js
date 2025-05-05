@@ -70,8 +70,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // Optional: Clear badge when tab is updated (e.g., navigating away)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // Clear badge if the URL changes significantly or page is loading
-    if (changeInfo.status === 'loading' || changeInfo.url) {
+    // Clear badge ONLY when the page is actively loading a new document
+    if (changeInfo.status === 'loading') { // <--- Only clear on 'loading' status
          chrome.action.setBadgeText({ text: '', tabId: tabId });
     }
 });

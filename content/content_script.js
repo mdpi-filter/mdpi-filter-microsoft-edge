@@ -239,15 +239,21 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         const frag = href.slice(href.lastIndexOf('#') + 1);
         if (!frag) return;
 
-        const refEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
-        if (!refEl) return;
+        // Attempt to find the reference list item associated with the fragment.
+        // Strategy 1: Find an element with ID starting 'ref-id-' + frag (like ScienceDirect)
+        let listItem = document.getElementById('ref-id-' + frag)?.closest('li');
 
-        // Find the ancestor list item using the common selectors
-        const listItem = refEl.closest(referenceListSelectors);
+        // Strategy 2: Find an element with the exact ID or name, then find its closest list item ancestor.
+        if (!listItem) {
+            const targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
+            if (targetEl) {
+                listItem = targetEl.closest(referenceListSelectors);
+            }
+        }
 
-        // Check the list item (not just the target element) for MDPI indicators
-        // This will also add the item's key to uniqueMdpiReferences if it's MDPI
-        if (isMdpiReferenceItem(listItem)) {
+        // If a potential list item was found, check if it's an MDPI reference.
+        if (listItem && isMdpiReferenceItem(listItem)) {
+          // Style the original inline link (<a> or its <sup> child if present)
           const sup = a.querySelector('sup');
           styleSup(sup || a);
         }

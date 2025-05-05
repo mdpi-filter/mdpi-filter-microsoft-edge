@@ -109,8 +109,8 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       );
       const textContent = item.textContent || '';
       const hasMdpiText = textContent.includes(MDPI_DOI); // Check text content for DOI
-      // Check for common MDPI journal names (case-sensitive), using word boundaries
-      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/.test(textContent); // Added Molecules
+      // Check for common MDPI journal names (case-insensitive), using word boundaries
+      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i.test(textContent); // Added 'i' flag for case-insensitivity
 
       const isMdpi = !!(hasMdpiLink || hasMdpiText || hasMdpiJournal); // Ensure boolean
 

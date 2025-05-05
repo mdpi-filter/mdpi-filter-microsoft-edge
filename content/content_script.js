@@ -20,19 +20,15 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     'div.References p.ReferencesCopy1',
     'li.html-x',
     'li.html-xx',
-    'div.citation',
+    'div.citation', // Matches the item directly on liebertpub
     'div.reference',
-    'li.separated-list-item', // EuropePMC search results
-
-    // Selectors based on LI having specific IDs
+    'li.separated-list-item',
     'li[id^="CR"]',
-    'li[id^="ref-"]', // Matches li id="ref-something"
+    'li[id^="ref-"]',
     'li[id^="reference-"]',
-
-    // Selectors based on specific inner element IDs/names (like ScienceDirect)
-    'li:has(> span > a[id^="ref-id-"])', // Matches li > span > a id="ref-id-something"
-    'li:has(a[name^="bbib"])' // Matches li containing a name="bbib..." (alternative for SD)
-
+    // ScienceDirect specific (nested structure)
+    'li:has(> span > a[id^="ref-id-"])', // Matches LI containing the specific anchor
+    'li:has(a[name^="bbib"])' // Matches LI containing anchor with name starting bbib
   ].join(',');
 
   // Retrieve user preference (default = highlight)
@@ -68,22 +64,16 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
     // D: Style direct links to MDPI articles - Target inner element like H3
     const styleDirectLink = link => {
-      // Try to find the main title element (often H3 on search results)
       const titleElement = link.querySelector('h3');
-      // Apply style to the title element if found, otherwise fallback to the link itself
       const targetElement = titleElement || link;
-      targetElement.style.color = '#E2211C'; // Use the same red color
-      // Apply underline only to the specific target, not the whole block link
+      targetElement.style.color = '#E2211C';
       targetElement.style.borderBottom = '1px dotted #E2211C';
-      // Ensure the target is displayed in a way that border-bottom works as expected
       if (targetElement !== link) {
-         // If we styled an inner element, ensure the parent link doesn't have conflicting underlines
-         link.style.textDecoration = 'none'; // Remove default underline from parent <a> if needed
+        link.style.textDecoration = 'none';
       }
-       // Ensure the target element is at least inline-block for border-bottom to potentially show correctly
-       if (window.getComputedStyle(targetElement).display === 'inline') {
-           targetElement.style.display = 'inline-block';
-       }
+      if (window.getComputedStyle(targetElement).display === 'inline') {
+        targetElement.style.display = 'inline-block';
+      }
     };
 
     // D: Style a single link element with red color and dotted underline
@@ -92,52 +82,44 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       link.style.color = '#E2211C';
       link.style.borderBottom = '1px dotted #E2211C';
       link.style.textDecoration = 'none';
-      // Ensure display allows border-bottom
       if (window.getComputedStyle(link).display === 'inline') {
-        link.style.display = 'inline-block'; // Use inline-block for border
+        link.style.display = 'inline-block';
       }
     };
 
     // Function to check if a list item element is MDPI and add to set
     const isMdpiReferenceItem = (item) => {
       if (!item) return false;
-      // Check if already processed to prevent redundant checks/counting
       if (item.dataset.mdpiChecked) return item.dataset.mdpiResult === 'true';
 
-      // --- DEBUGGING START ---
-      console.log("[MDPI Filter] Checking item:", item); // Log the element itself
-      const textContent = item.textContent || ''; // Keep for DOI text check and logging
-      const innerHTML = item.innerHTML || ''; // Get innerHTML for journal check
+      console.log("[MDPI Filter] Checking item:", item);
+      const textContent = item.textContent || '';
+      const innerHTML = item.innerHTML || '';
       console.log("[MDPI Filter] Text content:", JSON.stringify(textContent));
-      // console.log("[MDPI Filter] Inner HTML:", JSON.stringify(innerHTML)); // Optional: log innerHTML too
-      // --- DEBUGGING END ---
 
       const hasMdpiLink = item.querySelector(
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
-      const hasMdpiText = textContent.includes(MDPI_DOI); // Check text content for DOI
+      const hasMdpiText = textContent.includes(MDPI_DOI);
 
-      // Check for common MDPI journal names (case-insensitive) using word boundaries on innerHTML
-      const journalRegex = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i;
-      const hasMdpiJournal = journalRegex.test(innerHTML); // Test against innerHTML
-      console.log(`[MDPI Filter] Regex ${journalRegex} test result on innerHTML:`, hasMdpiJournal); // Log the regex result
+      const journalRegex = /(?:^|[^A-Za-z0-9_])(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i;
+      const hasMdpiJournal = journalRegex.test(textContent);
+      console.log(`[MDPI Filter] Regex ${journalRegex} test result on text:`, hasMdpiJournal);
 
-      const isMdpi = !!(hasMdpiLink || hasMdpiText || hasMdpiJournal); // Ensure boolean
-      console.log("[MDPI Filter] isMdpi evaluated as:", isMdpi); // Log the final boolean result
+      const isMdpi = !!(hasMdpiLink || hasMdpiText || hasMdpiJournal);
+      console.log("[MDPI Filter] isMdpi evaluated as:", isMdpi);
 
-      // Mark as checked and store result
       item.dataset.mdpiChecked = 'true';
       item.dataset.mdpiResult = isMdpi;
 
       if (isMdpi) {
-        // Use sanitized text content as a unique key (still use textContent for consistency)
         const key = sanitize(textContent).trim().slice(0, 100);
-        console.log("[MDPI Filter] Generated key:", JSON.stringify(key)); // Log the generated key
+        console.log("[MDPI Filter] Generated key:", JSON.stringify(key));
         if (key) {
-            uniqueMdpiReferences.add(key);
-            console.log("[MDPI Filter] Added key to set. Set size:", uniqueMdpiReferences.size); // Log set size after adding
+          uniqueMdpiReferences.add(key);
+          console.log("[MDPI Filter] Added key to set. Set size:", uniqueMdpiReferences.size);
         } else {
-            console.log("[MDPI Filter] Key was empty, not added to set."); // Log if key was empty
+          console.log("[MDPI Filter] Key was empty, not added to set.");
         }
       }
       return isMdpi;
@@ -153,29 +135,24 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
           : cfg.hostRegex?.test(host);
         const matchPath = !cfg.path || cfg.path.test(path);
         if (matchHost && matchPath) {
-          return true; // It's a configured search site
+          return true;
         }
       }
-      return false; // Not a configured search site
+      return false;
     };
 
     // Function to update badge count
     const updateBadgeCount = () => {
-      try { // Add try block here
-        // Only update badge if NOT on a configured search site
-        if (isSearchSite()) {
-             // Explicitly clear badge on search sites by sending 0
-             chrome.runtime.sendMessage({ type: 'mdpiCount', count: 0 });
-             return;
+      const count = uniqueMdpiReferences.size;
+      console.log(`[MDPI Filter] Updating badge count to: ${count}`);
+      try {
+        if (count > 0) {
+          chrome.runtime.sendMessage({ type: 'mdpiCount', count: count });
+        } else {
+          chrome.runtime.sendMessage({ type: 'mdpiCount', count: 0 });
         }
-
-        const count = uniqueMdpiReferences.size;
-        // Send count to background script
-        chrome.runtime.sendMessage({ type: 'mdpiCount', count: count });
-
       } catch (error) {
-          // Ignore errors, context might be invalidated during navigation/reload
-          // console.warn("MDPI Filter: Could not send message to background:", error.message);
+        console.warn("[MDPI Filter] Could not send message to background. Extension context likely invalidated.", error);
       }
     };
 
@@ -190,69 +167,48 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         if (!matchHost || !matchPath) continue;
 
         if (cfg.itemSelector && cfg.doiPattern) {
-          // PubMed style (on pubmed.ncbi.nlm.nih.gov): look for DOI in text
           document.querySelectorAll(cfg.itemSelector).forEach(item => {
             if (item.textContent.includes(cfg.doiPattern)) {
               styleSearch(item);
-              // Note: Search results are styled but not counted towards badge
             }
           });
 
         } else if (cfg.itemSelector && cfg.htmlContains) {
-          // EuropePMC style: look for HTML snippet
           document.querySelectorAll(cfg.itemSelector).forEach(item => {
             if (item.innerHTML.includes(cfg.htmlContains)) {
               styleSearch(item);
-              // Note: Search results are styled but not counted towards badge
             }
           });
 
         } else if (cfg.container) {
-          // Google / Scholar style:
           document.querySelectorAll(cfg.container).forEach(row => {
-            const rowText = row.textContent || ''; // Cache text content
+            const rowText = row.textContent || '';
 
-            // Check 1: Does the row contain the MDPI DOI text?
             const hasMdpiDoiText = rowText.includes(MDPI_DOI);
-            // Check 2: Does the row contain a direct MDPI link?
-            const mdpiLink = row.querySelector(cfg.linkSelector); // 'a[href*="mdpi.com"]'
-            // Check 3: Does the row contain any link with the MDPI DOI in its href or a data attribute?
+            const mdpiLink = row.querySelector(cfg.linkSelector);
             const hasLinkWithMdpiDoi = row.querySelector(`a[href*="${MDPI_DOI}"], a[data-doi*="${MDPI_DOI}"], a[data-article-id*="${MDPI_DOI}"]`);
-            // REMOVED Check 4: Text mention "MDPI" check was causing false positives
-            // const hasMdpiMention = /MDPI/i.test(rowText);
 
-            // Condition: Style if any of the reliable checks pass (DOI text, direct MDPI link, link with DOI)
             if (hasMdpiDoiText || mdpiLink || hasLinkWithMdpiDoi) {
-              // Apply the main style (hide/highlight border) to the whole row
-              styleSearch(row); // Applies border/padding to the row (div.g or div.gs_r)
+              styleSearch(row);
 
               let titleContainer = null;
               const isScholar = cfg.host === 'scholar.google.com';
 
               if (isScholar) {
-                // On Scholar, find the H3 title container
                 titleContainer = row.querySelector('h3.gs_rt');
               } else {
-                // On Google Web, find the H3 inside the main link container
                 titleContainer = row.querySelector('.yuRUbf h3');
               }
 
-              // Style all links within the identified title container (H3)
               if (titleContainer) {
                 titleContainer.querySelectorAll('a').forEach(styleLinkElement);
               } else if (!isScholar) {
-                // Fallback for Google Web if H3 isn't found (less common)
-                // Find the primary link and style it
                 const primaryLink = row.querySelector('a[jsname="UWckNb"]') || row.querySelector('.yuRUbf a');
                 styleLinkElement(primaryLink);
               }
-              // Note: No 'else' needed for Scholar fallback, as h3.gs_rt should exist
 
-              // Separately style the direct mdpi.com link (e.g., [PDF] link) if it exists
-              // and wasn't already styled as part of the title container
-              // Check if mdpiLink exists and if titleContainer exists and does NOT contain mdpiLink
               if (mdpiLink && (!titleContainer || !titleContainer.contains(mdpiLink))) {
-                 styleLinkElement(mdpiLink);
+                styleLinkElement(mdpiLink);
               }
             }
           });
@@ -264,119 +220,139 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     function processInlineCitations() {
       document.querySelectorAll('a[href*="#"]').forEach(a => {
         const href = a.getAttribute('href');
-        const rid = a.dataset.xmlRid; // Get data-xml-rid attribute (e.g., "B21")
+        const rid = a.dataset.xmlRid;
 
         let targetEl = null;
 
-        // --- NEW: Try finding target using data-xml-rid first (for liebertpub) ---
         if (rid) {
-          targetEl = document.getElementById(rid); // Find element with id="B21"
+          targetEl = document.getElementById(rid);
         }
-        // --- END NEW ---
 
-        // --- Fallback to existing href fragment logic if rid didn't work ---
         if (!targetEl && href && href.includes('#')) {
           const frag = href.slice(href.lastIndexOf('#') + 1);
           if (frag) {
-            // Original attempt:
             targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
 
-            // Fallback for ScienceDirect: Look for an element whose ID *ends with* -frag
             if (!targetEl) {
               targetEl = document.querySelector(`a[id$="-${frag}"]`);
             }
-            // Fallback for hrefs like #core-B21 if rid wasn't present
             if (!targetEl && frag.startsWith('core-')) {
-                const potentialId = frag.substring(5); // Remove 'core-'
-                targetEl = document.getElementById(potentialId);
+              const potentialId = frag.substring(5);
+              targetEl = document.getElementById(potentialId);
             }
           }
         }
-        // --- END Fallback ---
 
-        if (!targetEl) return; // Still couldn't find a target
+        if (!targetEl) return;
 
-        // --- Refined listItem finding ---
         let listItem = null;
         if (rid && targetEl.id === rid) {
-            // Found via data-xml-rid (e.g., liebertpub), targetEl is the container (div#B21)
-            // The actual item to check/style is the div.citation inside it
-            listItem = targetEl.querySelector('div.citation');
+          listItem = targetEl.querySelector('div.citation');
         } else if (targetEl.matches(referenceListSelectors)) {
-            // Found via frag, and targetEl *is* the reference item (e.g., <li id="frag"> or <div class="citation" id="frag">)
-            listItem = targetEl;
+          listItem = targetEl;
         } else {
-            // Found via frag, targetEl is *inside* the reference item (e.g., ScienceDirect <a id="ref-id-frag">)
-            // Find the closest ancestor that matches any of our reference selectors
-            listItem = targetEl.closest(referenceListSelectors);
+          listItem = targetEl.closest(referenceListSelectors);
         }
-        // --- End Refined listItem finding ---
 
-        // Now, verify this item looks like a reference item
-        if (listItem && listItem.matches(referenceListSelectors)) { // Double-check it matches
-            // Check if it's an MDPI reference.
-            if (isMdpiReferenceItem(listItem)) {
-                // Style the original inline link (<a> or its <sup> child if present)
-                const sup = a.querySelector('sup');
-                styleSup(sup || a); // Style the inline link <a>21</a>
-                // ALSO style the reference list item itself if not already styled
-                if (!listItem.style.border.includes('red')) {
-                    styleRef(listItem); // Style the reference div.citation
-                }
+        if (listItem && listItem.matches(referenceListSelectors)) {
+          if (isMdpiReferenceItem(listItem)) {
+            const sup = a.querySelector('sup');
+            styleSup(sup || a);
+            if (!listItem.style.border.includes('red')) {
+              styleRef(listItem);
             }
+          }
         }
       });
     }
 
     // 3. Process reference‐list entries everywhere - REFINED (as fallback)
     function processReferenceLists() {
+      console.log("[MDPI Filter] Running processReferenceLists");
       document.querySelectorAll(referenceListSelectors).forEach(item => {
-          // Check if it's MDPI *and* hasn't already been styled by processInlineCitations
-          // Check based on whether the border style was already applied
-          if (!item.style.border.includes('red') && isMdpiReferenceItem(item)) {
-              styleRef(item);
+        let targetItem = item;
+        if (!item.matches('div.citation')) {
+          const citationDiv = item.querySelector('div.citation');
+          if (citationDiv) {
+            targetItem = citationDiv;
           }
+        }
+
+        if (targetItem && !targetItem.dataset.mdpiChecked) {
+          if (isMdpiReferenceItem(targetItem)) {
+            if (!targetItem.style.border.includes('red')) {
+              styleRef(targetItem);
+            }
+          }
+        } else if (targetItem && targetItem.dataset.mdpiResult === 'true' && !targetItem.style.border.includes('red')) {
+          styleRef(targetItem);
+        }
       });
     }
 
     // 4. Process direct links to MDPI articles everywhere
     function processDirectMdpiLinks() {
-      // Regex to match mdpi.com URLs with typical article path structure (e.g., /issn/volume/issue/article)
       const mdpiArticleRegex = /^https?:\/\/www\.mdpi\.com\/\d{4}-\d{4}\/\d+\/\d+\/\d+(\/.*)?$/;
       document.querySelectorAll(`a[href^="https://www.mdpi.com/"]`).forEach(a => {
         const href = a.getAttribute('href');
-        // Check if the link matches the article pattern AND is not already inside a styled reference item
         if (href && mdpiArticleRegex.test(href) && !a.closest(referenceListSelectors.split(',').map(s => s.trim() + '[style*="border"]').join(','))) {
-            styleDirectLink(a); // Pass the <a> tag to the styling function
-            // Note: Direct links are styled but not counted towards the badge count
+          styleDirectLink(a);
         }
       });
     }
 
     // Run all processing functions
-    function runAll() {
-      uniqueMdpiReferences.clear(); // Clear set before reprocessing
-      // Clear checked status before reprocessing
-      document.querySelectorAll('[data-mdpi-checked]').forEach(el => {
-          delete el.dataset.mdpiChecked;
-          delete el.dataset.mdpiResult;
-      });
+    const runAll = () => {
+      console.log("[MDPI Filter] Running all processing functions...");
+      uniqueMdpiReferences.clear();
+      processSearchSites();
+      processInlineCitations();
+      processReferenceLists();
+      processDirectMdpiLinks();
+      updateBadgeCount();
+      console.log("[MDPI Filter] Processing finished. Final count in set:", uniqueMdpiReferences.size);
+    };
 
-      processSearchSites(); // This already checks domains internally
-      processInlineCitations(); // Styles inline links AND their corresponding list items
-      processReferenceLists(); // Styles list items missed by inline processing
-      processDirectMdpiLinks(); // Add processing for direct links
-      updateBadgeCount(); // Update badge after processing
-    }
+    const debouncedRunAll = debounce(runAll, 500);
 
-    // Initial + dynamic (SPA/infinite scroll, etc.)
-    runAll(); // Initial run
-    new MutationObserver(debounce(() => {
-        runAll(); // Rerun all checks and update badge
-    })).observe(document.body, {
-      childList: true,
-      subtree:   true
+    console.log("[MDPI Filter] Scheduling initial run.");
+    setTimeout(runAll, 250);
+
+    const observer = new MutationObserver(mutations => {
+      let needsUpdate = false;
+      for (const mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              if (node.matches(referenceListSelectors) || node.querySelector(referenceListSelectors) || node.closest(referenceListSelectors)) {
+                needsUpdate = true;
+                break;
+              }
+              if (node.matches('a[href*="#"]') || node.querySelector('a[href*="#"]')) {
+                needsUpdate = true;
+                break;
+              }
+            }
+          }
+        }
+        if (needsUpdate) break;
+      }
+
+      if (needsUpdate) {
+        console.log("[MDPI Filter] MutationObserver detected relevant changes, queueing update.");
+        debouncedRunAll();
+      }
     });
+
+    console.log("[MDPI Filter] Starting MutationObserver.");
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: false
+    });
+
+    window.mdpiFilterObserver = observer;
+
   });
 
 } // End of injection check

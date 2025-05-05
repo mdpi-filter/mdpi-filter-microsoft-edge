@@ -11,6 +11,18 @@ if (!window.mdpiFilterInjected) {
   if (typeof window.sanitize === 'undefined') {
     console.error("[MDPI Filter] CRITICAL: window.sanitize is undefined. sanitizer.js might not have loaded correctly.");
   }
+  // Add debounce dependency check if utils.js is separate
+  if (typeof window.debounce === 'undefined') {
+    // Basic debounce implementation if utils.js isn't guaranteed
+    window.debounce = (fn, ms = 200) => {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), ms);
+      };
+    };
+    console.warn("[MDPI Filter] Basic debounce function created as window.debounce was undefined.");
+  }
   // ---
 
   // --- Constants, Selectors, State ---
@@ -233,10 +245,40 @@ if (!window.mdpiFilterInjected) {
       }
     }
 
+    // Debounce the function to avoid rapid calls from MutationObserver
+    const debouncedProcessCitedByEntries = window.debounce(() => {
+        console.log("[MDPI Filter] Debounced processCitedByEntries running.");
+        document.querySelectorAll('li.citedByEntry').forEach(item => {
+            // Add a check to prevent re-processing already styled items
+            if (item.dataset.mdpiCitedByProcessed) return;
+
+            // Check for the MDPI DOI prefix within the list item's text content
+            if (item.textContent?.includes(MDPI_DOI)) {
+                console.log("[MDPI Filter] Found MDPI citedBy entry:", item);
+                // Apply the search styling (handles highlight/hide mode)
+                styleSearch(item);
+                // Optionally, style the link inside if needed, similar to processSearchSites
+                // For example, find the 'View' link and style it:
+                const viewLink = item.querySelector('.extra-links a.getFTR__btn');
+                if (viewLink) {
+                    styleLinkElement(viewLink); // Use the existing link styling function
+                }
+                // Mark as processed
+                item.dataset.mdpiCitedByProcessed = 'true';
+            }
+        });
+    }, 300); // 300ms debounce delay
+
+    // Keep the original function for the initial run
     function processCitedByEntries() {
+      console.log("[MDPI Filter] Initial processCitedByEntries running.");
       document.querySelectorAll('li.citedByEntry').forEach(item => {
+        // Add a check to prevent re-processing already styled items
+        if (item.dataset.mdpiCitedByProcessed) return;
+
         // Check for the MDPI DOI prefix within the list item's text content
         if (item.textContent?.includes(MDPI_DOI)) {
+          console.log("[MDPI Filter] Found MDPI citedBy entry (initial):", item);
           // Apply the search styling (handles highlight/hide mode)
           styleSearch(item);
           // Optionally, style the link inside if needed, similar to processSearchSites
@@ -245,6 +287,8 @@ if (!window.mdpiFilterInjected) {
           if (viewLink) {
              styleLinkElement(viewLink); // Use the existing link styling function
           }
+          // Mark as processed
+          item.dataset.mdpiCitedByProcessed = 'true';
         }
       });
     }
@@ -315,6 +359,10 @@ if (!window.mdpiFilterInjected) {
         delete el.dataset.mdpiChecked;
         delete el.dataset.mdpiResult;
       });
+      // Clear the processed flag when runAll executes
+      document.querySelectorAll('[data-mdpi-cited-by-processed]').forEach(el => {
+        delete el.dataset.mdpiCitedByProcessed;
+      });
 
       try {
         if (!window.MDPIFilterDomains || !window.sanitize) {
@@ -334,12 +382,45 @@ if (!window.mdpiFilterInjected) {
       }
     }
 
+    // --- Observer Setup ---
+    function setupCitedByObserver() {
+        const targetNode = document.getElementById('cited-by__content');
+        if (!targetNode) {
+            console.log("[MDPI Filter] Cited By observer target '#cited-by__content' not found.");
+            // Optionally retry after a delay
+            // setTimeout(setupCitedByObserver, 1000);
+            return;
+        }
+
+        console.log("[MDPI Filter] Setting up Cited By observer for:", targetNode);
+
+        const observerConfig = {
+            childList: true, // Watch for addition/removal of children (like the <li> elements)
+            subtree: true    // Watch descendants as well
+        };
+
+        const observer = new MutationObserver((mutationsList, observer) => {
+            // We only care that *something* changed inside, so we run the debounced check
+            console.log("[MDPI Filter] Cited By observer detected mutations.");
+            debouncedProcessCitedByEntries();
+        });
+
+        observer.observe(targetNode, observerConfig);
+        console.log("[MDPI Filter] Cited By observer started.");
+
+        // Optional: Disconnect observer if needed later, e.g., on page unload
+        // window.addEventListener('beforeunload', () => observer.disconnect());
+    }
+    // ---
+
     // Initial run - Use requestAnimationFrame
     if (window.MDPIFilterDomains && window.sanitize) {
       console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll.");
       requestAnimationFrame(() => {
         console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
         runAll("initial load");
+        // Setup the observer AFTER the initial processing run
+        setupCitedByObserver();
       });
     } else {
       console.error("[MDPI Filter] Initial runAll skipped: Dependencies (domains/sanitizer) not loaded.");
@@ -351,6 +432,10 @@ if (!window.mdpiFilterInjected) {
       requestAnimationFrame(() => {
         console.log("[MDPI Filter] Running runAll via requestAnimationFrame after hashchange.");
         runAll("hashchange");
+        // Re-setup observer in case the target element was replaced during navigation
+        // Note: This might create multiple observers if not handled carefully.
+        // A more robust solution might involve checking if an observer already exists.
+        setupCitedByObserver();
       });
     });
 

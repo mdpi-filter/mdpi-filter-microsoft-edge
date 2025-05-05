@@ -104,15 +104,23 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       // Check if already processed to prevent redundant checks/counting
       if (item.dataset.mdpiChecked) return item.dataset.mdpiResult === 'true';
 
+      // --- DEBUGGING START ---
+      console.log("[MDPI Filter] Checking item:", item); // Log the element itself
+      const textContent = item.textContent || '';
+      console.log("[MDPI Filter] Text content:", JSON.stringify(textContent)); // Log the extracted text, JSON.stringify helps show hidden chars
+      // --- DEBUGGING END ---
+
       const hasMdpiLink = item.querySelector(
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
-      const textContent = item.textContent || '';
       const hasMdpiText = textContent.includes(MDPI_DOI); // Check text content for DOI
       // Check for common MDPI journal names (case-insensitive) as whole words
-      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i.test(textContent); // Simplified regex: just check word boundary
+      const journalRegex = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i; // Store regex
+      const hasMdpiJournal = journalRegex.test(textContent); // Test against text
+      console.log(`[MDPI Filter] Regex ${journalRegex} test result on text:`, hasMdpiJournal); // Log the regex result
 
       const isMdpi = !!(hasMdpiLink || hasMdpiText || hasMdpiJournal); // Ensure boolean
+      console.log("[MDPI Filter] isMdpi evaluated as:", isMdpi); // Log the final boolean result
 
       // Mark as checked and store result
       item.dataset.mdpiChecked = 'true';

@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tabs.length > 0 && tabs[0].url) {
         const currentTabUrl = tabs[0].url;
         // --- IMPORTANT: Replace YOUR_GITHUB_USERNAME/YOUR_REPO with the actual GitHub repository ---
-        const githubRepo = 'YOUR_GITHUB_USERNAME/mdpi-filter-chrome'; // <<< CHANGE THIS
+        const githubRepo = 'mdpi-filter/mdpi-filter-chrome'; // <<< Updated GitHub username
         // --- ---
         const currentMode = Array.from(radios).find(r => r.checked)?.value || 'N/A'; // Get current mode
         const manifest = chrome.runtime.getManifest(); // Get manifest data

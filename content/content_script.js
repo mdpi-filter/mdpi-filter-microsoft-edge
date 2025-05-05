@@ -367,7 +367,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     window.mdpiObserverInstance = new MutationObserver(debounce(() => {
         console.log("[MDPI Filter] MutationObserver triggered debounced runAll.");
         runAll(); // Rerun all checks and update badge
-    }));
+    }, 500)); // Increased debounce time from 200ms to 500ms
     window.mdpiObserverInstance.observe(document.body, {
       childList: true,
       subtree:   true

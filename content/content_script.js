@@ -132,8 +132,12 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       if (isMdpi) {
         // Use sanitized text content as a unique key (still use textContent for consistency)
         const key = sanitize(textContent).trim().slice(0, 100);
+        console.log("[MDPI Filter] Generated key:", JSON.stringify(key)); // Log the generated key
         if (key) {
             uniqueMdpiReferences.add(key);
+            console.log("[MDPI Filter] Added key to set. Set size:", uniqueMdpiReferences.size); // Log set size after adding
+        } else {
+            console.log("[MDPI Filter] Key was empty, not added to set."); // Log if key was empty
         }
       }
       return isMdpi;

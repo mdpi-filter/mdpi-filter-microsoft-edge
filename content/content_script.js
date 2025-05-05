@@ -3,7 +3,7 @@
 // Prevent multiple injections/executions in the same context
 if (typeof window.mdpiFilterInjected === 'undefined') {
   window.mdpiFilterInjected = true;
-  console.log("[MDPI Filter] Content script executing."); // Log execution start
+  console.log("[MDPI Filter] Content script executing (mdpiFilterInjected set)."); // Modified log
 
   // --- Constants, Selectors, State ---
   const MDPI_DOMAIN = 'mdpi.com';
@@ -315,5 +315,6 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
   }); // End storage.sync.get
 
 } else {
-  console.log("[MDPI Filter] Injection prevented, already running."); // Log if guard prevents execution
+  // Add log here to see if this block is ever reached
+  console.log("[MDPI Filter] Injection prevented, mdpiFilterInjected was already true.");
 } // End of injection check

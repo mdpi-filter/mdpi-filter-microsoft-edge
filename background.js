@@ -1,41 +1,59 @@
 // background.js
 
-// Debounce function specifically for background script usage
-const backgroundDebounce = (func, wait) => {
-  let timeout;
-  // Use a Map to store timeouts per tabId
-  const timeouts = new Map();
+// Simplified Debounce function for background script
+let historyUpdateTimeout; // Use a single timeout variable
 
+const backgroundDebounceSimple = (func, wait) => {
   return (tabId, ...args) => {
-    clearTimeout(timeouts.get(tabId));
-    timeouts.set(tabId, setTimeout(() => {
-      timeouts.delete(tabId);
+    console.log(`[MDPI Filter BG] Debounce triggered for tab ${tabId}. Clearing previous timeout.`);
+    clearTimeout(historyUpdateTimeout);
+    historyUpdateTimeout = setTimeout(() => {
+      console.log(`[MDPI Filter BG] Debounce executing injectModules for tab ${tabId} after ${wait}ms.`);
       func.apply(this, [tabId, ...args]);
-    }, wait));
+    }, wait);
   };
 };
 
-// Debounced version of injectModules specifically for history updates
-// Increase delay significantly to see if it helps
-const debouncedInjectForHistory = backgroundDebounce(injectModules, 750); // Increased from 300ms to 750ms
+// Debounced version of injectModules using the simplified debounce
+// Reduce delay back to a more responsive value
+const debouncedInjectForHistory = backgroundDebounceSimple(injectModules, 250); // Reduced to 250ms
 
 async function injectModules(tabId) {
+  // --- Ensure the guard variable is reset ---
+  // This tries to unset the guard in the content script environment before injecting.
+  // It might fail if the context is already invalid, but worth trying.
+  try {
+    await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: () => {
+            if (typeof window !== 'undefined') {
+                delete window.mdpiFilterInjected;
+                console.log('[MDPI Filter BG Pre-Inject] Reset window.mdpiFilterInjected');
+            }
+        }
+    });
+  } catch(e) {
+      // console.warn('[MDPI Filter BG Pre-Inject] Failed to reset guard:', e.message);
+  }
+  // ---
+
   const modules = [
     'content/domains.js',
     'content/sanitizer.js',
     'content/content_script.js'
   ];
   try {
-    await Promise.all(modules.map(file =>
-      chrome.scripting.executeScript({
-        target: { tabId, allFrames: true },
-        files: [file]
-      })
-    ));
-    console.log(`[MDPI Filter BG] Successfully injected modules into tab ${tabId}`);
+    // Inject sequentially to ensure dependencies are met and potentially reduce race conditions
+    for (const file of modules) {
+        await chrome.scripting.executeScript({
+            target: { tabId, allFrames: true },
+            files: [file]
+        });
+    }
+    console.log(`[MDPI Filter BG] Successfully injected modules sequentially into tab ${tabId}`);
   } catch (error) {
-     if (error.message.includes('Cannot access') || error.message.includes('Receiving end does not exist')) {
-        // console.log(`[MDPI Filter BG] Injection error (likely navigation): ${error.message}`);
+     if (error.message.includes('Cannot access') || error.message.includes('Receiving end does not exist') || error.message.includes('context invalidated')) {
+        // console.log(`[MDPI Filter BG] Injection error (likely navigation/timing): ${error.message}`);
      } else {
         console.warn(`[MDPI Filter BG] Failed to inject modules into tab ${tabId}:`, error);
      }
@@ -47,18 +65,17 @@ chrome.webNavigation.onCompleted.addListener(
   details => {
     if (details.frameId === 0) {
       console.log(`[MDPI Filter BG] onCompleted triggered for tab ${details.tabId}, injecting modules.`);
-      injectModules(details.tabId); // Inject directly, no debounce needed
+      injectModules(details.tabId);
     }
   },
   { url: [{ schemes: ['http','https'] }] }
 );
 
-// History state updates (fragment changes) - Use debounced injection
+// History state updates (fragment changes) - Use simplified debounced injection
 chrome.webNavigation.onHistoryStateUpdated.addListener(
   details => {
      if (details.frameId === 0) {
       console.log(`[MDPI Filter BG] onHistoryStateUpdated triggered for tab ${details.tabId}, queueing debounced injection.`);
-      // Call the debounced function, passing the tabId
       debouncedInjectForHistory(details.tabId);
     }
   },

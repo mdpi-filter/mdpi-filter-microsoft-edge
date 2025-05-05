@@ -43,7 +43,8 @@ if (!window.mdpiFilterInjected) {
     'li[id^="ref-"]',
     'li[id^="reference-"]',
     'li:has(> span > a[id^="ref-id-"])',
-    'li:has(a[name^="bbib"])'
+    'li:has(a[name^="bbib"])',
+    'li[data-bib-id]' // Added selector for Wiley references
   ].join(',');
   // ---
 
@@ -298,12 +299,13 @@ if (!window.mdpiFilterInjected) {
         const href = a.getAttribute('href');
         const rid = a.dataset.xmlRid;
         let targetEl = null;
+        let frag = null; // Define frag here
 
         if (rid) {
           targetEl = document.getElementById(rid);
         }
         if (!targetEl && href && href.includes('#')) {
-          const frag = href.slice(href.lastIndexOf('#') + 1);
+          frag = href.slice(href.lastIndexOf('#') + 1); // Assign frag here
           if (frag) {
             targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
             if (!targetEl) {
@@ -313,12 +315,20 @@ if (!window.mdpiFilterInjected) {
               const potentialId = frag.substring(5);
               targetEl = document.getElementById(potentialId);
             }
+            // --- Wiley Specific Check ---
+            if (!targetEl) {
+              targetEl = document.querySelector(`li[data-bib-id="${frag}"]`);
+            }
+            // --- End Wiley Specific Check ---
           }
         }
         if (!targetEl) return;
 
         let listItem = null;
-        if (rid && targetEl.id === rid) {
+        // Adjust logic to correctly identify the list item for Wiley
+        if (targetEl.matches('li[data-bib-id]')) { // Check if targetEl itself is the Wiley li
+            listItem = targetEl;
+        } else if (rid && targetEl.id === rid) {
           listItem = targetEl.querySelector('div.citation');
         } else if (targetEl.matches(referenceListSelectors)) {
           listItem = targetEl;
@@ -383,6 +393,9 @@ if (!window.mdpiFilterInjected) {
     }
 
     // --- Observer Setup ---
+    // Note: Wiley pages might load references dynamically when an accordion is expanded.
+    // A MutationObserver might be needed on '.accordion__content' or its parent
+    // if references aren't processed correctly on initial load or expansion.
     function setupCitedByObserver() {
         const targetNode = document.getElementById('cited-by__content');
         if (!targetNode) {

@@ -1,19 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>MDPI Filter Options</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h1>MDPI Filter</h1>
-  <label>
-    <input type="radio" name="mode" value="hide">
-    Hide MDPI results
-  </label><br>
-  <label>
-    <input type="radio" name="mode" value="highlight">
-    Highlight MDPI results
-  </label><br>
-  <button id="save">Save</button>
+  <div class="container">
+    <h1>MDPI Filter Options</h1>
+    <p>Select how MDPI results are handled on search sites:</p>
+    <label class="radio">
+      <input type="radio" name="mode" value="highlight">
+      <span>Highlight MDPI results</span>
+    </label>
+    <label class="radio">
+      <input type="radio" name="mode" value="hide">
+      <span>Hide MDPI results</span>
+    </label>
+    <button id="save">Save</button>
+    <div id="status"></div>
+  </div>
 
   <script src="options.js"></script>
 </body>

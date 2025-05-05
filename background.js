@@ -78,15 +78,25 @@ async function injectModules(tabId, triggerSource = "unknown") {
 
 // --- Simplified Event Listeners ---
 
-// 1) Clear badge when a tab starts loading a new URL
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+// 1) Clear badge ONLY when the main URL changes during loading
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Check if status is loading AND a URL is provided in changeInfo
   if (changeInfo.status === 'loading' && changeInfo.url) {
-    // Use try-catch as tab might be closed before badge is cleared
     try {
-      chrome.action.setBadgeText({ text: '', tabId });
-      console.log(`[MDPI Filter BG] Cleared badge for loading tab ${tabId}`);
+      // Compare the new URL (without hash) to the existing tab URL (without hash)
+      const newUrl = new URL(changeInfo.url);
+      const oldUrl = new URL(tab.url); // Get current URL from tab object
+
+      // Clear badge only if the origin or pathname has changed
+      if (newUrl.origin !== oldUrl.origin || newUrl.pathname !== oldUrl.pathname) {
+        chrome.action.setBadgeText({ text: '', tabId });
+        console.log(`[MDPI Filter BG] Cleared badge for loading tab ${tabId} (URL changed)`);
+      } else {
+        // console.log(`[MDPI Filter BG] Tab ${tabId} loading, but URL path/origin unchanged (likely hash change). Badge not cleared.`);
+      }
     } catch (e) {
-      // console.log(`[MDPI Filter BG] Error clearing badge for tab ${tabId}: ${e.message}`);
+       // Ignore errors (e.g., invalid URLs, tab closed)
+       // console.log(`[MDPI Filter BG] Error during tabs.onUpdated check for tab ${tabId}: ${e.message}`);
     }
   }
 });
@@ -94,27 +104,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // 2) Inject on every full load (main frame ONLY)
 chrome.webNavigation.onCompleted.addListener(
   details => {
-    // Inject ONLY into the main top-level frame (frameId === 0)
     if (details.frameId === 0) {
       console.log(`[MDPI Filter BG] Injecting scripts into main frame of tab ${details.tabId}`);
       chrome.scripting.executeScript({
-        target: { tabId: details.tabId, allFrames: false }, // <-- Set allFrames to false
+        target: { tabId: details.tabId, allFrames: false },
         files: [
           'content/domains.js',
           'content/sanitizer.js',
-          // 'content/utils.js', // Only include if debounce is needed in content script
           'content/content_script.js'
         ]
-      }).catch(e => {
-         // Ignore common errors if injection fails (e.g., navigating away quickly)
-         if (!(e.message.includes('Cannot access') ||
-               e.message.includes('Receiving end does not exist') ||
-               e.message.includes('context invalidated') ||
-               e.message.includes('Could not establish connection') ||
-               e.message.includes('No tab with id'))) {
-            console.warn(`[MDPI Filter BG] Failed to inject scripts into tab ${details.tabId}:`, e);
-         }
-      });
+      }).catch(e => { /* Ignore common injection errors */ });
     }
   },
   { url: [{ schemes: ['http','https'] }] }
@@ -122,22 +121,16 @@ chrome.webNavigation.onCompleted.addListener(
 
 // 3) Badge update listener
 chrome.runtime.onMessage.addListener((msg, sender) => {
-  // Ensure the message is from a tab and has the expected type/count
   if (msg.type === 'mdpiCount' && sender.tab?.id && typeof msg.count === 'number') {
     const tabId = sender.tab.id;
     const count = msg.count;
     const text = count > 0 ? String(count) : '';
-    console.log(`[MDPI Filter BG] Received count ${count} from tab ${tabId}. Setting badge text to '${text}'.`);
+    // console.log(`[MDPI Filter BG] Received count ${count} from tab ${tabId}. Setting badge text to '${text}'.`);
     try {
         chrome.action.setBadgeText({ text, tabId });
         if (count > 0) {
           chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId });
         }
-    } catch (e) {
-        // console.log(`[MDPI Filter BG] Error setting badge for tab ${tabId}: ${e.message}`);
-    }
+    } catch (e) { /* Ignore errors setting badge */ }
   }
 });
-
-// REMOVED Debounce logic and onHistoryStateUpdated listener as they are no longer used
-// REMOVED tabs.onRemoved listener related to debounce cleanup

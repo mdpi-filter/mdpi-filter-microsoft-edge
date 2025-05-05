@@ -309,20 +309,18 @@ if (!window.mdpiFilterInjected) {
       });
     }
 
-    function runAll(source = "initial") { // Add source parameter for logging
+    function runAll(source = "initial") {
       console.log(`[MDPI Filter] runAll triggered by: ${source}`);
       uniqueMdpiReferences.clear();
-      // Clear data attributes before re-processing
-      document.querySelectorAll('[data-mdpi-checked]').forEach(el => {
-        delete el.dataset.mdpiChecked;
+      document.querySelectorAll('[data-mdpi-checked-this-run]').forEach(el => {
+        delete el.dataset.mdpiCheckedThisRun;
         delete el.dataset.mdpiResult;
       });
 
       try {
-        // Check dependencies again before running processing functions
         if (!window.MDPIFilterDomains || !window.sanitize) {
-             console.error("[MDPI Filter] runAll aborted: Dependencies (domains/sanitizer) not loaded.");
-             return; // Stop runAll if dependencies are missing
+          console.error("[MDPI Filter] runAll aborted: Dependencies (domains/sanitizer) not loaded.");
+          return;
         }
         processSearchSites();
         processAllReferences();
@@ -337,26 +335,17 @@ if (!window.mdpiFilterInjected) {
     }
 
     // Initial run
-    // Check dependencies before initial run
     if (window.MDPIFilterDomains && window.sanitize) {
         console.log("[MDPI Filter] Dependencies loaded. Executing initial runAll.");
-        // Use setTimeout for initial run too, to ensure DOM is fully ready
-        setTimeout(() => runAll("initial load"), 100); // Small delay for initial run
+        runAll("initial load");
     } else {
         console.error("[MDPI Filter] Initial runAll skipped: Dependencies (domains/sanitizer) not loaded.");
     }
 
-    // Re-run on hash changes, with a delay
-    let hashChangeTimeout;
+    // Re-run on hash changes
     window.addEventListener('hashchange', () => {
-      console.log("[MDPI Filter] hashchange detected.");
-      // Clear any pending timeout from previous rapid hash changes
-      clearTimeout(hashChangeTimeout);
-      // Set a new timeout to run after a short delay
-      hashChangeTimeout = setTimeout(() => {
-          console.log("[MDPI Filter] Running runAll after hashchange delay.");
-          runAll("hashchange"); // Pass source
-      }, 150); // Delay execution slightly (e.g., 150ms)
+      console.log("[MDPI Filter] hashchange detected, running runAll immediately.");
+      runAll("hashchange");
     });
 
     console.log("[MDPI Filter] Initial setup complete, hashchange listener added.");

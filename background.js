@@ -1,27 +1,29 @@
 // background.js
 
-// Simplified Debounce function for background script
-let historyUpdateTimeout; // Use a single timeout variable
+const loadingTabs = new Set(); // Track tabs currently loading
 
+// Simplified Debounce function for background script
+let historyUpdateTimeout;
 const backgroundDebounceSimple = (func, wait) => {
   return (tabId, ...args) => {
     console.log(`[MDPI Filter BG] Debounce triggered for tab ${tabId}. Clearing previous timeout.`);
     clearTimeout(historyUpdateTimeout);
     historyUpdateTimeout = setTimeout(() => {
+      // Check if tab is still loading before executing
+      if (loadingTabs.has(tabId)) {
+          console.log(`[MDPI Filter BG] Debounce skipped for tab ${tabId} because it's still loading.`);
+          return;
+      }
       console.log(`[MDPI Filter BG] Debounce executing injectModules for tab ${tabId} after ${wait}ms.`);
       func.apply(this, [tabId, ...args]);
     }, wait);
   };
 };
 
-// Debounced version of injectModules using the simplified debounce
-// Reduce delay back to a more responsive value
-const debouncedInjectForHistory = backgroundDebounceSimple(injectModules, 250); // Reduced to 250ms
+const debouncedInjectForHistory = backgroundDebounceSimple(injectModules, 250);
 
 async function injectModules(tabId) {
   // --- Ensure the guard variable is reset ---
-  // This tries to unset the guard in the content script environment before injecting.
-  // It might fail if the context is already invalid, but worth trying.
   try {
     await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
@@ -32,9 +34,7 @@ async function injectModules(tabId) {
             }
         }
     });
-  } catch(e) {
-      // console.warn('[MDPI Filter BG Pre-Inject] Failed to reset guard:', e.message);
-  }
+  } catch(e) { /* Ignore */ }
   // ---
 
   const modules = [
@@ -43,7 +43,6 @@ async function injectModules(tabId) {
     'content/content_script.js'
   ];
   try {
-    // Inject sequentially to ensure dependencies are met and potentially reduce race conditions
     for (const file of modules) {
         await chrome.scripting.executeScript({
             target: { tabId, allFrames: true },
@@ -60,61 +59,77 @@ async function injectModules(tabId) {
   }
 }
 
-// Full page loads - Inject immediately
+// --- Listener Order Matters ---
+
+// 1. Track tab loading status and clear badge on new load start
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'loading') {
+         console.log(`[MDPI Filter BG] onUpdated status 'loading' for tab ${tabId}. Adding to loadingTabs and clearing badge.`);
+         loadingTabs.add(tabId); // Add tab to loading set
+         try {
+            chrome.action.setBadgeText({ text: '', tabId: tabId });
+         } catch (error) { /* Ignore */ }
+    } else if (changeInfo.status === 'complete') {
+        // Remove tab from loading set when loading is complete
+        console.log(`[MDPI Filter BG] onUpdated status 'complete' for tab ${tabId}. Removing from loadingTabs.`);
+        loadingTabs.delete(tabId);
+    }
+});
+
+// 2. Inject on initial completion
 chrome.webNavigation.onCompleted.addListener(
   details => {
+    // Inject only into the main frame after it's fully loaded
     if (details.frameId === 0) {
-      console.log(`[MDPI Filter BG] onCompleted triggered for tab ${details.tabId}, injecting modules.`);
+      console.log(`[MDPI Filter BG] onCompleted triggered for tab ${details.tabId}. Removing from loadingTabs and injecting.`);
+      // Ensure tab is removed from loading set before injecting
+      loadingTabs.delete(details.tabId);
       injectModules(details.tabId);
     }
   },
   { url: [{ schemes: ['http','https'] }] }
 );
 
-// History state updates (fragment changes) - Use simplified debounced injection
+// 3. Inject on history updates (debounced and only if not loading)
 chrome.webNavigation.onHistoryStateUpdated.addListener(
   details => {
      if (details.frameId === 0) {
-      console.log(`[MDPI Filter BG] onHistoryStateUpdated triggered for tab ${details.tabId}, queueing debounced injection.`);
-      debouncedInjectForHistory(details.tabId);
+        // Only queue injection if the tab is NOT currently in the loading set
+        if (!loadingTabs.has(details.tabId)) {
+            console.log(`[MDPI Filter BG] onHistoryStateUpdated triggered for tab ${details.tabId} (not loading), queueing debounced injection.`);
+            debouncedInjectForHistory(details.tabId);
+        } else {
+            console.log(`[MDPI Filter BG] onHistoryStateUpdated triggered for tab ${details.tabId}, but skipped injection (still loading).`);
+        }
     }
   },
   { url: [{ schemes: ['http','https'] }] }
 );
 
-// Listen for messages from content script
+// 4. Listen for messages (no change needed here)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'mdpiCount' && sender.tab?.id) {
     const count = message.count;
-    const text = count > 0 ? count.toString() : ''; // Show count or clear badge
+    const text = count > 0 ? count.toString() : '';
     try {
-        chrome.action.setBadgeText({
-          text: text,
-          tabId: sender.tab.id
-        });
-        if (count > 0) {
-            chrome.action.setBadgeBackgroundColor({
-                color: '#E2211C', // Red background for the badge
-                tabId: sender.tab.id
-            });
+        // Check if tab is still loading before setting badge (belt-and-suspenders)
+        if (!loadingTabs.has(sender.tab.id)) {
+            chrome.action.setBadgeText({ text: text, tabId: sender.tab.id });
+            if (count > 0) {
+                chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId: sender.tab.id });
+            }
+            console.log(`[MDPI Filter BG] Set badge text '${text}' for tab ${sender.tab.id}`);
+        } else {
+             console.log(`[MDPI Filter BG] Received count ${count} for tab ${sender.tab.id}, but badge update skipped (still loading).`);
         }
-    } catch (error) {
-        // console.log(`[MDPI Filter BG] Error setting badge for tab ${sender.tab.id}: ${error.message}`);
-    }
+    } catch (error) { /* Ignore */ }
   }
 });
 
-// Optional: Clear badge when tab is updated (e.g., navigating away)
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'loading') {
-         console.log(`[MDPI Filter BG] onUpdated status 'loading' for tab ${tabId}, clearing badge.`);
-         try {
-            chrome.action.setBadgeText({ text: '', tabId: tabId });
-         } catch (error) {
-            // console.log(`[MDPI Filter BG] Error clearing badge for tab ${tabId}: ${error.message}`);
-         }
+// Optional: Clean up loadingTabs if a tab is closed while loading
+chrome.tabs.onRemoved.addListener((tabId) => {
+    if (loadingTabs.has(tabId)) {
+        console.log(`[MDPI Filter BG] Tab ${tabId} closed while loading, removing from loadingTabs.`);
+        loadingTabs.delete(tabId);
     }
 });
-
-// Optional: Clear badge when a tab is closed (though usually handled by Chrome)
-// chrome.tabs.onRemoved.addListener((tabId) => { ... });

@@ -13,19 +13,26 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
   // Store unique identifiers for MDPI references found
   const uniqueMdpiReferences = new Set();
 
-  // Common selectors for reference list items - Made more specific
+  // Common selectors for reference list items - Refined
   const referenceListSelectors = [
-    'li.c-article-references__item',    // Nature, BioMed Central, etc.
-    'div.References p.ReferencesCopy1', // Some reference styles
-    'li.html-x',                        // MDPI article reference items (older style?)
-    'li.html-xx',                       // MDPI article reference items (newer style?)
-    'div.citation',                     // Common citation container class
-    'div.reference',                    // Common reference container class
-    'li.separated-list-item',           // EuropePMC search results
-    'li[id^="CR"]',                     // Common ID pattern (e.g., PMC, TandF)
-    'li[id^="ref-"]',                   // Common ID pattern
-    'li[id^="reference-"]'              // Common ID pattern
-    // Removed 'ol > li', 'ul > li' as they were too general
+    // General structure selectors
+    'li.c-article-references__item',
+    'div.References p.ReferencesCopy1',
+    'li.html-x',
+    'li.html-xx',
+    'div.citation',
+    'div.reference',
+    'li.separated-list-item', // EuropePMC search results
+
+    // Selectors based on LI having specific IDs
+    'li[id^="CR"]',
+    'li[id^="ref-"]', // Matches li id="ref-something"
+    'li[id^="reference-"]',
+
+    // Selectors based on specific inner element IDs/names (like ScienceDirect)
+    'li:has(> span > a[id^="ref-id-"])', // Matches li > span > a id="ref-id-something"
+    'li:has(a[name^="bbib"])' // Matches li containing a name="bbib..." (alternative for SD)
+
   ].join(',');
 
   // Retrieve user preference (default = highlight)
@@ -94,15 +101,22 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     // Function to check if a list item element is MDPI and add to set
     const isMdpiReferenceItem = (item) => {
       if (!item) return false;
+      // Check if already processed to prevent redundant checks/counting
+      if (item.dataset.mdpiChecked) return item.dataset.mdpiResult === 'true';
+
       const hasMdpiLink = item.querySelector(
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
       const textContent = item.textContent || '';
       const hasMdpiText = textContent.includes(MDPI_DOI); // Check text content for DOI
       // Check for common MDPI journal names (case-sensitive), using word boundaries
-      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS)\b/.test(textContent); // Removed 'i' flag for case-sensitivity
+      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/.test(textContent); // Added Molecules
 
-      const isMdpi = hasMdpiLink || hasMdpiText || hasMdpiJournal;
+      const isMdpi = !!(hasMdpiLink || hasMdpiText || hasMdpiJournal); // Ensure boolean
+
+      // Mark as checked and store result
+      item.dataset.mdpiChecked = 'true';
+      item.dataset.mdpiResult = isMdpi;
 
       if (isMdpi) {
         // Use sanitized text content as a unique key
@@ -231,7 +245,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       }
     }
 
-    // 2. Process inline footnotes everywhere
+    // 2. Process inline footnotes everywhere - REFINED
     function processInlineCitations() {
       document.querySelectorAll('a[href*="#"]').forEach(a => {
         const href = a.getAttribute('href');
@@ -239,35 +253,44 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         const frag = href.slice(href.lastIndexOf('#') + 1);
         if (!frag) return;
 
-        // Attempt to find the reference list item associated with the fragment.
-        // Strategy 1: Find an element with ID starting 'ref-id-' + frag (like ScienceDirect)
-        let listItem = document.getElementById('ref-id-' + frag)?.closest('li');
+        // Find the element targeted by the fragment ID/name
+        const targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
+        if (!targetEl) return;
 
-        // Strategy 2: Find an element with the exact ID or name, then find its closest list item ancestor.
-        if (!listItem) {
-            const targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
-            if (targetEl) {
-                listItem = targetEl.closest(referenceListSelectors);
-            }
+        // Find the associated reference list item (LI)
+        let listItem = null;
+        // Scenario 1: Target is the LI itself (less likely but possible)
+        if (targetEl.matches('li')) {
+            listItem = targetEl;
+        }
+        // Scenario 2: Target is inside an LI (most common)
+        else {
+            listItem = targetEl.closest('li');
         }
 
-        // If a potential list item was found, check if it's an MDPI reference.
-        if (listItem && isMdpiReferenceItem(listItem)) {
-          // Style the original inline link (<a> or its <sup> child if present)
-          const sup = a.querySelector('sup');
-          styleSup(sup || a);
+        // Now, verify this LI looks like a reference item using our selectors
+        // This avoids styling footnotes pointing to non-reference list items
+        if (listItem && listItem.matches(referenceListSelectors)) {
+            // Check if it's an MDPI reference.
+            if (isMdpiReferenceItem(listItem)) {
+                // Style the original inline link (<a> or its <sup> child if present)
+                const sup = a.querySelector('sup');
+                styleSup(sup || a);
+                // ALSO style the reference list item itself
+                styleRef(listItem); // <<< Styles the LI
+            }
         }
       });
     }
 
-    // 3. Process reference‐list entries everywhere
+    // 3. Process reference‐list entries everywhere - REFINED (as fallback)
     function processReferenceLists() {
       document.querySelectorAll(referenceListSelectors).forEach(item => {
-        // Use the common check function
-        // This will also add the item's key to uniqueMdpiReferences if it's MDPI
-        if (isMdpiReferenceItem(item)) {
-          styleRef(item);
-        }
+          // Check if it's MDPI *and* hasn't already been styled by processInlineCitations
+          // Check based on whether the border style was already applied
+          if (!item.style.border.includes('red') && isMdpiReferenceItem(item)) {
+              styleRef(item);
+          }
       });
     }
 
@@ -288,9 +311,15 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     // Run all processing functions
     function runAll() {
       uniqueMdpiReferences.clear(); // Clear set before reprocessing
+      // Clear checked status before reprocessing
+      document.querySelectorAll('[data-mdpi-checked]').forEach(el => {
+          delete el.dataset.mdpiChecked;
+          delete el.dataset.mdpiResult;
+      });
+
       processSearchSites(); // This already checks domains internally
-      processInlineCitations();
-      processReferenceLists();
+      processInlineCitations(); // Styles inline links AND their corresponding list items
+      processReferenceLists(); // Styles list items missed by inline processing
       processDirectMdpiLinks(); // Add processing for direct links
       updateBadgeCount(); // Update badge after processing
     }

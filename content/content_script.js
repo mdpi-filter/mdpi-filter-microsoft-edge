@@ -233,6 +233,22 @@ if (!window.mdpiFilterInjected) {
       }
     }
 
+    function processCitedByEntries() {
+      document.querySelectorAll('li.citedByEntry').forEach(item => {
+        // Check for the MDPI DOI prefix within the list item's text content
+        if (item.textContent?.includes(MDPI_DOI)) {
+          // Apply the search styling (handles highlight/hide mode)
+          styleSearch(item);
+          // Optionally, style the link inside if needed, similar to processSearchSites
+          // For example, find the 'View' link and style it:
+          const viewLink = item.querySelector('.extra-links a.getFTR__btn');
+          if (viewLink) {
+             styleLinkElement(viewLink); // Use the existing link styling function
+          }
+        }
+      });
+    }
+
     function styleInlineFootnotes() {
       document.querySelectorAll('a[href*="#"]').forEach(a => {
         const href = a.getAttribute('href');
@@ -306,6 +322,7 @@ if (!window.mdpiFilterInjected) {
           return;
         }
         processSearchSites();
+        processCitedByEntries();
         processAllReferences();
         styleInlineFootnotes();
         processDirectMdpiLinks();

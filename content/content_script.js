@@ -260,43 +260,64 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     function processInlineCitations() {
       document.querySelectorAll('a[href*="#"]').forEach(a => {
         const href = a.getAttribute('href');
-        if (!href || !href.includes('#')) return;
-        const frag = href.slice(href.lastIndexOf('#') + 1);
-        if (!frag) return;
+        const rid = a.dataset.xmlRid; // Get data-xml-rid attribute (e.g., "B21")
 
-        // Find the element targeted by the fragment ID/name
-        // Original attempt:
-        let targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
+        let targetEl = null;
 
-        // Fallback for ScienceDirect: Look for an element (likely an anchor) whose ID *ends with* -frag
-        if (!targetEl) {
-            targetEl = document.querySelector(`a[id$="-${frag}"]`); // Match elements like id="ref-id-b0040"
+        // --- NEW: Try finding target using data-xml-rid first (for liebertpub) ---
+        if (rid) {
+          targetEl = document.getElementById(rid); // Find element with id="B21"
         }
+        // --- END NEW ---
+
+        // --- Fallback to existing href fragment logic if rid didn't work ---
+        if (!targetEl && href && href.includes('#')) {
+          const frag = href.slice(href.lastIndexOf('#') + 1);
+          if (frag) {
+            // Original attempt:
+            targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
+
+            // Fallback for ScienceDirect: Look for an element whose ID *ends with* -frag
+            if (!targetEl) {
+              targetEl = document.querySelector(`a[id$="-${frag}"]`);
+            }
+            // Fallback for hrefs like #core-B21 if rid wasn't present
+            if (!targetEl && frag.startsWith('core-')) {
+                const potentialId = frag.substring(5); // Remove 'core-'
+                targetEl = document.getElementById(potentialId);
+            }
+          }
+        }
+        // --- END Fallback ---
 
         if (!targetEl) return; // Still couldn't find a target
 
-        // Find the associated reference list item (LI)
+        // --- Refined listItem finding ---
         let listItem = null;
-        // Scenario 1: Target is the LI itself
-        if (targetEl.matches('li')) {
+        if (rid && targetEl.id === rid) {
+            // Found via data-xml-rid (e.g., liebertpub), targetEl is the container (div#B21)
+            // The actual item to check/style is the div.citation inside it
+            listItem = targetEl.querySelector('div.citation');
+        } else if (targetEl.matches(referenceListSelectors)) {
+            // Found via frag, and targetEl *is* the reference item (e.g., <li id="frag"> or <div class="citation" id="frag">)
             listItem = targetEl;
+        } else {
+            // Found via frag, targetEl is *inside* the reference item (e.g., ScienceDirect <a id="ref-id-frag">)
+            // Find the closest ancestor that matches any of our reference selectors
+            listItem = targetEl.closest(referenceListSelectors);
         }
-        // Scenario 2: Target is inside an LI (most common, including the ScienceDirect case)
-        else {
-            listItem = targetEl.closest('li');
-        }
+        // --- End Refined listItem finding ---
 
-        // Now, verify this LI looks like a reference item using our selectors
-        // This avoids styling footnotes pointing to non-reference list items
-        if (listItem && listItem.matches(referenceListSelectors)) {
+        // Now, verify this item looks like a reference item
+        if (listItem && listItem.matches(referenceListSelectors)) { // Double-check it matches
             // Check if it's an MDPI reference.
             if (isMdpiReferenceItem(listItem)) {
                 // Style the original inline link (<a> or its <sup> child if present)
                 const sup = a.querySelector('sup');
-                styleSup(sup || a);
+                styleSup(sup || a); // Style the inline link <a>21</a>
                 // ALSO style the reference list item itself if not already styled
                 if (!listItem.style.border.includes('red')) {
-                    styleRef(listItem);
+                    styleRef(listItem); // Style the reference div.citation
                 }
             }
         }

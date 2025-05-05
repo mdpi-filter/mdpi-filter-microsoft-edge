@@ -79,6 +79,18 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
        }
     };
 
+    // D: Style a single link element with red color and dotted underline
+    const styleLinkElement = link => {
+      if (!link) return;
+      link.style.color = '#E2211C';
+      link.style.borderBottom = '1px dotted #E2211C';
+      link.style.textDecoration = 'none';
+      // Ensure display allows border-bottom
+      if (window.getComputedStyle(link).display === 'inline') {
+        link.style.display = 'inline-block'; // Use inline-block for border
+      }
+    };
+
     // Function to check if a list item element is MDPI and add to set
     const isMdpiReferenceItem = (item) => {
       if (!item) return false;
@@ -183,17 +195,35 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
             // Condition: Style if any of the reliable checks pass
             if (hasMdpiDoiText || mdpiLink || hasLinkWithMdpiDoi || hasMdpiMention) {
               // Apply the main style (hide/highlight border) to the whole row
-              styleSearch(row);
+              styleSearch(row); // Applies border/padding to the row (div.g or div.gs_r)
 
-              // Find the primary link within this row to apply title styling
-              const primaryLink = row.querySelector('a h3') // Link containing h3
-                                  ?.closest('a')
-                                  || row.querySelector('a[jsname="UWckNb"]') // Google specific link structure
-                                  || row.querySelector('a[href]'); // Fallback to first link
+              let titleContainer = null;
+              const isScholar = cfg.host === 'scholar.google.com';
 
-              if (primaryLink) {
-                // Apply the title-specific styling (red text, dotted underline)
-                styleDirectLink(primaryLink);
+              if (isScholar) {
+                // On Scholar, find the H3 title container
+                titleContainer = row.querySelector('h3.gs_rt');
+              } else {
+                // On Google Web, find the H3 inside the main link container
+                titleContainer = row.querySelector('.yuRUbf h3');
+              }
+
+              // Style all links within the identified title container (H3)
+              if (titleContainer) {
+                titleContainer.querySelectorAll('a').forEach(styleLinkElement);
+              } else if (!isScholar) {
+                // Fallback for Google Web if H3 isn't found (less common)
+                // Find the primary link and style it
+                const primaryLink = row.querySelector('a[jsname="UWckNb"]') || row.querySelector('.yuRUbf a');
+                styleLinkElement(primaryLink);
+              }
+              // Note: No 'else' needed for Scholar fallback, as h3.gs_rt should exist
+
+              // Separately style the direct mdpi.com link (e.g., [PDF] link) if it exists
+              // and wasn't already styled as part of the title container
+              // Check if mdpiLink exists and if titleContainer exists and does NOT contain mdpiLink
+              if (mdpiLink && (!titleContainer || !titleContainer.contains(mdpiLink))) {
+                 styleLinkElement(mdpiLink);
               }
             }
           });

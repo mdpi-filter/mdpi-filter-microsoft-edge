@@ -114,8 +114,9 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
       const hasMdpiText = textContent.includes(MDPI_DOI); // Check text content for DOI
-      // Check for common MDPI journal names (case-insensitive) as whole words
-      const journalRegex = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i; // Store regex
+      // Check for common MDPI journal names (case-insensitive)
+      // Allow match if preceded by start-of-string or non-word char, require word boundary after.
+      const journalRegex = /(?:^|[^A-Za-z0-9_])(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i; // Refined regex
       const hasMdpiJournal = journalRegex.test(textContent); // Test against text
       console.log(`[MDPI Filter] Regex ${journalRegex} test result on text:`, hasMdpiJournal); // Log the regex result
 

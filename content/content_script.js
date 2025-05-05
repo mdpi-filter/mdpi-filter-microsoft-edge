@@ -3,18 +3,29 @@
 // Prevent multiple injections/executions in the same context
 if (typeof window.mdpiFilterInjected === 'undefined') {
   window.mdpiFilterInjected = true;
-  console.log("[MDPI Filter] Content script executing (mdpiFilterInjected set)."); // Modified log
+  console.log("[MDPI Filter] Content script executing (mdpiFilterInjected set).");
+
+  // --- Check for dependencies early ---
+  if (typeof window.MDPIFilterDomains === 'undefined') {
+      console.error("[MDPI Filter] CRITICAL: window.MDPIFilterDomains is undefined. domains.js might not have loaded correctly.");
+      // Optionally, prevent further execution if domains are essential
+      // return; // Or handle gracefully later
+  }
+  if (typeof window.sanitize === 'undefined') {
+      console.error("[MDPI Filter] CRITICAL: window.sanitize is undefined. sanitizer.js might not have loaded correctly.");
+      // Optionally, prevent further execution
+      // return;
+  }
+  // ---
 
   // --- Constants, Selectors, State ---
   const MDPI_DOMAIN = 'mdpi.com';
   const MDPI_DOI    = '10.3390';
-  const domains     = window.MDPIFilterDomains;
-  const sanitize    = window.sanitize; // Ensure sanitizer is available
+  // Assign ONLY if defined, otherwise use an empty object to prevent errors later
+  const domains     = window.MDPIFilterDomains || {};
+  const sanitize    = window.sanitize || (html => html); // Provide fallback if needed
 
-  // Store unique identifiers for MDPI references found
   const uniqueMdpiReferences = new Set();
-
-  // Common selectors for reference list items - Refined
   const referenceListSelectors = [
     // General structure selectors
     'li.c-article-references__item',
@@ -35,9 +46,10 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     'li:has(a[name^="bbib"])' // Matches li containing a name="bbib..." (alternative for SD)
 
   ].join(',');
+  // ---
 
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
-    console.log("[MDPI Filter] Mode:", mode); // Log the mode
+    console.log("[MDPI Filter] Mode:", mode);
 
     const highlightStyle = '2px solid red';
 
@@ -130,8 +142,14 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     };
 
     const isSearchSite = () => {
+      // Add check inside isSearchSite as well
+      if (!window.MDPIFilterDomains) {
+          console.warn("[MDPI Filter] isSearchSite check skipped: domains not loaded.");
+          return false;
+      }
       const host = location.hostname;
       const path = location.pathname;
+      // Use the local 'domains' variable which has the fallback
       for (const cfg of Object.values(domains)) {
         const matchHost = cfg.host
           ? host === cfg.host
@@ -171,7 +189,13 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
     };
 
     function processSearchSites() {
+      // Add check here too for safety
+      if (!window.MDPIFilterDomains) {
+          console.warn("[MDPI Filter] processSearchSites skipped: domains not loaded.");
+          return;
+      }
       const host = location.hostname;
+      // Use the local 'domains' variable
       for (const cfg of Object.values(domains)) {
         const matchHost = cfg.host
           ? host === cfg.host
@@ -295,6 +319,11 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       });
 
       try {
+        // Check dependencies again before running processing functions
+        if (!window.MDPIFilterDomains || !window.sanitize) {
+             console.error("[MDPI Filter] runAll aborted: Dependencies (domains/sanitizer) not loaded.");
+             return; // Stop runAll if dependencies are missing
+        }
         processSearchSites();
         processAllReferences();
         styleInlineFootnotes();
@@ -307,14 +336,18 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       }
     }
 
-    console.log("[MDPI Filter] Executing initial runAll.");
-    runAll();
+    // Check dependencies before initial run
+    if (window.MDPIFilterDomains && window.sanitize) {
+        console.log("[MDPI Filter] Dependencies loaded. Executing initial runAll.");
+        runAll();
+    } else {
+        console.error("[MDPI Filter] Initial runAll skipped: Dependencies (domains/sanitizer) not loaded.");
+    }
 
     console.log("[MDPI Filter] MutationObserver setup removed.");
 
   }); // End storage.sync.get
 
 } else {
-  // Add log here to see if this block is ever reached
   console.log("[MDPI Filter] Injection prevented, mdpiFilterInjected was already true.");
 } // End of injection check

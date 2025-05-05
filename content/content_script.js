@@ -4,55 +4,43 @@ if (!window.mdpiFilterInjected) {
   window.mdpiFilterInjected = true;
   console.log("[MDPI Filter] Content script executing (mdpiFilterInjected set).");
 
-  // --- Check for dependencies early ---
+  // --- Dependencies Check ---
   if (typeof window.MDPIFilterDomains === 'undefined') {
-      console.error("[MDPI Filter] CRITICAL: window.MDPIFilterDomains is undefined. domains.js might not have loaded correctly.");
-      // Optionally, prevent further execution if domains are essential
-      // return; // Or handle gracefully later
+    console.error("[MDPI Filter] CRITICAL: window.MDPIFilterDomains is undefined. domains.js might not have loaded correctly.");
   }
   if (typeof window.sanitize === 'undefined') {
-      console.error("[MDPI Filter] CRITICAL: window.sanitize is undefined. sanitizer.js might not have loaded correctly.");
-      // Optionally, prevent further execution
-      // return;
+    console.error("[MDPI Filter] CRITICAL: window.sanitize is undefined. sanitizer.js might not have loaded correctly.");
   }
   // ---
 
   // --- Constants, Selectors, State ---
   const MDPI_DOMAIN = 'mdpi.com';
   const MDPI_DOI    = '10.3390';
-  // Assign ONLY if defined, otherwise use an empty object to prevent errors later
   const domains     = window.MDPIFilterDomains || {};
-  const sanitize    = window.sanitize || (html => html); // Provide fallback if needed
-
+  const sanitize    = window.sanitize || (html => html);
   const uniqueMdpiReferences = new Set();
   const referenceListSelectors = [
-    // General structure selectors
     'li.c-article-references__item',
     'div.References p.ReferencesCopy1',
     'li.html-x',
     'li.html-xx',
     'div.citation',
     'div.reference',
-    'li.separated-list-item', // EuropePMC search results
-
-    // Selectors based on LI having specific IDs
+    'li.separated-list-item',
     'li[id^="CR"]',
-    'li[id^="ref-"]', // Matches li id="ref-something"
+    'li[id^="ref-"]',
     'li[id^="reference-"]',
-
-    // Selectors based on specific inner element IDs/names (like ScienceDirect)
-    'li:has(> span > a[id^="ref-id-"])', // Matches li > span > a id="ref-id-something"
-    'li:has(a[name^="bbib"])' // Matches li containing a name="bbib..." (alternative for SD)
-
+    'li:has(> span > a[id^="ref-id-"])',
+    'li:has(a[name^="bbib"])'
   ].join(',');
   // ---
 
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     console.log("[MDPI Filter] Mode:", mode);
 
+    // --- Styling Functions ---
     const highlightStyle = '2px solid red';
 
-    // A: Hide or highlight a search‐result element
     const styleSearch = el => {
       if (!el) return;
       if (mode === 'hide') el.style.display = 'none';
@@ -62,13 +50,11 @@ if (!window.mdpiFilterInjected) {
       }
     };
 
-    // B: Color an inline footnote (<sup> or <a>) red
     const styleSup = supOrA => {
       supOrA.style.color      = '#E2211C';
       supOrA.style.fontWeight = 'bold';
     };
 
-    // C: Outline an entry in a reference list
     const styleRef = item => {
       item.style.border  = highlightStyle;
       item.style.padding = '5px';
@@ -79,7 +65,6 @@ if (!window.mdpiFilterInjected) {
       }
     };
 
-    // D: Style direct links to MDPI articles - Target inner element like H3
     const styleDirectLink = link => {
       const titleElement = link.querySelector('h3');
       const targetElement = titleElement || link;
@@ -93,7 +78,6 @@ if (!window.mdpiFilterInjected) {
       }
     };
 
-    // D: Style a single link element with red color and dotted underline
     const styleLinkElement = link => {
       if (!link) return;
       link.style.color = '#E2211C';
@@ -103,7 +87,9 @@ if (!window.mdpiFilterInjected) {
         link.style.display = 'inline-block';
       }
     };
+    // ---
 
+    // --- Core Logic Functions ---
     const isMdpiReferenceItem = (item) => {
       if (!item) return false;
       if (item.dataset.mdpiChecked) return item.dataset.mdpiResult === 'true';
@@ -141,14 +127,12 @@ if (!window.mdpiFilterInjected) {
     };
 
     const isSearchSite = () => {
-      // Add check inside isSearchSite as well
       if (!window.MDPIFilterDomains) {
-          console.warn("[MDPI Filter] isSearchSite check skipped: domains not loaded.");
-          return false;
+        console.warn("[MDPI Filter] isSearchSite check skipped: domains not loaded.");
+        return false;
       }
       const host = location.hostname;
       const path = location.pathname;
-      // Use the local 'domains' variable which has the fallback
       for (const cfg of Object.values(domains)) {
         const matchHost = cfg.host
           ? host === cfg.host
@@ -177,24 +161,22 @@ if (!window.mdpiFilterInjected) {
         chrome.runtime.sendMessage({ type: 'mdpiCount', count: count });
 
       } catch (error) {
-        // --- DEBUGGING: Log errors if sending fails ---
         console.warn("[MDPI Filter] Could not send message to background (try/catch):", error.message, error);
       } finally {
-        // --- DEBUGGING: Check chrome.runtime.lastError ---
         if (chrome.runtime.lastError) {
           console.warn("[MDPI Filter] chrome.runtime.lastError after sendMessage:", chrome.runtime.lastError.message || chrome.runtime.lastError);
         }
       }
     };
+    // ---
 
+    // --- Processing Functions ---
     function processSearchSites() {
-      // Add check here too for safety
       if (!window.MDPIFilterDomains) {
-          console.warn("[MDPI Filter] processSearchSites skipped: domains not loaded.");
-          return;
+        console.warn("[MDPI Filter] processSearchSites skipped: domains not loaded.");
+        return;
       }
       const host = location.hostname;
-      // Use the local 'domains' variable
       for (const cfg of Object.values(domains)) {
         const matchHost = cfg.host
           ? host === cfg.host
@@ -308,12 +290,13 @@ if (!window.mdpiFilterInjected) {
         }
       });
     }
+    // ---
 
     function runAll(source = "initial") {
       console.log(`[MDPI Filter] runAll triggered by: ${source}`);
       uniqueMdpiReferences.clear();
-      document.querySelectorAll('[data-mdpi-checked-this-run]').forEach(el => {
-        delete el.dataset.mdpiCheckedThisRun;
+      document.querySelectorAll('[data-mdpi-checked]').forEach(el => {
+        delete el.dataset.mdpiChecked;
         delete el.dataset.mdpiResult;
       });
 
@@ -334,18 +317,24 @@ if (!window.mdpiFilterInjected) {
       }
     }
 
-    // Initial run
+    // Initial run - Use requestAnimationFrame
     if (window.MDPIFilterDomains && window.sanitize) {
-        console.log("[MDPI Filter] Dependencies loaded. Executing initial runAll.");
+      console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll.");
+      requestAnimationFrame(() => {
+        console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
         runAll("initial load");
+      });
     } else {
-        console.error("[MDPI Filter] Initial runAll skipped: Dependencies (domains/sanitizer) not loaded.");
+      console.error("[MDPI Filter] Initial runAll skipped: Dependencies (domains/sanitizer) not loaded.");
     }
 
-    // Re-run on hash changes
+    // Re-run on hash changes - Use requestAnimationFrame
     window.addEventListener('hashchange', () => {
-      console.log("[MDPI Filter] hashchange detected, running runAll immediately.");
-      runAll("hashchange");
+      console.log("[MDPI Filter] hashchange detected. Requesting runAll.");
+      requestAnimationFrame(() => {
+        console.log("[MDPI Filter] Running runAll via requestAnimationFrame after hashchange.");
+        runAll("hashchange");
+      });
     });
 
     console.log("[MDPI Filter] Initial setup complete, hashchange listener added.");

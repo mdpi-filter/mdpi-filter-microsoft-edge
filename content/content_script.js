@@ -150,29 +150,35 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
           : cfg.hostRegex?.test(host);
         const matchPath = !cfg.path || cfg.path.test(path);
         if (matchHost && matchPath) {
+          // --- DEBUGGING: Log which domain matched ---
+          console.log(`[MDPI Filter] isSearchSite: Matched ${cfg.host || cfg.hostRegex}`);
           return true; // It's a configured search site
         }
       }
+      // --- DEBUGGING: Log if no match ---
+      console.log("[MDPI Filter] isSearchSite: No match");
       return false; // Not a configured search site
     };
 
     // Function to update badge count
     const updateBadgeCount = () => {
       try { // Add try block here
+        console.log("[MDPI Filter] updateBadgeCount called."); // Log entry
         // Only update badge if NOT on a configured search site
         if (isSearchSite()) {
-             // Explicitly clear badge on search sites by sending 0
+             console.log("[MDPI Filter] On search site, sending count 0."); // Log search site case
              chrome.runtime.sendMessage({ type: 'mdpiCount', count: 0 });
              return;
         }
 
         const count = uniqueMdpiReferences.size;
+        console.log(`[MDPI Filter] Not on search site, sending count: ${count}`); // Log non-search site case
         // Send count to background script
         chrome.runtime.sendMessage({ type: 'mdpiCount', count: count });
 
       } catch (error) {
-          // Ignore errors, context might be invalidated during navigation/reload
-          // console.warn("MDPI Filter: Could not send message to background:", error.message);
+          // --- DEBUGGING: Log errors if sending fails ---
+          console.warn("[MDPI Filter] Could not send message to background:", error.message, error); // Log the full error
       }
     };
 
@@ -331,6 +337,7 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
 
     // Run all processing functions
     function runAll() {
+      console.log("[MDPI Filter] runAll triggered."); // Log runAll start
       uniqueMdpiReferences.clear(); // Clear set before reprocessing
       // Clear checked status before reprocessing
       document.querySelectorAll('[data-mdpi-checked]').forEach(el => {
@@ -343,16 +350,30 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       styleInlineFootnotes();     // Style footnotes linking to MDPI items
       processDirectMdpiLinks();   // Style direct links (doesn't count)
       updateBadgeCount();         // Update badge with final count
+      console.log("[MDPI Filter] runAll finished."); // Log runAll end
     }
 
     // Initial + dynamic (SPA/infinite scroll, etc.)
     runAll(); // Initial run
-    new MutationObserver(debounce(() => {
+
+    // --- Ensure only one observer ---
+    // Disconnect previous observer if it exists on the window object
+    if (window.mdpiObserverInstance) {
+        console.log("[MDPI Filter] Disconnecting previous MutationObserver.");
+        window.mdpiObserverInstance.disconnect();
+    }
+    console.log("[MDPI Filter] Creating new MutationObserver.");
+    // Store the new observer instance on the window object
+    window.mdpiObserverInstance = new MutationObserver(debounce(() => {
+        console.log("[MDPI Filter] MutationObserver triggered debounced runAll.");
         runAll(); // Rerun all checks and update badge
-    })).observe(document.body, {
+    }));
+    window.mdpiObserverInstance.observe(document.body, {
       childList: true,
       subtree:   true
     });
-  });
+    // ---
+
+  }); // End storage.sync.get
 
 } // End of injection check

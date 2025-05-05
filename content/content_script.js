@@ -160,7 +160,13 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
         chrome.runtime.sendMessage({ type: 'mdpiCount', count: count });
 
       } catch (error) {
-        console.warn("[MDPI Filter] Could not send message to background:", error.message, error);
+        // --- DEBUGGING: Log errors if sending fails ---
+        console.warn("[MDPI Filter] Could not send message to background (try/catch):", error.message, error);
+      } finally {
+        // --- DEBUGGING: Check chrome.runtime.lastError ---
+        if (chrome.runtime.lastError) {
+          console.warn("[MDPI Filter] chrome.runtime.lastError after sendMessage:", chrome.runtime.lastError.message || chrome.runtime.lastError);
+        }
       }
     };
 

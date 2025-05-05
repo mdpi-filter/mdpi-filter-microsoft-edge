@@ -16,7 +16,8 @@ const backgroundDebounce = (func, wait) => {
 };
 
 // Debounced version of injectModules specifically for history updates
-const debouncedInjectForHistory = backgroundDebounce(injectModules, 300); // 300ms delay
+// Increase delay significantly to see if it helps
+const debouncedInjectForHistory = backgroundDebounce(injectModules, 750); // Increased from 300ms to 750ms
 
 async function injectModules(tabId) {
   const modules = [

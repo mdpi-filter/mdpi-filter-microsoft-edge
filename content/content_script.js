@@ -109,9 +109,8 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       );
       const textContent = item.textContent || '';
       const hasMdpiText = textContent.includes(MDPI_DOI); // Check text content for DOI
-      // Check for common MDPI journal names (case-insensitive), looking for word boundary before
-      // and common separators (comma, space, parenthesis) or end-of-string after.
-      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)(?:,|\s|\(|$)/i.test(textContent); // Refined regex
+      // Check for common MDPI journal names (case-insensitive) as whole words
+      const hasMdpiJournal = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i.test(textContent); // Simplified regex: just check word boundary
 
       const isMdpi = !!(hasMdpiLink || hasMdpiText || hasMdpiJournal); // Ensure boolean
 

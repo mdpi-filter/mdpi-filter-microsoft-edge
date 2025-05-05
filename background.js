@@ -1,11 +1,11 @@
 // background.js
 async function injectModules(tabId) {
-  // Clear badge before injecting/re-injecting
-  try {
-    await chrome.action.setBadgeText({ text: '', tabId: tabId });
-  } catch (e) {
-    // Ignore errors, tab might be closed
-  }
+  // REMOVED: Badge clearing before injecting/re-injecting
+  // try {
+  //   await chrome.action.setBadgeText({ text: '', tabId: tabId });
+  // } catch (e) {
+  //   // Ignore errors, tab might be closed
+  // }
 
   const modules = [
     'content/utils.js',
@@ -21,6 +21,7 @@ async function injectModules(tabId) {
       });
     } catch (error) {
       // console.warn(`Failed to inject ${file} into tab ${tabId}: ${error.message}`);
+      // Ignore errors, context might be invalidated or tab closed
     }
   }
 }

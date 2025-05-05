@@ -44,7 +44,8 @@ if (!window.mdpiFilterInjected) {
     'li[id^="reference-"]',
     'li:has(> span > a[id^="ref-id-"])',
     'li:has(a[name^="bbib"])',
-    'li[data-bib-id]' // Added selector for Wiley references
+    'li[data-bib-id]', // Existing Wiley selector
+    'span[aria-owns^="pdfjs_internal_id_"]' // Added selector for PDF.js rendered spans
   ].join(',');
   // ---
 
@@ -307,7 +308,10 @@ if (!window.mdpiFilterInjected) {
         if (!targetEl && href && href.includes('#')) {
           frag = href.slice(href.lastIndexOf('#') + 1); // Assign frag here
           if (frag) {
-            targetEl = document.getElementById(frag) || document.getElementsByName(frag)[0];
+            targetEl = document.getElementById(frag); // Check ID directly first
+            if (!targetEl) {
+              targetEl = document.getElementsByName(frag)[0];
+            }
             if (!targetEl) {
               targetEl = document.querySelector(`a[id$="-${frag}"]`);
             }
@@ -325,14 +329,12 @@ if (!window.mdpiFilterInjected) {
         if (!targetEl) return;
 
         let listItem = null;
-        // Adjust logic to correctly identify the list item for Wiley
-        if (targetEl.matches('li[data-bib-id]')) { // Check if targetEl itself is the Wiley li
+        // Adjust logic to correctly identify the list item
+        if (targetEl.matches(referenceListSelectors)) { // Check if targetEl itself matches any selector (including the new span selector)
             listItem = targetEl;
-        } else if (rid && targetEl.id === rid) {
+        } else if (rid && targetEl.id === rid) { // Keep existing logic
           listItem = targetEl.querySelector('div.citation');
-        } else if (targetEl.matches(referenceListSelectors)) {
-          listItem = targetEl;
-        } else {
+        } else { // Fallback to closest ancestor matching the selectors
           listItem = targetEl.closest(referenceListSelectors);
         }
 

@@ -104,13 +104,15 @@ if (typeof window.mdpiFilterInjected === 'undefined') {
       // Check if already processed to prevent redundant checks/counting
       if (item.dataset.mdpiChecked) return item.dataset.mdpiResult === 'true';
 
-      // --- DEBUGGING START ---
-      console.log("[MDPI Filter] Checking item:", item); // Log the element itself
-      const textContent = item.textContent || ''; // Keep for DOI text check and logging
-      const innerHTML = item.innerHTML || ''; // Get innerHTML for journal check
-      console.log("[MDPI Filter] Text content:", JSON.stringify(textContent));
-      // console.log("[MDPI Filter] Inner HTML:", JSON.stringify(innerHTML)); // Optional: log innerHTML too
-      // --- DEBUGGING END ---
+      if (DEBUG) {
+        // --- DEBUGGING START ---
+        console.log("[MDPI Filter] Checking item:", item); // Log the element itself
+        const textContent = item.textContent || ''; // Keep for DOI text check and logging
+        const innerHTML = item.innerHTML || ''; // Get innerHTML for journal check
+        console.log("[MDPI Filter] Text content:", JSON.stringify(textContent));
+        // console.log("[MDPI Filter] Inner HTML:", JSON.stringify(innerHTML)); // Optional: log innerHTML too
+        // --- DEBUGGING END ---
+      }
 
       const hasMdpiLink = item.querySelector(
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`

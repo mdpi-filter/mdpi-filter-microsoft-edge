@@ -30,16 +30,7 @@ async function injectModules(tabId) {
 chrome.webNavigation.onCompleted.addListener(
   details => {
     if (details.frameId === 0) { // Only main frame
-      injectModules(details.tabId);
-    }
-  },
-  { url: [{ schemes: ['http','https'] }] }
-);
-
-// SPA / history‐state updates
-chrome.webNavigation.onHistoryStateUpdated.addListener(
-  details => {
-     if (details.frameId === 0) { // Only main frame
+      console.log(`[MDPI Filter BG] onCompleted triggered for tab ${details.tabId}, injecting modules.`);
       injectModules(details.tabId);
     }
   },
@@ -72,7 +63,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Optional: Clear badge when tab is updated (e.g., navigating away)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // Clear badge ONLY when the page is actively loading a new document
-    if (changeInfo.status === 'loading') { // <--- Only clear on 'loading' status
+    if (changeInfo.status === 'loading') {
+         console.log(`[MDPI Filter BG] onUpdated status 'loading' for tab ${tabId}, clearing badge.`);
          chrome.action.setBadgeText({ text: '', tabId: tabId });
     }
 });

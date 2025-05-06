@@ -322,46 +322,62 @@ if (!window.mdpiFilterInjected) {
           return;
         }
 
-        console.log("[MDPI Filter] updateBadgeAndReferences called.");
-        const count = uniqueMdpiReferences.size;
+        let count = 0;
         let referencesToSend = [];
+        let messageType = 'mdpiUpdate'; // Default message type
 
-        if (isSearchSite()) {
-          console.log("[MDPI Filter] On search site, sending count 0 and no references.");
-          // Ensure context is still valid right before sending, though the top check should cover most cases.
-          if (chrome.runtime && chrome.runtime.id) {
-            chrome.runtime.sendMessage({ type: 'mdpiUpdate', count: 0, references: [] });
-          }
-        } else {
-          collectedMdpiReferences.sort((a, b) => {
-            const numA = parseInt(a.number, 10);
-            const numB = parseInt(b.number, 10);
-            if (!isNaN(numA) && !isNaN(numB)) {
-              return numA - numB;
+        // Only the top-level frame should send the definitive update.
+        if (window.self === window.top) {
+          console.log("[MDPI Filter - Top Frame] Processing updateBadgeAndReferences.");
+          if (isSearchSite()) { // isSearchSite() uses the current frame's (top frame's) location.
+            console.log("[MDPI Filter - Top Frame] On search site, sending count 0 and no references.");
+            // count remains 0, referencesToSend remains []
+            // For search sites, the background script will clear its data based on this.
+          } else {
+            console.log("[MDPI Filter - Top Frame] Not on search site. Processing collected references.");
+            count = uniqueMdpiReferences.size;
+            // Sort references if they exist
+            if (collectedMdpiReferences.length > 0) {
+              collectedMdpiReferences.sort((a, b) => {
+                const numA = parseInt(a.number, 10);
+                const numB = parseInt(b.number, 10);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                  return numA - numB;
+                }
+                if (!isNaN(numA)) return -1; // Place numbered items first
+                if (!isNaN(numB)) return 1;  // Place numbered items first
+                // Fallback to text comparison if numbers are not available or equal
+                return (a.text || "").localeCompare(b.text || "");
+              });
             }
-            if (!isNaN(numA)) return -1;
-            if (!isNaN(numB)) return 1;
-            return 0;
-          });
-          referencesToSend = collectedMdpiReferences.map(ref => ({
-            id: ref.id, // Send the ID
-            number: ref.number,
-            text: ref.text,
-            link: ref.link
-          }));
-          console.log(`[MDPI Filter] Not on search site, sending count: ${count} and ${referencesToSend.length} references.`);
-          // Ensure context is still valid right before sending
-          if (chrome.runtime && chrome.runtime.id) {
-            chrome.runtime.sendMessage({ type: 'mdpiUpdate', count: count, references: referencesToSend });
+            referencesToSend = collectedMdpiReferences.map(ref => ({
+              id: ref.id, // Send the ID
+              number: ref.number,
+              text: ref.text,
+              link: ref.link
+            }));
           }
+          // Top frame sends the update.
+          console.log(`[MDPI Filter - Top Frame] Sending message type: ${messageType}, count: ${count}, refs: ${referencesToSend.length}`);
+          chrome.runtime.sendMessage({ type: messageType, count: count, references: referencesToSend });
+        } else {
+          // This is an iframe.
+          // For now, iframes will not send 'mdpiUpdate' to simplify and prevent overwriting top-level decision.
+          // MDPI content solely within an iframe might not be centrally reported by this simplified logic
+          // if the iframe's content isn't directly scannable by the top frame's selectors.
+          // Each frame processes its own DOM, but only top frame reports.
+          console.log("[MDPI Filter - Iframe] Skipping mdpiUpdate message to prevent overwriting top-frame data.");
+          return; // Iframe does not send the main update message
         }
 
       } catch (error) {
         console.warn("[MDPI Filter] Could not send message to background (try/catch):", error.message, error);
       } finally {
         // Check chrome.runtime.lastError, as sendMessage might set it if the receiving end is gone.
+        // This check is particularly useful if the initial `!chrome.runtime || !chrome.runtime.id` passed
+        // but the context became invalid just before/during sendMessage.
         if (chrome.runtime && chrome.runtime.lastError) {
-          console.warn("[MDPI Filter] chrome.runtime.lastError after sendMessage:", chrome.runtime.lastError.message || chrome.runtime.lastError);
+          console.warn("[MDPI Filter] chrome.runtime.lastError after sendMessage in updateBadgeAndReferences:", chrome.runtime.lastError.message || chrome.runtime.lastError);
         }
       }
     };

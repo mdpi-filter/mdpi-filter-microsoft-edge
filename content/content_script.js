@@ -545,32 +545,69 @@ if (!window.mdpiFilterInjected) {
 
     function processAllReferences() {
       document.querySelectorAll(referenceListSelectors).forEach(item => {
-        if (item.dataset.mdpiProcessedInThisRun === 'true') {
-          // If already processed and found to be MDPI, ensure it's styled.
-          // This is a safeguard; styleRef should ideally be called once when first processed.
-          if (item.dataset.mdpiResult === 'true' && item.dataset.mdpiFilterRefId) {
-            styleRef(item, item.dataset.mdpiFilterRefId);
+        // Check if any ancestor of this item, which also matches referenceListSelectors,
+        // has already been processed AND ADDED as an MDPI reference in this run.
+        let currentAncestor = item.parentElement;
+        let skipItemDueToProcessedAncestor = false;
+        while (currentAncestor && currentAncestor !== document.body) {
+          if (currentAncestor.matches(referenceListSelectors)) {
+            const ancestorRefId = currentAncestor.dataset.mdpiFilterRefId;
+            // If ancestorRefId exists and is in uniqueMdpiReferences, it means the ancestor
+            // was already processed, determined to be an MDPI item, and added to the list.
+            if (ancestorRefId && uniqueMdpiReferences.has(ancestorRefId)) {
+              skipItemDueToProcessedAncestor = true;
+              break;
+            }
           }
-          return;
+          currentAncestor = currentAncestor.parentElement;
         }
 
-        const isMdpi = isMdpiItemByContent(item);
+        if (skipItemDueToProcessedAncestor) {
+          // console.log("[MDPI Filter] Item skipped as its ancestor was already processed and added:", item, currentAncestor);
+          return; // Skip this item, proceed to the next in forEach
+        }
 
-        item.dataset.mdpiProcessedInThisRun = 'true';
-        item.dataset.mdpiResult = String(isMdpi); // Store as 'true' or 'false'
+        // TODO: Consider if item.offsetParent is null (element is not visible/displayed), then skip.
+        // This could prevent processing hidden elements that might be part of templates or inactive UI.
+        // However, 'hide' mode explicitly sets display:none, so this needs care.
 
-        if (isMdpi) {
-          const refId = `mdpi-ref-${refIdCounter++}`; // Generate unique ID for this run
-          item.dataset.mdpiFilterRefId = refId;
+        if (isMdpiItemByContent(item)) {
+          const refData = extractReferenceData(item); // Ensures item has dataset.mdpiFilterRefId
 
-          const refData = extractReferenceData(item); // extractReferenceData uses item.dataset.mdpiFilterRefId
-          if (refData) {
-              collectedMdpiReferences.push(refData);
-              uniqueMdpiReferences.add(refId); // For badge count
+          // Check if this reference (by its unique ID) has already been collected
+          if (!uniqueMdpiReferences.has(refData.id)) {
+            uniqueMdpiReferences.add(refData.id);
+            collectedMdpiReferences.push(refData);
+
+            if (mode === 'highlight') {
+              styleRef(item, refData.id);
+            } else if (mode === 'hide') {
+              item.style.display = 'none';
+              // Consider styling the direct parent LI or container if the item itself is not the LI
+              const parentListItem = item.closest('li, div.citation, div.reference'); // Common list item parents
+              if (parentListItem && parentListItem !== item && item.matches(referenceListSelectors)) {
+                // If 'item' is a specific part of a larger list item structure that is hidden
+                // parentListItem.style.display = 'none'; // This might be too aggressive
+              }
+            }
+          } else if (mode === 'highlight') { // If already collected (e.g. by a different selector path to same element), ensure it's styled
+            styleRef(item, refData.id);
+          } else if (mode === 'hide') {
+            item.style.display = 'none';
           }
-          styleRef(item, refId); // Style the reference item
+        } else {
+          // Element matches selector but is not an MDPI item by content.
+          // Ensure it's visible if mode is 'highlight' and it was previously hidden.
+          // This handles cases where an item was MDPI, then content changed and it's no longer MDPI.
+          if (item.style.display === 'none' && item.dataset.mdpiFilterRefId) {
+             // console.log("[MDPI Filter] Item no longer MDPI, ensuring it's visible:", item);
+             // item.style.display = ''; // Or original display value
+          }
+          // Clear any MDPI-specific styling if it's no longer an MDPI item
+          // This part needs more robust style reset logic if implemented.
         }
       });
+      updateBadgeAndReferences();
     }
 
     function processDirectMdpiLinks() {

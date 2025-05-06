@@ -49,7 +49,8 @@ if (!window.mdpiFilterInjected) {
     'li:has(> span > a[id^="ref-id-"])', // Some other format
     'li:has(a[name^="bbib"])', // Another format
     'li[data-bib-id]', // Wiley
-    'span[aria-owns^="pdfjs_internal_id_"]' // PDF.js rendered spans
+    'span[aria-owns^="pdfjs_internal_id_"]', // PDF.js rendered spans
+    'li[id^="cite_note-"]' // Wikipedia reference list items
   ].join(',');
   // ---
 
@@ -497,8 +498,13 @@ if (!window.mdpiFilterInjected) {
         }
 
         if (listItem && listItem.dataset.mdpiResult === 'true') {
-          const sup = a.querySelector('sup'); // Simple selector
-          styleSup(sup || a);
+          const supElement = a.closest('sup'); // Find the closest sup parent (for Wikipedia: <sup...><a...></a></sup>)
+          if (supElement) {
+            styleSup(supElement);
+          } else { // For other structures (e.g., <a...><sup>...</sup></a> or just <a...>)
+            const supInsideA = a.querySelector('sup');
+            styleSup(supInsideA || a);
+          }
         }
       });
     }

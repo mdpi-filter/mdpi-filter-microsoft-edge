@@ -70,8 +70,35 @@ if (!window.mdpiFilterInjected) {
     };
 
     const styleSup = supOrA => {
-      supOrA.style.color      = '#E2211C';
+      if (!supOrA) return;
+
+      // Style the main element (sup or a)
+      supOrA.style.color      = '#E2211C'; // MDPI Red
       supOrA.style.fontWeight = 'bold';
+
+      // If supOrA is a sup element, specifically style any anchor tag and its content within it
+      if (supOrA.tagName.toLowerCase() === 'sup') {
+        const anchorElement = supOrA.querySelector('a');
+        if (anchorElement) {
+          anchorElement.style.color = '#E2211C'; // Ensure link text is red
+          anchorElement.style.fontWeight = 'bold'; // Ensure link text is bold
+
+          // Wikipedia uses spans for brackets, ensure they are also red
+          const bracketSpans = anchorElement.querySelectorAll('span.cite-bracket');
+          bracketSpans.forEach(span => {
+            span.style.color = '#E2211C';
+            // fontWeight will be inherited from the anchor or sup
+          });
+        }
+      }
+      // If supOrA is an anchor itself that contains a sup (less common for this specific issue)
+      else if (supOrA.tagName.toLowerCase() === 'a') {
+        const supElementInside = supOrA.querySelector('sup');
+        if (supElementInside) {
+            supElementInside.style.color = '#E2211C';
+            supElementInside.style.fontWeight = 'bold';
+        }
+      }
     };
 
     const styleRef = (item, refId) => { // Accept refId
@@ -176,65 +203,91 @@ if (!window.mdpiFilterInjected) {
       // --- Assign Unique ID ---
       let refId = item.dataset.mdpiFilterRefId;
       if (!refId) {
-          refId = `mdpi-ref-${refIdCounter++}`;
-          // Assign to the primary item immediately
-          item.dataset.mdpiFilterRefId = refId;
+        // This case should ideally not happen if processAllReferences runs first
+        // and assigns IDs. However, as a fallback:
+        refId = `mdpi-ref-${refIdCounter++}`;
+        item.dataset.mdpiFilterRefId = refId;
+        console.warn(`[MDPI Filter] Assigned new refId in extractReferenceData: ${refId}`);
       }
       // --- End Assign Unique ID ---
 
       let fullText = '';
       let number = null;
       let link = null;
-      const referenceStartRegex = /^\s*(\d+)\.\s*/;
+      const referenceStartRegex = /^\s*(\d+)\.\s*/; // For numbered lists like "1. ..."
 
       const linkElement = item.querySelector('a[href]');
       if (linkElement) {
         link = linkElement.href;
       }
 
-      if (item.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
-        let currentSibling = item;
-        const parts = [];
-        while (currentSibling) {
-          // Assign ID to preceding spans during extraction
-          if (currentSibling.matches('span')) {
-              currentSibling.dataset.mdpiFilterRefId = refId; // Ensure ID is on all parts
-              const spanText = currentSibling.textContent || '';
-              parts.unshift(spanText);
-              const match = spanText.match(referenceStartRegex);
-              if (match) {
-                  number = match[1];
-                  break;
-              }
-          } else if (currentSibling.tagName !== 'BR') {
-              break;
-          }
-          const prev = currentSibling.previousElementSibling;
-          if (prev && prev.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
-              break;
-          }
-          currentSibling = prev;
+      if (item.matches('li[id^="cite_note-"]')) { // Wikipedia specific
+        const idParts = item.id.split('-');
+        const potentialNumber = idParts[idParts.length - 1];
+        if (potentialNumber && !isNaN(parseInt(potentialNumber))) {
+          number = potentialNumber;
         }
-        fullText = parts.join(' ').replace(/\s+/g, ' ').trim();
+        const refTextElement = item.querySelector('span.reference-text');
+        if (refTextElement) {
+          fullText = refTextElement.textContent.trim();
+        } else {
+          // Fallback if span.reference-text is not found (less likely for Wikipedia)
+          fullText = item.textContent.trim();
+          // Attempt to remove the backlink part like "^ " from the beginning
+          const backlinkSpan = item.querySelector('span.mw-cite-backlink');
+          if (backlinkSpan) {
+            const backlinkText = backlinkSpan.textContent.trim();
+            if (fullText.startsWith(backlinkText)) {
+              fullText = fullText.substring(backlinkText.length).trim();
+            }
+          }
+        }
+      } else if (item.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
+        // PDF.js: Collect text from current and subsequent sibling spans until a new "ref"
+        let currentTextCollector = '';
+        let currentElement = item;
+        while (currentElement && currentElement.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
+          currentTextCollector += currentElement.textContent.trim() + ' ';
+          // Check if the *next* sibling is NOT a PDF.js span or does not exist,
+          // or if the current element itself contains a link (often the case for the start of a ref)
+          const nextSib = currentElement.nextElementSibling;
+          if (currentElement.querySelector('a[href]') || !nextSib || !nextSib.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
+            // Also, check if the next element might be the start of a *new* reference number
+             if (nextSib && /^\s*\[?\d+\]?\s*$/.test(nextSib.textContent.trim())) {
+                // If the next sibling looks like a new reference number, stop.
+                break;
+             }
+          }
+          if (!nextSib || !nextSib.matches('span[aria-owns^="pdfjs_internal_id_"]')) break;
+          currentElement = nextSib;
+        }
+        fullText = currentTextCollector.trim();
+        // Try to extract number if it's at the beginning like "1. " or "[1]"
+        const numMatch = fullText.match(/^\s*\[?(\d+)\]?[\.\s]?/);
+        if (numMatch && numMatch[1]) {
+          number = numMatch[1];
+        }
       } else {
-        fullText = (item.textContent || '').replace(/\s+/g, ' ').trim();
+        // General case
+        fullText = item.textContent.trim();
         const match = fullText.match(referenceStartRegex);
         if (match) {
           number = match[1];
-        }
-        if (!link && item.querySelector('a[href]')) {
-          link = item.querySelector('a[href]').href;
+          // Remove the number and dot from the beginning of the text
+          // fullText = fullText.substring(match[0].length).trim();
         }
       }
 
-      if (!fullText) return null;
+      if (!fullText) { // Ensure fullText is not empty
+        fullText = "Reference text not available.";
+      }
 
       return {
-        id: refId, // Include the unique ID
+        id: refId, // The unique ID assigned when the item was first processed
         number: number,
         text: fullText,
         link: link,
-        element: item
+        element: item // Keep a reference to the DOM element if needed later
       };
     };
 

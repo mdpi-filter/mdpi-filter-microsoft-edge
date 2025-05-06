@@ -70,13 +70,44 @@ if (!window.mdpiFilterInjected) {
     };
 
     const styleRef = item => {
-      item.style.border  = highlightStyle;
+      // Style the main item (the one identified by isMdpiReferenceItem, likely the DOI span)
+      item.style.border = highlightStyle;
       item.style.padding = '5px';
-      const label = item.querySelector('.label') || item.firstChild;
-      if (label?.style) {
-        label.style.color      = '#E2211C';
-        label.style.fontWeight = 'bold';
+      // Optional: Style label/first child if applicable (might not be relevant for these spans)
+      // const label = item.querySelector('.label') || item.firstChild;
+      // if (label?.style) { ... }
+
+      // --- Work backwards to style preceding spans of the same reference ---
+      let currentSibling = item.previousElementSibling;
+      const referenceStartRegex = /^\s*\d+\.\s*/; // Regex to detect start of a numbered reference
+
+      while (currentSibling) {
+        // Stop condition 1: Found the end of the previous reference (another DOI span)
+        if (currentSibling.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
+          break;
+        }
+
+        // Check if the current sibling is a span
+        if (currentSibling.matches('span')) {
+          // Stop condition 2: Found what looks like the start of the *current* reference number
+          if (referenceStartRegex.test(currentSibling.textContent || '')) {
+            // Style this starting span too, then break
+            currentSibling.style.border = highlightStyle;
+            currentSibling.style.padding = '5px';
+            break; // Stop after styling the starting number
+          } else {
+            // It's a preceding span of the current reference, style it
+            currentSibling.style.border = highlightStyle;
+            currentSibling.style.padding = '5px';
+          }
+        } else if (currentSibling.tagName !== 'BR') {
+          // If it's not a span or a BR, it's likely a boundary, stop.
+          break;
+        }
+        // Move to the previous sibling
+        currentSibling = currentSibling.previousElementSibling;
       }
+      // --- End backwards traversal ---
     };
 
     const styleDirectLink = link => {

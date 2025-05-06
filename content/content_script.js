@@ -204,11 +204,11 @@ if (!window.mdpiFilterInjected) {
       // --- Assign Unique ID ---
       let refId = item.dataset.mdpiFilterRefId;
       if (!refId) {
-        // This case should ideally not happen if processAllReferences runs first
-        // and assigns IDs. However, as a fallback:
+        // This case is normal after runAll() clears existing IDs.
+        // A new ID is assigned starting from refIdCounter = 0.
         refId = `mdpi-ref-${refIdCounter++}`;
         item.dataset.mdpiFilterRefId = refId;
-        console.warn(`[MDPI Filter] Assigned new refId in extractReferenceData: ${refId}`);
+        // console.warn(`[MDPI Filter] Assigned new refId in extractReferenceData: ${refId}`); // Removed to reduce console noise
       }
       // --- End Assign Unique ID ---
 

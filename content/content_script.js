@@ -156,18 +156,10 @@ if (!window.mdpiFilterInjected) {
     // ---
 
     // --- Core Logic Functions ---
-    const isMdpiReferenceItem = (item) => {
-      if (!item) return false;
-      if (item.dataset.mdpiChecked) {
-        // Ensure data is collected if runAll runs again
-        if (item.dataset.mdpiResult === 'true' && !collectedMdpiReferences.some(ref => ref.element === item)) {
-           const refData = extractReferenceData(item); // Will assign ID if not already present
-           if (refData) collectedMdpiReferences.push(refData);
-        }
-        return item.dataset.mdpiResult === 'true';
-      }
 
-      console.log("[MDPI Filter] Checking item:", item);
+    // New helper: Just checks content, no side effects on datasets or global lists.
+    const isMdpiItemByContent = (item) => {
+      if (!item) return false;
       const textContent = item.textContent || '';
       const innerHTML = item.innerHTML || '';
 
@@ -178,63 +170,52 @@ if (!window.mdpiFilterInjected) {
       const journalRegex = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i;
       const hasMdpiJournal = journalRegex.test(innerHTML);
 
-      const isMdpi = !!(hasMdpiLink || hasMdpiText || hasMdpiJournal);
-      console.log("[MDPI Filter] isMdpi evaluated as:", isMdpi);
-
-      item.dataset.mdpiChecked = 'true';
-      item.dataset.mdpiResult = isMdpi;
-
-      if (isMdpi) {
-        const refData = extractReferenceData(item); // Assigns ID here
-        if (refData) {
-          collectedMdpiReferences.push(refData);
-          const key = refData.id; // Use the unique ID as the key
-          uniqueMdpiReferences.add(key);
-          console.log(`[MDPI Filter] Added key ${key} to set. Set size:`, uniqueMdpiReferences.size);
-        } else {
-          console.log("[MDPI Filter] Could not extract reference data for item:", item);
-          const key = sanitize(textContent).trim().slice(0, 100);
-          if (key) uniqueMdpiReferences.add(key);
-        }
-      }
-      return isMdpi;
+      return !!(hasMdpiLink || hasMdpiText || hasMdpiJournal);
     };
 
     const extractReferenceData = (item) => {
-      // --- Assign Unique ID ---
       let refId = item.dataset.mdpiFilterRefId;
       if (!refId) {
-        // This case is normal after runAll() clears existing IDs.
-        // A new ID is assigned starting from refIdCounter = 0.
-        refId = `mdpi-ref-${refIdCounter++}`;
+        // This fallback ensures an ID is present, but ideally, it's pre-assigned by the caller.
+        // console.warn(`[MDPI Filter] extractReferenceData: mdpiFilterRefId missing on item. Assigning new. Item:`, item);
+        refId = `mdpi-ref-${refIdCounter++}`; // refIdCounter is global, reset by runAll
         item.dataset.mdpiFilterRefId = refId;
-        // console.warn(`[MDPI Filter] Assigned new refId in extractReferenceData: ${refId}`); // Removed to reduce console noise
       }
-      // --- End Assign Unique ID ---
 
       let fullText = '';
       let number = null;
       let link = null;
-      const referenceStartRegex = /^\s*(\d+)\.\s*/; // For numbered lists like "1. ..."
+      const referenceStartRegex = /^\s*(\d+)\.\s*/;
 
       const linkElement = item.querySelector('a[href]');
       if (linkElement) {
         link = linkElement.href;
       }
 
+      // Attempt to get number from PNAS-like structure (e.g., <div class="label">68</div>)
+      // item is expected to be 'div.citation' for PNAS example
+      const pnasListItem = item.closest('[role="listitem"][data-has="label"]');
+      if (pnasListItem) {
+        const labelEl = pnasListItem.querySelector('.label');
+        if (labelEl && labelEl.textContent) {
+          const parsedNum = parseInt(labelEl.textContent.trim(), 10);
+          if (!isNaN(parsedNum)) {
+            number = String(parsedNum);
+          }
+        }
+      }
+
       if (item.matches('li[id^="cite_note-"]')) { // Wikipedia specific
         const idParts = item.id.split('-');
         const potentialNumber = idParts[idParts.length - 1];
-        if (potentialNumber && !isNaN(parseInt(potentialNumber))) {
-          number = potentialNumber;
+        if (potentialNumber && !isNaN(parseInt(potentialNumber, 10))) {
+          number = potentialNumber; // This might overwrite PNAS if structure is ambiguous, but selectors should be distinct.
         }
         const refTextElement = item.querySelector('span.reference-text');
         if (refTextElement) {
           fullText = refTextElement.textContent.trim();
         } else {
-          // Fallback if span.reference-text is not found (less likely for Wikipedia)
           fullText = item.textContent.trim();
-          // Attempt to remove the backlink part like "^ " from the beginning
           const backlinkSpan = item.querySelector('span.mw-cite-backlink');
           if (backlinkSpan) {
             const backlinkText = backlinkSpan.textContent.trim();
@@ -244,18 +225,13 @@ if (!window.mdpiFilterInjected) {
           }
         }
       } else if (item.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
-        // PDF.js: Collect text from current and subsequent sibling spans until a new "ref"
         let currentTextCollector = '';
         let currentElement = item;
         while (currentElement && currentElement.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
           currentTextCollector += currentElement.textContent.trim() + ' ';
-          // Check if the *next* sibling is NOT a PDF.js span or does not exist,
-          // or if the current element itself contains a link (often the case for the start of a ref)
           const nextSib = currentElement.nextElementSibling;
           if (currentElement.querySelector('a[href]') || !nextSib || !nextSib.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
-            // Also, check if the next element might be the start of a *new* reference number
              if (nextSib && /^\s*\[?\d+\]?\s*$/.test(nextSib.textContent.trim())) {
-                // If the next sibling looks like a new reference number, stop.
                 break;
              }
           }
@@ -263,32 +239,39 @@ if (!window.mdpiFilterInjected) {
           currentElement = nextSib;
         }
         fullText = currentTextCollector.trim();
-        // Try to extract number if it's at the beginning like "1. " or "[1]"
-        const numMatch = fullText.match(/^\s*\[?(\d+)\]?[\.\s]?/);
-        if (numMatch && numMatch[1]) {
-          number = numMatch[1];
+        if (!number) { // Only if PNAS/other specific logic didn't find one
+            const numMatchPdf = fullText.match(/^\s*\[?(\d+)\]?[\.\s]?/);
+            if (numMatchPdf && numMatchPdf[1]) {
+              number = numMatchPdf[1];
+            }
         }
       } else {
-        // General case
-        fullText = item.textContent.trim();
-        const match = fullText.match(referenceStartRegex);
-        if (match) {
-          number = match[1];
-          // Remove the number and dot from the beginning of the text
-          // fullText = fullText.substring(match[0].length).trim();
+        // General case for fullText if not extracted by specific handlers
+        if (!fullText) {
+            fullText = item.textContent.trim();
+        }
+        // General case for number, if not found by PNAS or other specific logic
+        if (!number) {
+            const match = fullText.match(referenceStartRegex);
+            if (match && match[1]) {
+              number = match[1];
+            }
         }
       }
 
-      if (!fullText) { // Ensure fullText is not empty
+      if (!fullText && item.textContent) { // Ensure fullText has a value
+        fullText = item.textContent.trim();
+      }
+      if (!fullText) {
         fullText = "Reference text not available.";
       }
 
       return {
-        id: refId, // The unique ID assigned when the item was first processed
+        id: refId,
         number: number,
         text: fullText,
         link: link,
-        element: item // Keep a reference to the DOM element if needed later
+        element: item
       };
     };
 
@@ -344,9 +327,8 @@ if (!window.mdpiFilterInjected) {
                 if (!isNaN(numA) && !isNaN(numB)) {
                   return numA - numB;
                 }
-                if (!isNaN(numA)) return -1; // Place numbered items first
-                if (!isNaN(numB)) return 1;  // Place numbered items first
-                // Fallback to text comparison if numbers are not available or equal
+                if (!isNaN(numA)) return -1;
+                if (!isNaN(numB)) return 1;
                 return (a.text || "").localeCompare(b.text || "");
               });
             }
@@ -490,88 +472,70 @@ if (!window.mdpiFilterInjected) {
             targetEl = document.getElementById(rid);
           } catch (e) {
             console.warn(`[MDPI Filter] Error finding element by rid "${rid}":`, e);
-            // If getElementById fails for some reason, allow fallback to href-based logic
           }
         }
 
         if (!targetEl && href && href.includes('#')) {
           const hashIndex = href.lastIndexOf('#');
-          // Ensure there's actually a fragment identifier after the '#'
           if (hashIndex !== -1 && hashIndex < href.length - 1) {
             frag = href.slice(hashIndex + 1);
-            if (frag) { // Ensure frag is not empty
+            if (frag) {
               try {
-                // Attempt 1: getElementById (frag is the ID itself, no CSS escaping needed)
                 if (!targetEl) {
                   targetEl = document.getElementById(frag);
                 }
-
-                // Attempt 2: getElementsByName (frag is the name itself)
                 if (!targetEl) {
                   const namedElements = document.getElementsByName(frag);
                   if (namedElements.length > 0) {
                     targetEl = namedElements[0];
                   }
                 }
-
-                // For querySelector, frag needs to be escaped if used in selector values
                 const escapedFrag = CSS.escape(frag);
-
-                // Attempt 3: querySelector for specific 'a' tag pattern with id ending in "-frag"
                 if (!targetEl) {
                   targetEl = document.querySelector(`a[id$="-${escapedFrag}"]`);
                 }
-
-                // Attempt 4: Specific 'core-' prefix pattern (ID itself)
                 if (!targetEl && frag.startsWith('core-')) {
                   const potentialId = frag.substring(5);
-                  if (potentialId) { // Ensure potentialId is not empty
+                  if (potentialId) {
                     targetEl = document.getElementById(potentialId);
                   }
                 }
-
-                // Attempt 5: querySelector for li[data-bib-id="frag"]
                 if (!targetEl) {
                   targetEl = document.querySelector(`li[data-bib-id="${escapedFrag}"]`);
                 }
               } catch (e) {
-                // This catch is for errors during the querySelector/getElementById calls with frag
                 console.warn(`[MDPI Filter] DOMException while finding target for fragment "${frag}" (href: "${href}"):`, e);
-                return; // Continue to the next 'a' in forEach
+                return; 
               }
             }
           }
         }
 
         if (!targetEl) {
-          return; // No target found, continue to next 'a'
+          return; 
         }
 
         let listItem = null;
         try {
-          // Check if targetEl itself is a reference item
           if (targetEl.matches(referenceListSelectors)) {
             listItem = targetEl;
           }
-          // Specific case for JATS/XML `rid` where targetEl is a container
-          else if (rid && targetEl.id === rid && targetEl.querySelector('div.citation')) { // ensure querySelector target exists
+          else if (rid && targetEl.id === rid && targetEl.querySelector('div.citation')) { 
             listItem = targetEl.querySelector('div.citation');
           }
-          // General case: find closest ancestor matching reference selectors
           else {
             listItem = targetEl.closest(referenceListSelectors);
           }
         } catch (e) {
-          // This catch is for errors during .matches() or .closest()
           console.warn(`[MDPI Filter] DOMException with matches/closest for targetEl (href: "${href}", frag: "${frag}"):`, targetEl, e);
-          return; // Continue to the next 'a' in forEach
+          return; 
         }
 
-        if (listItem && listItem.dataset.mdpiResult === 'true') {
-          const supElement = a.closest('sup'); // Find the closest sup parent (for Wikipedia: <sup...><a...></a></sup>)
+        if (listItem && listItem.dataset.mdpiResult === 'true') { // Check the stored result
+          const supElement = a.closest('sup'); 
           if (supElement) {
             styleSup(supElement);
-          } else { // For other structures (e.g., <a...><sup>...</sup></a> or just <a...>)
+          } else { 
             const supInsideA = a.querySelector('sup');
             styleSup(supInsideA || a);
           }
@@ -581,8 +545,30 @@ if (!window.mdpiFilterInjected) {
 
     function processAllReferences() {
       document.querySelectorAll(referenceListSelectors).forEach(item => {
-        if (isMdpiReferenceItem(item)) {
-          styleRef(item, item.dataset.mdpiFilterRefId);
+        if (item.dataset.mdpiProcessedInThisRun === 'true') {
+          // If already processed and found to be MDPI, ensure it's styled.
+          // This is a safeguard; styleRef should ideally be called once when first processed.
+          if (item.dataset.mdpiResult === 'true' && item.dataset.mdpiFilterRefId) {
+            styleRef(item, item.dataset.mdpiFilterRefId);
+          }
+          return;
+        }
+
+        const isMdpi = isMdpiItemByContent(item);
+
+        item.dataset.mdpiProcessedInThisRun = 'true';
+        item.dataset.mdpiResult = String(isMdpi); // Store as 'true' or 'false'
+
+        if (isMdpi) {
+          const refId = `mdpi-ref-${refIdCounter++}`; // Generate unique ID for this run
+          item.dataset.mdpiFilterRefId = refId;
+
+          const refData = extractReferenceData(item); // extractReferenceData uses item.dataset.mdpiFilterRefId
+          if (refData) {
+              collectedMdpiReferences.push(refData);
+              uniqueMdpiReferences.add(refId); // For badge count
+          }
+          styleRef(item, refId); // Style the reference item
         }
       });
     }
@@ -622,28 +608,34 @@ if (!window.mdpiFilterInjected) {
 
     function runAll(source = "initial") {
       console.log(`[MDPI Filter] runAll triggered by: ${source}`);
-      refIdCounter = 0;
-      document.querySelectorAll('[data-mdpi-checked], [data-mdpi-cited-by-processed], [data-mdpi-filter-ref-id]').forEach(el => {
+      refIdCounter = 0; // Reset ID counter for this run
+
+      // Clear dataset attributes and styles from previous runs or other elements
+      document.querySelectorAll('[data-mdpi-processed-in-this-run], [data-mdpi-result], [data-mdpi-filter-ref-id], [data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
         el.style.color = '';
         el.style.fontWeight = '';
         el.style.border = '';
         el.style.padding = '';
-        el.style.display = '';
-        delete el.dataset.mdpiChecked;
+        el.style.display = ''; // Reset display for hidden items
+        el.style.outline = ''; // Clear temporary highlight if any
+
+        delete el.dataset.mdpiProcessedInThisRun;
         delete el.dataset.mdpiResult;
-        delete el.dataset.mdpiCitedByProcessed;
         delete el.dataset.mdpiFilterRefId;
+        // Clean up old dataset attributes as well for safety
+        delete el.dataset.mdpiChecked;
+        delete el.dataset.mdpiCitedByProcessed;
       });
       document.querySelectorAll('[style*="color: rgb(226, 33, 28)"]').forEach(el => {
         el.style.color = '';
         el.style.fontWeight = '';
         el.style.borderBottom = '';
         el.style.textDecoration = '';
-        el.style.display = '';
+        // el.style.display = ''; // Be cautious with resetting display broadly
       });
 
       uniqueMdpiReferences.clear();
-      collectedMdpiReferences = [];
+      collectedMdpiReferences = []; // Clear references for the new run
 
       try {
         if (!window.MDPIFilterDomains || !window.sanitize) {
@@ -652,14 +644,14 @@ if (!window.mdpiFilterInjected) {
         }
         processSearchSites();
         processCitedByEntries();
-        processAllReferences();
-        styleInlineFootnotes();
+        processAllReferences();     // Populates collectedMdpiReferences
+        styleInlineFootnotes();     // Uses data-mdpi-result set by processAllReferences
         processDirectMdpiLinks();
-        updateBadgeAndReferences();
+        updateBadgeAndReferences(); // Sends collectedMdpiReferences (now sorted)
       } catch (error) {
         console.error(`[MDPI Filter] Error during runAll (source: ${source}):`, error);
       } finally {
-        console.log(`[MDPI Filter] runAll finished (source: ${source}). Final count in set: ${uniqueMdpiReferences.size}, Collected: ${collectedMdpiReferences.length}`);
+        console.log(`[MDPI Filter] runAll finished (source: ${source}). Unique MDPI refs (for badge): ${uniqueMdpiReferences.size}, Collected for popup: ${collectedMdpiReferences.length}`);
       }
     }
 

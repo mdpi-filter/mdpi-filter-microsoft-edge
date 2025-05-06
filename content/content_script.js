@@ -42,13 +42,14 @@ if (!window.mdpiFilterInjected) {
     'div.citation',
     'div.reference',
     'li.separated-list-item',
-    'li[id^="CR"]',
-    'li[id^="ref-"]',
-    'li[id^="reference-"]',
-    'li:has(> span > a[id^="ref-id-"])',
-    'li:has(a[name^="bbib"])',
-    'li[data-bib-id]', // Existing Wiley selector
-    'span[aria-owns^="pdfjs_internal_id_"]' // Added selector for PDF.js rendered spans
+    'li[id^="CR"]', // Springer
+    'li[id^="ref-"]', // Generic
+    'li[id^="reference-"]', // Generic
+    'li[id^="B"]', // NCBI/PMC specific Bxx-journal-id format
+    'li:has(> span > a[id^="ref-id-"])', // Some other format
+    'li:has(a[name^="bbib"])', // Another format
+    'li[data-bib-id]', // Wiley
+    'span[aria-owns^="pdfjs_internal_id_"]' // PDF.js rendered spans
   ].join(',');
   // ---
 

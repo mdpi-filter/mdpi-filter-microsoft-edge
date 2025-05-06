@@ -410,45 +410,94 @@ if (!window.mdpiFilterInjected) {
     function styleInlineFootnotes() {
       document.querySelectorAll('a[href*="#"]').forEach(a => {
         const href = a.getAttribute('href');
-        const rid = a.dataset.xmlRid;
+        const rid = a.dataset.xmlRid; // xml:id from some JATS XML, often used for <ref>
         let targetEl = null;
         let frag = null;
 
         if (rid) {
-          targetEl = document.getElementById(rid);
+          try {
+            targetEl = document.getElementById(rid);
+          } catch (e) {
+            console.warn(`[MDPI Filter] Error finding element by rid "${rid}":`, e);
+            // If getElementById fails for some reason, allow fallback to href-based logic
+          }
         }
+
         if (!targetEl && href && href.includes('#')) {
-          frag = href.slice(href.lastIndexOf('#') + 1);
-          if (frag) {
-            targetEl = document.getElementById(frag);
-            if (!targetEl) {
-              targetEl = document.getElementsByName(frag)[0];
-            }
-            if (!targetEl) {
-              targetEl = document.querySelector(`a[id$="-${frag}"]`);
-            }
-            if (!targetEl && frag.startsWith('core-')) {
-              const potentialId = frag.substring(5);
-              targetEl = document.getElementById(potentialId);
-            }
-            if (!targetEl) {
-              targetEl = document.querySelector(`li[data-bib-id="${frag}"]`);
+          const hashIndex = href.lastIndexOf('#');
+          // Ensure there's actually a fragment identifier after the '#'
+          if (hashIndex !== -1 && hashIndex < href.length - 1) {
+            frag = href.slice(hashIndex + 1);
+            if (frag) { // Ensure frag is not empty
+              try {
+                // Attempt 1: getElementById (frag is the ID itself, no CSS escaping needed)
+                if (!targetEl) {
+                  targetEl = document.getElementById(frag);
+                }
+
+                // Attempt 2: getElementsByName (frag is the name itself)
+                if (!targetEl) {
+                  const namedElements = document.getElementsByName(frag);
+                  if (namedElements.length > 0) {
+                    targetEl = namedElements[0];
+                  }
+                }
+
+                // For querySelector, frag needs to be escaped if used in selector values
+                const escapedFrag = CSS.escape(frag);
+
+                // Attempt 3: querySelector for specific 'a' tag pattern with id ending in "-frag"
+                if (!targetEl) {
+                  targetEl = document.querySelector(`a[id$="-${escapedFrag}"]`);
+                }
+
+                // Attempt 4: Specific 'core-' prefix pattern (ID itself)
+                if (!targetEl && frag.startsWith('core-')) {
+                  const potentialId = frag.substring(5);
+                  if (potentialId) { // Ensure potentialId is not empty
+                    targetEl = document.getElementById(potentialId);
+                  }
+                }
+
+                // Attempt 5: querySelector for li[data-bib-id="frag"]
+                if (!targetEl) {
+                  targetEl = document.querySelector(`li[data-bib-id="${escapedFrag}"]`);
+                }
+              } catch (e) {
+                // This catch is for errors during the querySelector/getElementById calls with frag
+                console.warn(`[MDPI Filter] DOMException while finding target for fragment "${frag}" (href: "${href}"):`, e);
+                return; // Continue to the next 'a' in forEach
+              }
             }
           }
         }
-        if (!targetEl) return;
+
+        if (!targetEl) {
+          return; // No target found, continue to next 'a'
+        }
 
         let listItem = null;
-        if (targetEl.matches(referenceListSelectors)) {
-          listItem = targetEl;
-        } else if (rid && targetEl.id === rid) {
-          listItem = targetEl.querySelector('div.citation');
-        } else {
-          listItem = targetEl.closest(referenceListSelectors);
+        try {
+          // Check if targetEl itself is a reference item
+          if (targetEl.matches(referenceListSelectors)) {
+            listItem = targetEl;
+          }
+          // Specific case for JATS/XML `rid` where targetEl is a container
+          else if (rid && targetEl.id === rid && targetEl.querySelector('div.citation')) { // ensure querySelector target exists
+            listItem = targetEl.querySelector('div.citation');
+          }
+          // General case: find closest ancestor matching reference selectors
+          else {
+            listItem = targetEl.closest(referenceListSelectors);
+          }
+        } catch (e) {
+          // This catch is for errors during .matches() or .closest()
+          console.warn(`[MDPI Filter] DOMException with matches/closest for targetEl (href: "${href}", frag: "${frag}"):`, targetEl, e);
+          return; // Continue to the next 'a' in forEach
         }
 
         if (listItem && listItem.dataset.mdpiResult === 'true') {
-          const sup = a.querySelector('sup');
+          const sup = a.querySelector('sup'); // Simple selector
           styleSup(sup || a);
         }
       });

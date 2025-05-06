@@ -21,6 +21,9 @@ const backgroundDebouncePerTab = (func, wait) => {
 // Debounced version of injectModules for history updates
 const debouncedInjectForHistory = backgroundDebouncePerTab(injectModules, 300); // 300ms delay
 
+// --- Data Store for References ---
+const tabReferenceData = {}; // { tabId: [references] }
+
 async function injectModules(tabId, triggerSource = "unknown") {
   console.log(`[MDPI Filter BG] injectModules called for tab ${tabId} by ${triggerSource}`);
   // --- Ensure the guard variable is reset ---
@@ -79,7 +82,7 @@ async function injectModules(tabId, triggerSource = "unknown") {
 
 // --- Simplified Event Listeners ---
 
-// 1) Clear badge ONLY when the main URL changes during loading
+// 1) Clear badge AND reference data when the main URL changes
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Check if status is loading AND a URL is provided in changeInfo
   if (changeInfo.status === 'loading' && changeInfo.url) {
@@ -88,10 +91,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       const newUrl = new URL(changeInfo.url);
       const oldUrl = new URL(tab.url); // Get current URL from tab object
 
-      // Clear badge only if the origin or pathname has changed
+      // Clear badge and references only if the origin or pathname has changed
       if (newUrl.origin !== oldUrl.origin || newUrl.pathname !== oldUrl.pathname) {
         chrome.action.setBadgeText({ text: '', tabId });
-        console.log(`[MDPI Filter BG] Cleared badge for loading tab ${tabId} (URL changed)`);
+        delete tabReferenceData[tabId]; // Clear stored references for the tab
+        console.log(`[MDPI Filter BG] Cleared badge and references for loading tab ${tabId} (URL changed)`);
       } else {
         // console.log(`[MDPI Filter BG] Tab ${tabId} loading, but URL path/origin unchanged (likely hash change). Badge not cleared.`);
       }
@@ -130,18 +134,53 @@ chrome.webNavigation.onCompleted.addListener(
   { url: [{ schemes: ['http','https'] }] }
 );
 
-// 3) Badge update listener
-chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (msg.type === 'mdpiCount' && sender.tab?.id && typeof msg.count === 'number') {
+// 3) Message listener for updates from content script AND requests from popup
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // Message from Content Script with count and references
+  if (msg.type === 'mdpiUpdate' && sender.tab?.id) {
     const tabId = sender.tab.id;
-    const count = msg.count;
+    const count = msg.count ?? 0;
+    const references = msg.references ?? [];
     const text = count > 0 ? String(count) : '';
-    // console.log(`[MDPI Filter BG] Received count ${count} from tab ${tabId}. Setting badge text to '${text}'.`);
+
+    // Update badge
     try {
         chrome.action.setBadgeText({ text, tabId });
         if (count > 0) {
           chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId });
         }
     } catch (e) { /* Ignore errors setting badge */ }
+
+    // Store references
+    tabReferenceData[tabId] = references;
+    console.log(`[MDPI Filter BG] Stored ${references.length} references for tab ${tabId}.`);
+
+    // Optional: Send acknowledgment back to content script if needed
+    // sendResponse({ status: "received" });
+    return false; // Indicate synchronous response (or no response needed)
   }
+
+  // Message from Popup Script requesting references
+  if (msg.type === 'getMdpiReferences') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        const activeTabId = tabs[0].id;
+        const references = tabReferenceData[activeTabId] || [];
+        console.log(`[MDPI Filter BG] Sending ${references.length} references to popup for tab ${activeTabId}.`);
+        sendResponse({ references: references });
+      } else {
+        console.log("[MDPI Filter BG] Could not get active tab for popup request.");
+        sendResponse({ references: [] }); // Send empty array if no active tab
+      }
+    });
+    return true; // Indicate asynchronous response
+  }
+
+  // Handle other message types if necessary
+});
+
+// Clean up references when a tab is closed
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  delete tabReferenceData[tabId];
+  console.log(`[MDPI Filter BG] Cleared references for closed tab ${tabId}.`);
 });

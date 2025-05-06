@@ -19,8 +19,20 @@
     </label>
     <button id="save">Save</button>
     <div id="status"></div>
-    <hr class="separator"> <!-- Optional: Add a visual separator -->
-    <button id="reportIssue" class="secondary">Report Filter Issue</button> <!-- Added button -->
+    <hr class="separator">
+
+    <!-- Section for MDPI References -->
+    <h2>MDPI References Found:</h2>
+    <div id="referencesListContainer">
+      <ul id="referencesList">
+        <!-- References will be injected here -->
+        <li id="referencesPlaceholder" class="placeholder">Loading references...</li>
+      </ul>
+    </div>
+    <!-- End Section -->
+
+    <hr class="separator">
+    <button id="reportIssue" class="secondary">Report Filter Issue</button>
   </div>
   <script src="popup.js"></script>
 </body>

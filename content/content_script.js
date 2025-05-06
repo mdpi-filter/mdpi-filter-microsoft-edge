@@ -512,7 +512,10 @@ if (!window.mdpiFilterInjected) {
                     targetEl = namedElements[0];
                   }
                 }
-                const escapedFrag = CSS.escape(frag);
+                // Ensure CSS.escape is available or polyfilled if targeting older environments
+                // For modern extensions, it should be fine.
+                const escapedFrag = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(frag) : frag.replace(/([!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+
                 if (!targetEl) {
                   targetEl = document.querySelector(`a[id$="-${escapedFrag}"]`);
                 }
@@ -541,25 +544,33 @@ if (!window.mdpiFilterInjected) {
         try {
           if (targetEl.matches(referenceListSelectors)) {
             listItem = targetEl;
-          }
-          else if (rid && targetEl.id === rid && targetEl.querySelector('div.citation')) { 
-            listItem = targetEl.querySelector('div.citation');
-          }
-          else {
-            listItem = targetEl.closest(referenceListSelectors);
+          } else {
+            // Attempt to find a specific reference element within targetEl,
+            // e.g., if targetEl is a wrapper like <div id="r23"> containing <div class="citation">
+            // Query for a descendant that matches one of the reference selectors.
+            const innerRefElement = targetEl.querySelector(referenceListSelectors);
+            if (innerRefElement) {
+              listItem = innerRefElement;
+            } else {
+              // Fallback: targetEl might be inside a reference item, so find closest ancestor
+              listItem = targetEl.closest(referenceListSelectors);
+            }
           }
         } catch (e) {
           console.warn(`[MDPI Filter] DOMException with matches/closest for targetEl (href: "${href}", frag: "${frag}"):`, targetEl, e);
           return; 
         }
 
-        if (listItem && listItem.dataset.mdpiResult === 'true') { // Check the stored result
+        // Check if this listItem was identified as MDPI by processAllReferences
+        // by looking for the mdpiFilterRefId dataset attribute.
+        if (listItem && listItem.dataset.mdpiFilterRefId) {
           const supElement = a.closest('sup'); 
           if (supElement) {
             styleSup(supElement);
           } else { 
+            // If no <sup> parent, try to style <sup> child or the <a> tag itself.
             const supInsideA = a.querySelector('sup');
-            styleSup(supInsideA || a);
+            styleSup(supInsideA || a); // styleSup can handle 'a' tag directly
           }
         }
       });

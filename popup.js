@@ -81,7 +81,7 @@ ${currentTabUrl}
 
   // --- Load and Display References ---
   function displayReferences(references) {
-    referencesList.innerHTML = ''; // Clear existing list (including placeholder)
+    referencesList.innerHTML = ''; // Clear existing list
 
     if (!references || references.length === 0) {
       const li = document.createElement('li');
@@ -93,29 +93,42 @@ ${currentTabUrl}
 
     references.forEach(ref => {
       const li = document.createElement('li');
+      // Store the unique reference ID from the content script
+      li.dataset.refId = ref.id; // Use the ID received from background
+      li.title = "Click to scroll to reference"; // Add tooltip
+
       let content = '';
       if (ref.number) {
         content += `<span class="ref-number">${ref.number}.</span> `;
       }
-      content += `<span class="ref-text">${escapeHtml(ref.text)}</span>`; // Display text, escape HTML
+      // Escape and add the text - Make the text part of the clickable item
+      content += `<span class="ref-text">${escapeHtml(ref.text)}</span>`;
 
-      // Add link if available
-      if (ref.link) {
-        const linkEl = document.createElement('a');
-        linkEl.href = ref.link;
-        linkEl.target = '_blank'; // Open in new tab
-        linkEl.textContent = ' (Link)'; // Simple link text
-        linkEl.className = 'ref-link';
-        // Append link after the text span within the li
-        li.innerHTML = content; // Set initial content
-        li.appendChild(linkEl); // Append the link element
-      } else {
-         li.innerHTML = content; // Set content without link
-      }
-
+      li.innerHTML = content; // Set the content
       referencesList.appendChild(li);
     });
   }
+
+  // --- Add Click Listener for Scrolling ---
+  referencesList.addEventListener('click', (event) => {
+    const clickedLi = event.target.closest('li[data-ref-id]'); // Find the parent LI with the ID
+    if (clickedLi) {
+      const refId = clickedLi.dataset.refId;
+      console.log(`[MDPI Filter Popup] Clicked reference LI, requesting scroll to ID: ${refId}`);
+      // Send message to background script to trigger scroll in content script
+      chrome.runtime.sendMessage({ type: 'scrollToRef', refId: refId }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error("[MDPI Filter Popup] Error sending scrollToRef:", chrome.runtime.lastError.message);
+            // Optionally show feedback to user in the popup
+        } else {
+            console.log("[MDPI Filter Popup] scrollToRef response:", response);
+            // Optionally close popup after click, or show status
+            // window.close(); // Uncomment to close popup on click
+        }
+      });
+    }
+  });
+  // --- End Click Listener ---
 
   // Helper to escape HTML
   function escapeHtml(unsafe) {

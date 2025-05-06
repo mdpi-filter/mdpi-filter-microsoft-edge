@@ -32,6 +32,7 @@ if (!window.mdpiFilterInjected) {
   const sanitize    = window.sanitize || (html => html);
   const uniqueMdpiReferences = new Set();
   let collectedMdpiReferences = []; // Array to store detailed reference info
+  let refIdCounter = 0; // Counter for unique reference IDs
 
   const referenceListSelectors = [
     'li.c-article-references__item',
@@ -71,8 +72,10 @@ if (!window.mdpiFilterInjected) {
       supOrA.style.fontWeight = 'bold';
     };
 
-    const styleRef = item => {
+    const styleRef = (item, refId) => { // Accept refId
       item.style.color = '#E2211C';
+      // Assign the unique ID as a data attribute
+      item.dataset.mdpiFilterRefId = refId;
 
       let currentSibling = item.previousElementSibling;
       const referenceStartRegex = /^\s*\d+\.\s*/;
@@ -83,6 +86,8 @@ if (!window.mdpiFilterInjected) {
         }
 
         if (currentSibling.matches('span')) {
+          // Also assign the ID to preceding spans for potential targeting
+          currentSibling.dataset.mdpiFilterRefId = refId;
           if (referenceStartRegex.test(currentSibling.textContent || '')) {
             currentSibling.style.color = '#E2211C';
             break;
@@ -124,9 +129,10 @@ if (!window.mdpiFilterInjected) {
     const isMdpiReferenceItem = (item) => {
       if (!item) return false;
       if (item.dataset.mdpiChecked) {
+        // Ensure data is collected if runAll runs again
         if (item.dataset.mdpiResult === 'true' && !collectedMdpiReferences.some(ref => ref.element === item)) {
-          const refData = extractReferenceData(item);
-          if (refData) collectedMdpiReferences.push(refData);
+           const refData = extractReferenceData(item); // Will assign ID if not already present
+           if (refData) collectedMdpiReferences.push(refData);
         }
         return item.dataset.mdpiResult === 'true';
       }
@@ -149,12 +155,12 @@ if (!window.mdpiFilterInjected) {
       item.dataset.mdpiResult = isMdpi;
 
       if (isMdpi) {
-        const refData = extractReferenceData(item);
+        const refData = extractReferenceData(item); // Assigns ID here
         if (refData) {
           collectedMdpiReferences.push(refData);
-          const key = refData.number || refData.text.slice(0, 50);
+          const key = refData.id; // Use the unique ID as the key
           uniqueMdpiReferences.add(key);
-          console.log("[MDPI Filter] Added key to set. Set size:", uniqueMdpiReferences.size);
+          console.log(`[MDPI Filter] Added key ${key} to set. Set size:`, uniqueMdpiReferences.size);
         } else {
           console.log("[MDPI Filter] Could not extract reference data for item:", item);
           const key = sanitize(textContent).trim().slice(0, 100);
@@ -165,6 +171,15 @@ if (!window.mdpiFilterInjected) {
     };
 
     const extractReferenceData = (item) => {
+      // --- Assign Unique ID ---
+      let refId = item.dataset.mdpiFilterRefId;
+      if (!refId) {
+          refId = `mdpi-ref-${refIdCounter++}`;
+          // Assign to the primary item immediately
+          item.dataset.mdpiFilterRefId = refId;
+      }
+      // --- End Assign Unique ID ---
+
       let fullText = '';
       let number = null;
       let link = null;
@@ -179,21 +194,24 @@ if (!window.mdpiFilterInjected) {
         let currentSibling = item;
         const parts = [];
         while (currentSibling) {
-          if (currentSibling.matches('span[aria-owns^="pdfjs_internal_id_"]') && currentSibling !== item) {
-            break;
-          }
+          // Assign ID to preceding spans during extraction
           if (currentSibling.matches('span')) {
-            const spanText = currentSibling.textContent || '';
-            parts.unshift(spanText);
-            const match = spanText.match(referenceStartRegex);
-            if (match) {
-              number = match[1];
-              break;
-            }
+              currentSibling.dataset.mdpiFilterRefId = refId; // Ensure ID is on all parts
+              const spanText = currentSibling.textContent || '';
+              parts.unshift(spanText);
+              const match = spanText.match(referenceStartRegex);
+              if (match) {
+                  number = match[1];
+                  break;
+              }
           } else if (currentSibling.tagName !== 'BR') {
-            break;
+              break;
           }
-          currentSibling = currentSibling.previousElementSibling;
+          const prev = currentSibling.previousElementSibling;
+          if (prev && prev.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
+              break;
+          }
+          currentSibling = prev;
         }
         fullText = parts.join(' ').replace(/\s+/g, ' ').trim();
       } else {
@@ -210,6 +228,7 @@ if (!window.mdpiFilterInjected) {
       if (!fullText) return null;
 
       return {
+        id: refId, // Include the unique ID
         number: number,
         text: fullText,
         link: link,
@@ -259,6 +278,7 @@ if (!window.mdpiFilterInjected) {
             return 0;
           });
           referencesToSend = collectedMdpiReferences.map(ref => ({
+            id: ref.id, // Send the ID
             number: ref.number,
             text: ref.text,
             link: ref.link
@@ -422,7 +442,7 @@ if (!window.mdpiFilterInjected) {
     function processAllReferences() {
       document.querySelectorAll(referenceListSelectors).forEach(item => {
         if (isMdpiReferenceItem(item)) {
-          styleRef(item);
+          styleRef(item, item.dataset.mdpiFilterRefId);
         }
       });
     }
@@ -437,9 +457,33 @@ if (!window.mdpiFilterInjected) {
       });
     }
 
+    const highlightElementTemporarily = (element) => {
+      if (!element) return;
+      element.style.outline = '3px solid #FFD700';
+      element.style.transition = 'outline 0.1s ease-in-out';
+
+      const refId = element.dataset.mdpiFilterRefId;
+      if (refId) {
+        document.querySelectorAll(`[data-mdpi-filter-ref-id="${refId}"]`).forEach(el => {
+          el.style.outline = '3px solid #FFD700';
+          el.style.transition = 'outline 0.1s ease-in-out';
+        });
+      }
+
+      setTimeout(() => {
+        element.style.outline = '';
+        if (refId) {
+          document.querySelectorAll(`[data-mdpi-filter-ref-id="${refId}"]`).forEach(el => {
+            el.style.outline = '';
+          });
+        }
+      }, 2000);
+    };
+
     function runAll(source = "initial") {
       console.log(`[MDPI Filter] runAll triggered by: ${source}`);
-      document.querySelectorAll('[data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
+      refIdCounter = 0;
+      document.querySelectorAll('[data-mdpi-checked], [data-mdpi-cited-by-processed], [data-mdpi-filter-ref-id]').forEach(el => {
         el.style.color = '';
         el.style.fontWeight = '';
         el.style.border = '';
@@ -448,6 +492,7 @@ if (!window.mdpiFilterInjected) {
         delete el.dataset.mdpiChecked;
         delete el.dataset.mdpiResult;
         delete el.dataset.mdpiCitedByProcessed;
+        delete el.dataset.mdpiFilterRefId;
       });
       document.querySelectorAll('[style*="color: rgb(226, 33, 28)"]').forEach(el => {
         el.style.color = '';
@@ -554,6 +599,23 @@ if (!window.mdpiFilterInjected) {
         console.log("[MDPI Filter] Running runAll via requestAnimationFrame after hashchange.");
         runAll("hashchange");
       });
+    });
+
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (msg.type === 'scrollToRef' && msg.refId) {
+        console.log(`[MDPI Filter] Received scrollToRef request for ID: ${msg.refId}`);
+        const targetElement = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          highlightElementTemporarily(targetElement);
+          sendResponse({ status: "scrolled" });
+        } else {
+          console.warn(`[MDPI Filter] Element with ID ${msg.refId} not found.`);
+          sendResponse({ status: "not_found" });
+        }
+        return true;
+      }
+      return false;
     });
 
     console.log("[MDPI Filter] Initial setup complete, listeners/observers added.");

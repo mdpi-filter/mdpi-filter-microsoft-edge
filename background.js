@@ -134,7 +134,7 @@ chrome.webNavigation.onCompleted.addListener(
   { url: [{ schemes: ['http','https'] }] }
 );
 
-// 3) Message listener for updates from content script AND requests from popup
+// 3) Message listener for updates, popup requests, AND scroll requests
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Message from Content Script with count and references
   if (msg.type === 'mdpiUpdate' && sender.tab?.id) {
@@ -151,12 +151,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
     } catch (e) { /* Ignore errors setting badge */ }
 
-    // Store references
+    // Store references (now including ID)
     tabReferenceData[tabId] = references;
-    console.log(`[MDPI Filter BG] Stored ${references.length} references for tab ${tabId}.`);
-
-    // Optional: Send acknowledgment back to content script if needed
-    // sendResponse({ status: "received" });
+    console.log(`[MDPI Filter BG] Stored ${tabReferenceData[tabId].length} references for tab ${tabId}.`);
     return false; // Indicate synchronous response (or no response needed)
   }
 
@@ -167,7 +164,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const activeTabId = tabs[0].id;
         const references = tabReferenceData[activeTabId] || [];
         console.log(`[MDPI Filter BG] Sending ${references.length} references to popup for tab ${activeTabId}.`);
-        sendResponse({ references: references });
+        sendResponse({ references: references }); // Send references including ID
       } else {
         console.log("[MDPI Filter BG] Could not get active tab for popup request.");
         sendResponse({ references: [] }); // Send empty array if no active tab
@@ -176,7 +173,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // Indicate asynchronous response
   }
 
-  // Handle other message types if necessary
+  // --- New: Message from Popup Script to Scroll to Reference ---
+  if (msg.type === 'scrollToRef' && msg.refId) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length > 0) {
+            const activeTabId = tabs[0].id;
+            console.log(`[MDPI Filter BG] Forwarding scrollToRef request for ID ${msg.refId} to tab ${activeTabId}`);
+            // Forward the message to the content script of the active tab
+            chrome.tabs.sendMessage(activeTabId, { type: 'scrollToRef', refId: msg.refId }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.warn("[MDPI Filter BG] Error forwarding scrollToRef:", chrome.runtime.lastError.message);
+                    sendResponse({ status: "error", message: chrome.runtime.lastError.message });
+                } else {
+                    console.log("[MDPI Filter BG] Forwarded scrollToRef, response from content script:", response);
+                    sendResponse(response); // Send content script's response back to popup
+                }
+            });
+        } else {
+             console.warn("[MDPI Filter BG] Could not find active tab to forward scrollToRef.");
+             sendResponse({ status: "error", message: "No active tab found" });
+        }
+    });
+    return true; // Indicate asynchronous response
+  }
+  // --- End New Handler ---
+
 });
 
 // Clean up references when a tab is closed

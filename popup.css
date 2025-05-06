@@ -101,6 +101,12 @@ h2 {
   padding: 6px 0;
   border-bottom: 1px solid #eee;
   line-height: 1.4;
+  cursor: pointer; /* Make it look clickable */
+  transition: background-color 0.15s ease-in-out; /* Smooth hover effect */
+}
+
+#referencesList li:hover {
+  background-color: #f0f0f0; /* Slight background change on hover */
 }
 
 #referencesList li:last-child {
@@ -117,6 +123,8 @@ h2 {
   color: #333;
 }
 
+/* Remove or comment out .ref-link styles as it's no longer used */
+/*
 #referencesList li .ref-link {
   font-size: 11px;
   color: #007bff;
@@ -126,6 +134,7 @@ h2 {
 #referencesList li .ref-link:hover {
   text-decoration: underline;
 }
+*/
 
 /* Style for placeholder/error messages */
 #referencesList li.placeholder,

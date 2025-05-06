@@ -260,13 +260,23 @@ if (!window.mdpiFilterInjected) {
 
     const updateBadgeAndReferences = () => {
       try {
+        // Check if the runtime and its ID are available.
+        // If not, the context is likely invalidated, so skip sending the message.
+        if (!chrome.runtime || !chrome.runtime.id) {
+          console.warn("[MDPI Filter] Extension context invalidated. Skipping sendMessage in updateBadgeAndReferences.");
+          return;
+        }
+
         console.log("[MDPI Filter] updateBadgeAndReferences called.");
         const count = uniqueMdpiReferences.size;
         let referencesToSend = [];
 
         if (isSearchSite()) {
           console.log("[MDPI Filter] On search site, sending count 0 and no references.");
-          chrome.runtime.sendMessage({ type: 'mdpiUpdate', count: 0, references: [] });
+          // Ensure context is still valid right before sending, though the top check should cover most cases.
+          if (chrome.runtime && chrome.runtime.id) {
+            chrome.runtime.sendMessage({ type: 'mdpiUpdate', count: 0, references: [] });
+          }
         } else {
           collectedMdpiReferences.sort((a, b) => {
             const numA = parseInt(a.number, 10);
@@ -285,13 +295,17 @@ if (!window.mdpiFilterInjected) {
             link: ref.link
           }));
           console.log(`[MDPI Filter] Not on search site, sending count: ${count} and ${referencesToSend.length} references.`);
-          chrome.runtime.sendMessage({ type: 'mdpiUpdate', count: count, references: referencesToSend });
+          // Ensure context is still valid right before sending
+          if (chrome.runtime && chrome.runtime.id) {
+            chrome.runtime.sendMessage({ type: 'mdpiUpdate', count: count, references: referencesToSend });
+          }
         }
 
       } catch (error) {
         console.warn("[MDPI Filter] Could not send message to background (try/catch):", error.message, error);
       } finally {
-        if (chrome.runtime.lastError) {
+        // Check chrome.runtime.lastError, as sendMessage might set it if the receiving end is gone.
+        if (chrome.runtime && chrome.runtime.lastError) {
           console.warn("[MDPI Filter] chrome.runtime.lastError after sendMessage:", chrome.runtime.lastError.message || chrome.runtime.lastError);
         }
       }

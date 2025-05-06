@@ -50,7 +50,8 @@ if (!window.mdpiFilterInjected) {
     'li:has(a[name^="bbib"])', // Another format
     'li[data-bib-id]', // Wiley
     'span[aria-owns^="pdfjs_internal_id_"]', // PDF.js rendered spans
-    'li[id^="cite_note-"]' // Wikipedia reference list items
+    'li[id^="cite_note-"]', // Wikipedia reference list items
+    'div.refbegin li' // Wikipedia "Sources" or "Further reading" list items
   ].join(',');
   // ---
 

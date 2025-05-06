@@ -71,11 +71,8 @@ if (!window.mdpiFilterInjected) {
 
     const styleRef = item => {
       // Style the main item (the one identified by isMdpiReferenceItem, likely the DOI span)
-      item.style.border = highlightStyle;
-      item.style.padding = '5px';
-      // Optional: Style label/first child if applicable (might not be relevant for these spans)
-      // const label = item.querySelector('.label') || item.firstChild;
-      // if (label?.style) { ... }
+      item.style.color = '#E2211C'; // Change text color
+      // item.style.fontWeight = 'bold'; // Optional: make text bold
 
       // --- Work backwards to style preceding spans of the same reference ---
       let currentSibling = item.previousElementSibling;
@@ -92,13 +89,13 @@ if (!window.mdpiFilterInjected) {
           // Stop condition 2: Found what looks like the start of the *current* reference number
           if (referenceStartRegex.test(currentSibling.textContent || '')) {
             // Style this starting span too, then break
-            currentSibling.style.border = highlightStyle;
-            currentSibling.style.padding = '5px';
+            currentSibling.style.color = '#E2211C'; // Change text color
+            // currentSibling.style.fontWeight = 'bold'; // Optional: make text bold
             break; // Stop after styling the starting number
           } else {
             // It's a preceding span of the current reference, style it
-            currentSibling.style.border = highlightStyle;
-            currentSibling.style.padding = '5px';
+            currentSibling.style.color = '#E2211C'; // Change text color
+            // currentSibling.style.fontWeight = 'bold'; // Optional: make text bold
           }
         } else if (currentSibling.tagName !== 'BR') {
           // If it's not a span or a BR, it's likely a boundary, stop.

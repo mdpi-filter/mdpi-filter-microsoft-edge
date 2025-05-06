@@ -176,9 +176,7 @@ if (!window.mdpiFilterInjected) {
     const extractReferenceData = (item) => {
       let refId = item.dataset.mdpiFilterRefId;
       if (!refId) {
-        // This fallback ensures an ID is present, but ideally, it's pre-assigned by the caller.
-        // console.warn(`[MDPI Filter] extractReferenceData: mdpiFilterRefId missing on item. Assigning new. Item:`, item);
-        refId = `mdpi-ref-${refIdCounter++}`; // refIdCounter is global, reset by runAll
+        refId = `mdpi-ref-${refIdCounter++}`;
         item.dataset.mdpiFilterRefId = refId;
       }
 
@@ -192,8 +190,6 @@ if (!window.mdpiFilterInjected) {
         link = linkElement.href;
       }
 
-      // Attempt to get number from PNAS-like structure (e.g., <div class="label">68</div>)
-      // item is expected to be 'div.citation' for PNAS example
       const pnasListItem = item.closest('[role="listitem"][data-has="label"]');
       if (pnasListItem) {
         const labelEl = pnasListItem.querySelector('.label');
@@ -205,11 +201,11 @@ if (!window.mdpiFilterInjected) {
         }
       }
 
-      if (item.matches('li[id^="cite_note-"]')) { // Wikipedia specific
+      if (item.matches('li[id^="cite_note-"]')) {
         const idParts = item.id.split('-');
         const potentialNumber = idParts[idParts.length - 1];
         if (potentialNumber && !isNaN(parseInt(potentialNumber, 10))) {
-          number = potentialNumber; // This might overwrite PNAS if structure is ambiguous, but selectors should be distinct.
+          number = potentialNumber;
         }
         const refTextElement = item.querySelector('span.reference-text');
         if (refTextElement) {
@@ -239,18 +235,16 @@ if (!window.mdpiFilterInjected) {
           currentElement = nextSib;
         }
         fullText = currentTextCollector.trim();
-        if (!number) { // Only if PNAS/other specific logic didn't find one
+        if (!number) { 
             const numMatchPdf = fullText.match(/^\s*\[?(\d+)\]?[\.\s]?/);
             if (numMatchPdf && numMatchPdf[1]) {
               number = numMatchPdf[1];
             }
         }
       } else {
-        // General case for fullText if not extracted by specific handlers
         if (!fullText) {
             fullText = item.textContent.trim();
         }
-        // General case for number, if not found by PNAS or other specific logic
         if (!number) {
             const match = fullText.match(referenceStartRegex);
             if (match && match[1]) {
@@ -259,19 +253,47 @@ if (!window.mdpiFilterInjected) {
         }
       }
 
-      if (!fullText && item.textContent) { // Ensure fullText has a value
+      if (!fullText && item.textContent) {
         fullText = item.textContent.trim();
       }
       if (!fullText) {
         fullText = "Reference text not available.";
       }
 
+      // --- Fingerprint generation ---
+      let fingerprint = null;
+      const doiRegex = /\b(10\.\d{4,9}\/[-._;()/:A-Z0-9]+)\b/i; 
+      
+      if (link) {
+        const hrefLower = link.toLowerCase();
+        if (hrefLower.includes('doi.org/') || hrefLower.includes('dx.doi.org/')) {
+            const match = hrefLower.match(doiRegex);
+            if (match) fingerprint = match[0];
+        }
+      }
+
+      if (!fingerprint && fullText) {
+        const textLower = fullText.toLowerCase();
+        const match = textLower.match(doiRegex);
+        if (match) fingerprint = match[0];
+      }
+      
+      if (!fingerprint) {
+        if (fullText && fullText !== "Reference text not available.") {
+          fingerprint = fullText.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 100);
+        } else {
+          fingerprint = `no-text-ref-${refId}`; 
+        }
+      }
+      // --- End Fingerprint generation ---
+
       return {
         id: refId,
         number: number,
         text: fullText,
         link: link,
-        element: item
+        element: item,
+        fingerprint: fingerprint
       };
     };
 
@@ -545,16 +567,13 @@ if (!window.mdpiFilterInjected) {
 
     function processAllReferences() {
       document.querySelectorAll(referenceListSelectors).forEach(item => {
-        // Check if any ancestor of this item, which also matches referenceListSelectors,
-        // has already been processed AND ADDED as an MDPI reference in this run.
         let currentAncestor = item.parentElement;
         let skipItemDueToProcessedAncestor = false;
         while (currentAncestor && currentAncestor !== document.body) {
           if (currentAncestor.matches(referenceListSelectors)) {
             const ancestorRefId = currentAncestor.dataset.mdpiFilterRefId;
-            // If ancestorRefId exists and is in uniqueMdpiReferences, it means the ancestor
-            // was already processed, determined to be an MDPI item, and added to the list.
-            if (ancestorRefId && uniqueMdpiReferences.has(ancestorRefId)) {
+            // Check if ancestor was processed and its fingerprint is in uniqueMdpiReferences
+            if (ancestorRefId && currentAncestor.dataset.mdpiFingerprint && uniqueMdpiReferences.has(currentAncestor.dataset.mdpiFingerprint)) {
               skipItemDueToProcessedAncestor = true;
               break;
             }
@@ -563,48 +582,43 @@ if (!window.mdpiFilterInjected) {
         }
 
         if (skipItemDueToProcessedAncestor) {
-          // console.log("[MDPI Filter] Item skipped as its ancestor was already processed and added:", item, currentAncestor);
-          return; // Skip this item, proceed to the next in forEach
+          return; 
         }
 
-        // TODO: Consider if item.offsetParent is null (element is not visible/displayed), then skip.
-        // This could prevent processing hidden elements that might be part of templates or inactive UI.
-        // However, 'hide' mode explicitly sets display:none, so this needs care.
-
         if (isMdpiItemByContent(item)) {
-          const refData = extractReferenceData(item); // Ensures item has dataset.mdpiFilterRefId
+          const refData = extractReferenceData(item); 
+          item.dataset.mdpiFingerprint = refData.fingerprint; // Store fingerprint on the element
 
-          // Check if this reference (by its unique ID) has already been collected
-          if (!uniqueMdpiReferences.has(refData.id)) {
-            uniqueMdpiReferences.add(refData.id);
-            collectedMdpiReferences.push(refData);
+          if (!uniqueMdpiReferences.has(refData.fingerprint)) {
+            uniqueMdpiReferences.add(refData.fingerprint);
+            collectedMdpiReferences.push(refData); 
 
             if (mode === 'highlight') {
-              styleRef(item, refData.id);
+              styleRef(item, refData.id); 
             } else if (mode === 'hide') {
               item.style.display = 'none';
-              // Consider styling the direct parent LI or container if the item itself is not the LI
-              const parentListItem = item.closest('li, div.citation, div.reference'); // Common list item parents
+              const parentListItem = item.closest('li, div.citation, div.reference'); 
               if (parentListItem && parentListItem !== item && item.matches(referenceListSelectors)) {
-                // If 'item' is a specific part of a larger list item structure that is hidden
                 // parentListItem.style.display = 'none'; // This might be too aggressive
               }
             }
-          } else if (mode === 'highlight') { // If already collected (e.g. by a different selector path to same element), ensure it's styled
-            styleRef(item, refData.id);
-          } else if (mode === 'hide') {
-            item.style.display = 'none';
+          } else {
+            // Fingerprint already seen. This reference content is already counted.
+            // Still style/hide this specific occurrence.
+            if (mode === 'highlight') {
+              styleRef(item, refData.id); 
+            } else if (mode === 'hide') {
+              item.style.display = 'none';
+            }
           }
         } else {
           // Element matches selector but is not an MDPI item by content.
           // Ensure it's visible if mode is 'highlight' and it was previously hidden.
           // This handles cases where an item was MDPI, then content changed and it's no longer MDPI.
           if (item.style.display === 'none' && item.dataset.mdpiFilterRefId) {
-             // console.log("[MDPI Filter] Item no longer MDPI, ensuring it's visible:", item);
-             // item.style.display = ''; // Or original display value
+             // item.style.display = ''; 
           }
-          // Clear any MDPI-specific styling if it's no longer an MDPI item
-          // This part needs more robust style reset logic if implemented.
+          delete item.dataset.mdpiFingerprint; // Clean up fingerprint if not MDPI
         }
       });
       updateBadgeAndReferences();
@@ -648,18 +662,18 @@ if (!window.mdpiFilterInjected) {
       refIdCounter = 0; // Reset ID counter for this run
 
       // Clear dataset attributes and styles from previous runs or other elements
-      document.querySelectorAll('[data-mdpi-processed-in-this-run], [data-mdpi-result], [data-mdpi-filter-ref-id], [data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
+      document.querySelectorAll('[data-mdpi-processed-in-this-run], [data-mdpi-result], [data-mdpi-filter-ref-id], [data-mdpi-fingerprint], [data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
         el.style.color = '';
         el.style.fontWeight = '';
         el.style.border = '';
         el.style.padding = '';
-        el.style.display = ''; // Reset display for hidden items
-        el.style.outline = ''; // Clear temporary highlight if any
+        el.style.display = ''; 
+        el.style.outline = ''; 
 
         delete el.dataset.mdpiProcessedInThisRun;
         delete el.dataset.mdpiResult;
         delete el.dataset.mdpiFilterRefId;
-        // Clean up old dataset attributes as well for safety
+        delete el.dataset.mdpiFingerprint; // Added to clear fingerprint
         delete el.dataset.mdpiChecked;
         delete el.dataset.mdpiCitedByProcessed;
       });

@@ -177,8 +177,8 @@ if (!window.mdpiFilterInjected) {
       const allLinksQuery = item.querySelectorAll('a[href], a[data-track-item_id]');
 
       for (const link of allLinksQuery) {
-        const href = link.getAttribute('href');
-        const dataTrackId = link.getAttribute('data-track-item_id');
+        const href = link.href; // Use link.href for resolved URL
+        const dataTrackId = link.getAttribute('data-track-item_id'); // getAttribute is fine for data attributes
         if ((href && mdpiDoiPatternInLink.test(href)) || 
             (dataTrackId && dataTrackId.includes(`${MDPI_DOI}/`))) { // data-track-item_id usually contains the DOI directly
           return true;
@@ -192,7 +192,7 @@ if (!window.mdpiFilterInjected) {
         // Check all 'a' tags with an href attribute
         const allLinks = item.querySelectorAll('a[href]');
         for (const link of allLinks) {
-          const href = link.getAttribute('href');
+          const href = link.href; // Use link.href for resolved URL
           // A link is a conflicting non-MDPI DOI if it's a DOI link and doesn't contain MDPI_DOI string at all
           if (href && (href.includes('doi.org/') || href.includes('dx.doi.org/')) && !href.includes(MDPI_DOI)) {
             hasConflictingNonMdpiDoiLink = true;
@@ -210,7 +210,7 @@ if (!window.mdpiFilterInjected) {
       let hasDefinitiveNonMdpiDoiLink = false;
       const allLinksForNonMdpiCheck = item.querySelectorAll('a[href]');
       for (const link of allLinksForNonMdpiCheck) {
-        const href = link.getAttribute('href');
+        const href = link.href; // Use link.href for resolved URL
         // If the link is a DOI link (contains doi.org/ or dx.doi.org/)
         // AND it does not contain the MDPI_DOI string anywhere in its href,
         // it's considered a definitive non-MDPI DOI link.

@@ -238,10 +238,42 @@ if (!window.mdpiFilterInjected) {
       }
 
       // Priority 4: Journal name check (last resort if no conclusive DOI info)
-      const journalRegex = new RegExp(`\\b(${['Nutrients', 'Int J Mol Sci', 'IJMS', 'Molecules'].join('|')})\\b`, 'i');
-      const hasMdpiJournal = journalRegex.test(innerHTML);
+      const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS']; // Add other highly specific MDPI journal names/abbreviations
+      const M_JOURNALS_WEAK = ['Nutrients', 'Molecules'];    // Ambiguous names that need careful handling
 
-      return hasMdpiJournal;
+      const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.join('|')})\\b`, 'i');
+      if (strongJournalRegex.test(innerHTML)) {
+        return true; // Strong signal from a specific MDPI journal name.
+      }
+
+      const weakJournalRegex = new RegExp(`\\b(${M_JOURNALS_WEAK.join('|')})\\b`, 'i');
+      if (weakJournalRegex.test(innerHTML)) {
+        // A "weak" (ambiguous) MDPI journal name is present.
+        // Check if there's any non-MDPI link in the item. If so, the weak match is likely coincidental.
+        const allLinksInItem = item.querySelectorAll('a[href]');
+        let hasAnyNonMdpiLink = false;
+        for (const linkEl of allLinksInItem) {
+          const href = linkEl.href;
+          if (!href) continue;
+
+          const isClearlyMdpiLink = mdpiDoiPatternInLink.test(href) || href.includes(MDPI_DOMAIN);
+          if (!isClearlyMdpiLink) {
+            // This link is not an MDPI link.
+            hasAnyNonMdpiLink = true;
+            break;
+          }
+        }
+
+        if (hasAnyNonMdpiLink) {
+          // Weak journal name found, but also another non-MDPI link.
+          // This makes the weak journal name match less reliable.
+          return false;
+        }
+        // Weak journal name found, and no other non-MDPI links to cast doubt.
+        return true;
+      }
+
+      return false; // No MDPI journal name found by any criteria.
     };
 
     const extractReferenceData = (item) => {

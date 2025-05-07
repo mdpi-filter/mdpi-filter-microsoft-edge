@@ -89,15 +89,22 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     try {
       // Compare the new URL (without hash) to the existing tab URL (without hash)
       const newUrl = new URL(changeInfo.url);
-      const oldUrl = new URL(tab.url); // Get current URL from tab object
+      if (tab.url) { // Check if tab.url is defined and not empty
+        const oldUrl = new URL(tab.url); // Get current URL from tab object
 
-      // Clear badge and references only if the origin or pathname has changed
-      if (newUrl.origin !== oldUrl.origin || newUrl.pathname !== oldUrl.pathname) {
-        chrome.action.setBadgeText({ text: '', tabId });
-        delete tabReferenceData[tabId]; // Clear stored references for the tab
-        console.log(`[MDPI Filter BG] Cleared badge and references for loading tab ${tabId} (URL changed)`);
+        // Clear badge and references only if the origin or pathname has changed
+        if (newUrl.origin !== oldUrl.origin || newUrl.pathname !== oldUrl.pathname) {
+          chrome.action.setBadgeText({ text: '', tabId });
+          delete tabReferenceData[tabId]; // Clear stored references for the tab
+          console.log(`[MDPI Filter BG] Cleared badge and references for loading tab ${tabId} (URL changed)`);
+        } else {
+          // console.log(`[MDPI Filter BG] Tab ${tabId} loading, but URL path/origin unchanged (likely hash change). Badge not cleared.`);
+        }
       } else {
-        // console.log(`[MDPI Filter BG] Tab ${tabId} loading, but URL path/origin unchanged (likely hash change). Badge not cleared.`);
+        // console.log(`[MDPI Filter BG] Tab ${tabId} loading, but tab.url is not yet available. Badge not cleared.`);
+        // Potentially clear badge here if changeInfo.url indicates a new navigation
+        // and oldUrl is not available to compare. This might be too aggressive.
+        // For now, if oldUrl can't be determined, we don't clear.
       }
     } catch (e) {
        // Ignore errors (e.g., invalid URLs, tab closed)

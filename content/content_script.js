@@ -437,6 +437,27 @@ if (!window.mdpiFilterInjected) {
         }
       }
 
+      // 5b. Try to determine number from <ol> parent if item is <li>
+      if (number === null && item.tagName === 'LI') {
+        const parentOl = item.parentElement;
+        if (parentOl && parentOl.tagName === 'OL') {
+          // Get only LI elements as children, to correctly determine index
+          const listItems = Array.from(parentOl.children).filter(child => child.tagName === 'LI');
+          const indexInList = listItems.indexOf(item);
+
+          if (indexInList !== -1) {
+            let startValue = 1;
+            if (parentOl.hasAttribute('start')) {
+              const parsedStart = parseInt(parentOl.getAttribute('start'), 10);
+              if (!isNaN(parsedStart)) {
+                startValue = parsedStart;
+              }
+            }
+            number = startValue + indexInList;
+          }
+        }
+      }
+
       // 6. Prepare the final display text: remove the number prefix if we successfully extracted it
       text = rawTextContent;
       if (number !== null) {
@@ -919,7 +940,7 @@ if (!window.mdpiFilterInjected) {
       }
     }
 
-    const debouncedRunAll = window.debounce(runAll, 500);
+    const debouncedRunAll = window.debounce(runAll, 250);
 
     function setupMainObserver() {
       const targetNode = document.body;

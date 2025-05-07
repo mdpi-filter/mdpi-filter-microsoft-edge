@@ -2,7 +2,7 @@
 
 if (!window.mdpiFilterInjected) {
   window.mdpiFilterInjected = true;
-  console.log("[MDPI Filter] Content script executing (mdpiFilterInjected set).");
+  // console.log("[MDPI Filter] Content script executing (mdpiFilterInjected set).");
 
   // --- Dependencies Check ---
   if (typeof window.MDPIFilterDomains === 'undefined') {
@@ -56,7 +56,7 @@ if (!window.mdpiFilterInjected) {
   // ---
 
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
-    console.log("[MDPI Filter] Mode:", mode);
+    // console.log("[MDPI Filter] Mode:", mode);
 
     // --- Styling Functions ---
     const highlightStyle = '2px solid red';
@@ -364,14 +364,14 @@ if (!window.mdpiFilterInjected) {
       // Normalize text by removing extra whitespace and taking a substring.
       const normalizedTextForFingerprint = (text || '').replace(/\s+/g, ' ').trim().substring(0, 100);
       const fingerprint = `${normalizedTextForFingerprint}|${link || ''}`;
-      console.log(`[MDPI Filter] extractReferenceData - Generated fingerprint: "${fingerprint}" for item ID: ${refId}, Number: ${number}, Text (start): "${text.substring(0,50)}..."`);
+      // console.log(`[MDPI Filter] extractReferenceData - Generated fingerprint: "${fingerprint}" for item ID: ${refId}, Number: ${number}, Text (start): "${text.substring(0,50)}..."`);
 
       return { id: refId, number, text, link, rawHTML: sanitize(item.innerHTML), fingerprint };
     };
 
     const isSearchSite = () => {
       if (!window.MDPIFilterDomains) {
-        console.warn("[MDPI Filter] isSearchSite check skipped: domains not loaded.");
+        // console.warn("[MDPI Filter] isSearchSite check skipped: domains not loaded.");
         return false;
       }
       const host = location.hostname;
@@ -382,11 +382,11 @@ if (!window.mdpiFilterInjected) {
           : cfg.hostRegex?.test(host);
         const matchPath = !cfg.path || cfg.path.test(path);
         if (matchHost && matchPath) {
-          console.log(`[MDPI Filter] isSearchSite: Matched ${cfg.host || cfg.hostRegex}`);
+          // console.log(`[MDPI Filter] isSearchSite: Matched ${cfg.host || cfg.hostRegex}`);
           return true;
         }
       }
-      console.log("[MDPI Filter] isSearchSite: No match");
+      // console.log("[MDPI Filter] isSearchSite: No match");
       return false;
     };
 
@@ -496,12 +496,12 @@ if (!window.mdpiFilterInjected) {
     }
 
     const debouncedProcessCitedByEntries = window.debounce(() => {
-      console.log("[MDPI Filter] Debounced processCitedByEntries running.");
+      // console.log("[MDPI Filter] Debounced processCitedByEntries running.");
       document.querySelectorAll('li.citedByEntry').forEach(item => {
         if (item.dataset.mdpiCitedByProcessed) return;
 
         if (item.textContent?.includes(MDPI_DOI)) {
-          console.log("[MDPI Filter] Found MDPI citedBy entry:", item);
+          // console.log("[MDPI Filter] Found MDPI citedBy entry:", item);
           styleSearch(item);
           const viewLink = item.querySelector('.extra-links a.getFTR__btn');
           if (viewLink) {
@@ -513,12 +513,12 @@ if (!window.mdpiFilterInjected) {
     }, 300);
 
     function processCitedByEntries() {
-      console.log("[MDPI Filter] Initial processCitedByEntries running.");
+      // console.log("[MDPI Filter] Initial processCitedByEntries running.");
       document.querySelectorAll('li.citedByEntry').forEach(item => {
         if (item.dataset.mdpiCitedByProcessed) return;
 
         if (item.textContent?.includes(MDPI_DOI)) {
-          console.log("[MDPI Filter] Found MDPI citedBy entry (initial):", item);
+          // console.log("[MDPI Filter] Found MDPI citedBy entry (initial):", item);
           styleSearch(item);
           const viewLink = item.querySelector('.extra-links a.getFTR__btn');
           if (viewLink) {
@@ -646,13 +646,13 @@ if (!window.mdpiFilterInjected) {
         if (isMdpiItemByContent(item)) {
           const refData = extractReferenceData(item); 
           item.dataset.mdpiFingerprint = refData.fingerprint; // Store fingerprint on the element
-          console.log(`[MDPI Filter] processAllReferences - Processing item. ID: ${refData.id}, Fingerprint: "${refData.fingerprint}"`);
+          // console.log(`[MDPI Filter] processAllReferences - Processing item. ID: ${refData.id}, Fingerprint: "${refData.fingerprint}"`);
 
           if (!uniqueMdpiReferences.has(refData.fingerprint)) {
-            console.log(`[MDPI Filter] processAllReferences - New fingerprint. Before add, uniqueMdpiReferences.size: ${uniqueMdpiReferences.size}`);
+            // console.log(`[MDPI Filter] processAllReferences - New fingerprint. Before add, uniqueMdpiReferences.size: ${uniqueMdpiReferences.size}`);
             uniqueMdpiReferences.add(refData.fingerprint);
             collectedMdpiReferences.push(refData); 
-            console.log(`[MDPI Filter] processAllReferences - After add, uniqueMdpiReferences.size: ${uniqueMdpiReferences.size}. Added to collected:`, JSON.stringify(refData));
+            // console.log(`[MDPI Filter] processAllReferences - After add, uniqueMdpiReferences.size: ${uniqueMdpiReferences.size}. Added to collected:`, JSON.stringify(refData));
 
 
             if (mode === 'highlight') {
@@ -720,7 +720,7 @@ if (!window.mdpiFilterInjected) {
     };
 
     function runAll(source = "initial") {
-      console.log(`[MDPI Filter] runAll triggered by: ${source}`);
+      // console.log(`[MDPI Filter] runAll triggered by: ${source}`);
       refIdCounter = 0; // Reset ID counter for this run
 
       // Clear dataset attributes and styles from previous runs or other elements
@@ -764,7 +764,7 @@ if (!window.mdpiFilterInjected) {
       } catch (error) {
         console.error(`[MDPI Filter] Error during runAll (source: ${source}):`, error);
       } finally {
-        console.log(`[MDPI Filter] runAll finished (source: ${source}). Unique MDPI refs (for badge): ${uniqueMdpiReferences.size}, Collected for popup: ${collectedMdpiReferences.length}`);
+        // console.log(`[MDPI Filter] runAll finished (source: ${source}). Unique MDPI refs (for badge): ${uniqueMdpiReferences.size}, Collected for popup: ${collectedMdpiReferences.length}`);
       }
     }
 
@@ -777,7 +777,7 @@ if (!window.mdpiFilterInjected) {
         return;
       }
 
-      console.log("[MDPI Filter] Setting up Main observer for document.body");
+      // console.log("[MDPI Filter] Setting up Main observer for document.body");
 
       const observerConfig = {
         childList: true,
@@ -794,23 +794,23 @@ if (!window.mdpiFilterInjected) {
         }
 
         if (nodesAdded) {
-          console.log("[MDPI Filter] Main observer detected added nodes. Triggering debounced runAll.");
+          // console.log("[MDPI Filter] Main observer detected added nodes. Triggering debounced runAll.");
           debouncedRunAll("main observer");
         }
       });
 
       observer.observe(targetNode, observerConfig);
-      console.log("[MDPI Filter] Main observer started.");
+      // console.log("[MDPI Filter] Main observer started.");
     }
 
     function setupCitedByObserver() {
       const targetNode = document.getElementById('cited-by__content');
       if (!targetNode) {
-        console.log("[MDPI Filter] Cited By observer target '#cited-by__content' not found.");
+        // console.log("[MDPI Filter] Cited By observer target '#cited-by__content' not found.");
         return;
       }
 
-      console.log("[MDPI Filter] Setting up Cited By observer for:", targetNode);
+      // console.log("[MDPI Filter] Setting up Cited By observer for:", targetNode);
 
       const observerConfig = {
         childList: true,
@@ -818,18 +818,18 @@ if (!window.mdpiFilterInjected) {
       };
 
       const observer = new MutationObserver((mutationsList, observer) => {
-        console.log("[MDPI Filter] Cited By observer detected mutations.");
+        // console.log("[MDPI Filter] Cited By observer detected mutations.");
         debouncedProcessCitedByEntries();
       });
 
       observer.observe(targetNode, observerConfig);
-      console.log("[MDPI Filter] Cited By observer started.");
+      // console.log("[MDPI Filter] Cited By observer started.");
     }
 
     if (window.MDPIFilterDomains && window.sanitize) {
-      console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll and setting up observers.");
+      // console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll and setting up observers.");
       requestAnimationFrame(() => {
-        console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
+        // console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
         runAll("initial load");
         setupCitedByObserver();
         setupMainObserver();
@@ -839,23 +839,23 @@ if (!window.mdpiFilterInjected) {
     }
 
     window.addEventListener('hashchange', () => {
-      console.log("[MDPI Filter] hashchange detected. Requesting runAll.");
+      // console.log("[MDPI Filter] hashchange detected. Requesting runAll.");
       requestAnimationFrame(() => {
-        console.log("[MDPI Filter] Running runAll via requestAnimationFrame after hashchange.");
+        // console.log("[MDPI Filter] Running runAll via requestAnimationFrame after hashchange.");
         runAll("hashchange");
       });
     });
 
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (msg.type === 'scrollToRef' && msg.refId) {
-        console.log(`[MDPI Filter] Received scrollToRef request for ID: ${msg.refId}`);
+        // console.log(`[MDPI Filter] Received scrollToRef request for ID: ${msg.refId}`);
         const targetElement = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
         if (targetElement) {
           targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
           highlightElementTemporarily(targetElement);
           sendResponse({ status: "scrolled" });
         } else {
-          console.warn(`[MDPI Filter] Element with ID ${msg.refId} not found.`);
+          // console.warn(`[MDPI Filter] Element with ID ${msg.refId} not found.`);
           sendResponse({ status: "not_found" });
         }
         return true;
@@ -863,10 +863,10 @@ if (!window.mdpiFilterInjected) {
       return false;
     });
 
-    console.log("[MDPI Filter] Initial setup complete, listeners/observers added.");
+    // console.log("[MDPI Filter] Initial setup complete, listeners/observers added.");
 
   });
 
 } else {
-  console.log("[MDPI Filter] Injection prevented, mdpiFilterInjected was already true.");
+  // console.log("[MDPI Filter] Injection prevented, mdpiFilterInjected was already true.");
 }

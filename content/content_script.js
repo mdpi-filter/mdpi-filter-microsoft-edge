@@ -359,8 +359,14 @@ if (!window.mdpiFilterInjected) {
           }
       }
 
+      // 8. Generate fingerprint
+      // Use a combination of the beginning of the text and the link for uniqueness.
+      // Normalize text by removing extra whitespace and taking a substring.
+      const normalizedTextForFingerprint = (text || '').replace(/\s+/g, ' ').trim().substring(0, 100);
+      const fingerprint = `${normalizedTextForFingerprint}|${link || ''}`;
+      console.log(`[MDPI Filter] extractReferenceData - Generated fingerprint: "${fingerprint}" for item ID: ${refId}, Number: ${number}, Text (start): "${text.substring(0,50)}..."`);
 
-      return { id: refId, number, text, link, rawHTML: sanitize(item.innerHTML) };
+      return { id: refId, number, text, link, rawHTML: sanitize(item.innerHTML), fingerprint };
     };
 
     const isSearchSite = () => {
@@ -640,10 +646,14 @@ if (!window.mdpiFilterInjected) {
         if (isMdpiItemByContent(item)) {
           const refData = extractReferenceData(item); 
           item.dataset.mdpiFingerprint = refData.fingerprint; // Store fingerprint on the element
+          console.log(`[MDPI Filter] processAllReferences - Processing item. ID: ${refData.id}, Fingerprint: "${refData.fingerprint}"`);
 
           if (!uniqueMdpiReferences.has(refData.fingerprint)) {
+            console.log(`[MDPI Filter] processAllReferences - New fingerprint. Before add, uniqueMdpiReferences.size: ${uniqueMdpiReferences.size}`);
             uniqueMdpiReferences.add(refData.fingerprint);
             collectedMdpiReferences.push(refData); 
+            console.log(`[MDPI Filter] processAllReferences - After add, uniqueMdpiReferences.size: ${uniqueMdpiReferences.size}. Added to collected:`, JSON.stringify(refData));
+
 
             if (mode === 'highlight') {
               styleRef(item, refData.id); 

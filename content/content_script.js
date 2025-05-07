@@ -51,7 +51,8 @@ if (!window.mdpiFilterInjected) {
     'li[data-bib-id]', // Wiley
     'span[aria-owns^="pdfjs_internal_id_"]', // PDF.js rendered spans
     'li[id^="cite_note-"]', // Wikipedia reference list items
-    'div.refbegin li' // Wikipedia "Sources" or "Further reading" list items
+    'div.refbegin li', // Wikipedia "Sources" or "Further reading" list items
+    'li.scroll-mt-28' // Examine.com reference list items
   ].join(',');
   // ---
 

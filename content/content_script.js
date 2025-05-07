@@ -179,7 +179,7 @@ if (!window.mdpiFilterInjected) {
       for (const link of allLinksQuery) {
         const href = link.href; // Use link.href for resolved URL
         const dataTrackId = link.getAttribute('data-track-item_id'); // getAttribute is fine for data attributes
-        if ((href && mdpiDoiPatternInLink.test(href)) || 
+        if ((href && mdpiDoiPatternInLink.test(href)) ||
             (dataTrackId && dataTrackId.includes(`${MDPI_DOI}/`))) { // data-track-item_id usually contains the DOI directly
           return true;
         }
@@ -189,12 +189,14 @@ if (!window.mdpiFilterInjected) {
       // Use "MDPI_DOI}/" to be more specific.
       if (textContent.includes(`${MDPI_DOI}/`)) {
         let hasConflictingNonMdpiDoiLink = false;
-        // Check all 'a' tags with an href attribute
         const allLinks = item.querySelectorAll('a[href]');
         for (const link of allLinks) {
-          const href = link.href; // Use link.href for resolved URL
-          // A link is a conflicting non-MDPI DOI if it's a DOI link and doesn't contain MDPI_DOI string at all
-          if (href && (href.includes('doi.org/') || href.includes('dx.doi.org/')) && !href.includes(MDPI_DOI)) {
+          const href = link.href;
+          // A link is a conflicting non-MDPI DOI if it's a DOI link (resolver or pattern)
+          // AND it does not match the specific MDPI DOI pattern.
+          const isDoiResolverLinkConflicting = href && (href.includes('doi.org/') || href.includes('dx.doi.org/'));
+          const containsDoiPatternConflicting = href && /\b10\.\d{4,9}\/[^?\s#]+/.test(href);
+          if ((isDoiResolverLinkConflicting || containsDoiPatternConflicting) && !mdpiDoiPatternInLink.test(href)) {
             hasConflictingNonMdpiDoiLink = true;
             break;
           }
@@ -204,18 +206,27 @@ if (!window.mdpiFilterInjected) {
         }
         // If MDPI DOI text is present but also a non-MDPI DOI link, it's ambiguous. Fall through.
       }
-      
+
       // Priority 3: If a definitive non-MDPI DOI link exists, this item is NOT MDPI.
-      // This is crucial for preventing false positives from the journal name match.
       let hasDefinitiveNonMdpiDoiLink = false;
       const allLinksForNonMdpiCheck = item.querySelectorAll('a[href]');
+
       for (const link of allLinksForNonMdpiCheck) {
-        const href = link.href; // Use link.href for resolved URL
-        // If the link is a DOI link (contains doi.org/ or dx.doi.org/)
-        // AND it does not contain the MDPI_DOI string anywhere in its href,
-        // it's considered a definitive non-MDPI DOI link.
-        if (href && (href.includes('doi.org/') || href.includes('dx.doi.org/'))) {
-          if (!href.includes(MDPI_DOI)) { 
+        const href = link.href;
+        if (!href) continue;
+
+        // Check 1: Is it a link to a known DOI resolver?
+        const isDoiResolverLink = href.includes('doi.org/') || href.includes('dx.doi.org/');
+
+        // Check 2: Does the href contain any general DOI pattern?
+        const containsGeneralDoiPattern = /\b10\.\d{4,9}\/[^?\s#]+/.test(href);
+
+        if (isDoiResolverLink || containsGeneralDoiPattern) {
+          // It appears to be a DOI link. Now, check if it's an MDPI DOI link.
+          // mdpiDoiPatternInLink checks for "10.3390/" or "doi.org/10.3390/" etc.
+          if (!mdpiDoiPatternInLink.test(href)) {
+            // This DOI link does NOT match the MDPI DOI pattern,
+            // so it's a definitive non-MDPI DOI.
             hasDefinitiveNonMdpiDoiLink = true;
             break;
           }
@@ -227,11 +238,10 @@ if (!window.mdpiFilterInjected) {
       }
 
       // Priority 4: Journal name check (last resort if no conclusive DOI info)
-      // Updated journalRegex to be more specific and avoid partial matches if possible
-      const journalRegex = new RegExp(`\\b(${['Nutrients', 'Int J Mol Sci', 'IJMS', 'Molecules', /* add other known MDPI journals if needed */].join('|')})\\b`, 'i');
-      const hasMdpiJournal = journalRegex.test(innerHTML); // Check innerHTML for journal titles that might be in italics
+      const journalRegex = new RegExp(`\\b(${['Nutrients', 'Int J Mol Sci', 'IJMS', 'Molecules'].join('|')})\\b`, 'i');
+      const hasMdpiJournal = journalRegex.test(innerHTML);
 
-      return hasMdpiJournal; // True if an MDPI journal name is found and not overridden by prior checks.
+      return hasMdpiJournal;
     };
 
     const extractReferenceData = (item) => {

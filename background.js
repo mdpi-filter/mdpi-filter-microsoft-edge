@@ -19,7 +19,7 @@ const backgroundDebouncePerTab = (func, wait) => {
 };
 
 // Debounced version of injectModules for history updates
-const debouncedInjectForHistory = backgroundDebouncePerTab(injectModules, 300); // 300ms delay
+// const debouncedInjectForHistory = backgroundDebouncePerTab(injectModules, 300); // 300ms delay
 
 // --- Data Store for References ---
 const tabReferenceData = {}; // { tabId: [references] }

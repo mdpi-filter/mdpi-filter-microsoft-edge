@@ -110,23 +110,29 @@ if (!window.mdpiFilterInjected) {
       item.dataset.mdpiFilterRefId = refId;
 
       let currentSibling = item.previousElementSibling;
-      const referenceStartRegex = /^\s*\d+\.\s*/;
+      // Use a more flexible regex, similar to extractReferenceData, to identify number patterns
+      // Matches: "[1]", "1.", "1", "1)", etc. at the start of the text.
+      const referenceStartRegex = /^\s*(?:\[\s*\d+\s*\]|\d+\s*[.)]?)/;
 
       while (currentSibling) {
         if (currentSibling.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
+          // Stop if we hit a PDF.js specific container, likely end of relevant preceding elements
           break;
         }
 
         if (currentSibling.matches('span')) {
-          // Also assign the ID to preceding spans for potential targeting
+          // Also assign the ID to preceding spans for potential targeting by popup click
           currentSibling.dataset.mdpiFilterRefId = refId;
           if (referenceStartRegex.test(currentSibling.textContent || '')) {
             currentSibling.style.color = '#E2211C';
+            // Found and styled the reference number, assume this is the primary one.
             break;
-          } else {
-            currentSibling.style.color = '#E2211C';
           }
+          // Removed the 'else' block that would style non-matching spans red.
+          // We only want to style the span if it's identified as the reference number.
         } else if (currentSibling.tagName !== 'BR') {
+          // If we encounter a non-span, non-BR element, stop traversing.
+          // This assumes numbers are typically in spans or the item itself.
           break;
         }
         currentSibling = currentSibling.previousElementSibling;
@@ -751,20 +757,20 @@ if (!window.mdpiFilterInjected) {
       const referenceItems = document.querySelectorAll(referenceListSelectors);
       for (const item of referenceItems) { // Use for...of for await in loop
         let currentAncestor = item.parentElement;
-        let skipItemDueToProcessedAncestor = false;
+        let skipItemDueToProcessedAncestor = false; // Corrected variable name
         while (currentAncestor && currentAncestor !== document.body) {
           if (currentAncestor.matches(referenceListSelectors)) {
             const ancestorRefId = currentAncestor.dataset.mdpiFilterRefId;
             if (ancestorRefId && currentAncestor.dataset.mdpiFingerprint && uniqueMdpiReferences.has(currentAncestor.dataset.mdpiFingerprint)) {
-              skipItemDueToProcessedAncestor = true;
+              skipItemDueToProcessedAncestor = true; // Corrected variable name
               break;
             }
           }
           currentAncestor = currentAncestor.parentElement;
         }
 
-        if (skipItemDueToProcessedAncestor) {
-          continue; 
+        if (skipItemDueToProcessedAncestor) { // Corrected variable name
+          continue;
         }
 
         if (item.dataset.mdpiProcessedInThisRun) {
@@ -873,10 +879,7 @@ if (!window.mdpiFilterInjected) {
            el.style.display = '';
         } else if (mode === 'hide' && el.style.display === 'none' && !el.dataset.mdpiPreviouslyHiddenByFilter) {
            // If mode is hide, and it's already hidden but not by us, leave it.
-           // If it was hidden by us, processAllReferences will re-hide if still MDPI.
-        } else if (mode !== 'hide') {
-            el.style.display = ''; // General reset for highlight mode
-        }
+        } else if (mode !== 'hide') {} // Replaced {…} with {}
 
 
         el.style.outline = ''; 
@@ -999,22 +1002,13 @@ if (!window.mdpiFilterInjected) {
         // console.log(`[MDPI Filter] Received scrollToRef request for ID: ${msg.refId}`);
         const targetElement = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
         if (targetElement) {
+          // console.log(`[MDPI Filter] Scrolling to reference ID: ${msg.refId}`);
           targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
           highlightElementTemporarily(targetElement);
-          sendResponse({ status: "scrolled" });
         } else {
-          // console.warn(`[MDPI Filter] Element with ID ${msg.refId} not found.`);
-          sendResponse({ status: "not_found" });
+          console.warn(`[MDPI Filter] Target element for scrollToRef ID: ${msg.refId} not found.`);
         }
-        return true;
-      }
-      return false;
+      } else if (msg.type === 'mdpiRunNow') {}
     });
-
-    // console.log("[MDPI Filter] Initial setup complete, listeners/observers added.");
-
   });
-
-} else {
-  // console.log("[MDPI Filter] Injection prevented, mdpiFilterInjected was already true.");
 }

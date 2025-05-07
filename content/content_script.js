@@ -58,6 +58,7 @@ if (!window.mdpiFilterInjected) {
   // ---
 
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
+    console.log('%c MDPI FILTER EXTENSION SCRIPT LOADED AND CONTEXT SELECTED! CHECK HERE! ', 'background: yellow; color: black; font-size: 16px; font-weight: bold;'); // <-- ADD THIS LINE
     // console.log("[MDPI Filter] Mode:", mode);
 
     // --- Styling Functions ---

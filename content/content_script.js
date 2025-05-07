@@ -79,15 +79,27 @@ if (!window.mdpiFilterInjected) {
       supOrA.style.setProperty('color', '#E2211C', 'important'); // MDPI Red
       supOrA.style.setProperty('font-weight', 'bold', 'important');
 
-      // If supOrA is a sup element, specifically style any anchor tag and its content within it
+      // If supOrA is a sup element
       if (supOrA.tagName.toLowerCase() === 'sup') {
-        const anchorElement = supOrA.querySelector('a');
-        if (anchorElement) {
-          anchorElement.style.setProperty('color', '#E2211C', 'important'); // Ensure link text is red
-          anchorElement.style.setProperty('font-weight', 'bold', 'important'); // Ensure link text is bold
+        // We've already styled supOrA (the <sup> itself).
+        // Now, also style its immediate parent if it's an <a> tag.
+        // This handles <a><sup>text</sup></a> structures for full link highlighting.
+        if (supOrA.parentElement && supOrA.parentElement.tagName.toLowerCase() === 'a') {
+          const parentAnchor = supOrA.parentElement;
+          parentAnchor.style.setProperty('color', '#E2211C', 'important');
+          parentAnchor.style.setProperty('font-weight', 'bold', 'important');
+          // Consider styling text-decoration-color if underlines need to match
+          // parentAnchor.style.setProperty('text-decoration-color', '#E2211C', 'important');
+        }
+
+        // Original logic for Wikipedia-style sup > a > span (anchor *inside* sup)
+        const anchorElementInsideSup = supOrA.querySelector('a');
+        if (anchorElementInsideSup) {
+          anchorElementInsideSup.style.setProperty('color', '#E2211C', 'important'); // Ensure link text is red
+          anchorElementInsideSup.style.setProperty('font-weight', 'bold', 'important'); // Ensure link text is bold
 
           // Wikipedia uses spans for brackets, ensure they are also red
-          const bracketSpans = anchorElement.querySelectorAll('span.cite-bracket');
+          const bracketSpans = anchorElementInsideSup.querySelectorAll('span.cite-bracket');
           bracketSpans.forEach(span => {
             span.style.setProperty('color', '#E2211C', 'important');
             // fontWeight will be inherited or can be explicitly set if needed
@@ -95,8 +107,10 @@ if (!window.mdpiFilterInjected) {
           });
         }
       }
-      // If supOrA is an anchor itself that contains a sup (less common for this specific issue)
+      // If supOrA is an anchor itself that contains a sup
       else if (supOrA.tagName.toLowerCase() === 'a') {
+        // We've already styled supOrA (the <a> itself).
+        // Now, find and style any <sup> element inside it.
         const supElementInside = supOrA.querySelector('sup');
         if (supElementInside) {
             supElementInside.style.setProperty('color', '#E2211C', 'important');

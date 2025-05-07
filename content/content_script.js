@@ -196,30 +196,77 @@ if (!window.mdpiFilterInjected) {
         }
       }
 
-      // 2. Try to parse from ID (e.g., ref-CR1, B1, reference-1, cite_note-1)
-      if (number === null && item.id) {
-        const idMatch = item.id.match(/(?:CR|B|ref-|reference-|cite_note-)(\d+)/i);
-        if (idMatch && idMatch[1]) {
-          const parsedIdNum = parseInt(idMatch[1], 10);
-          if (!isNaN(parsedIdNum)) {
-            number = parsedIdNum;
-          }
+      // 2. Try to parse from ID of the item or its relevant parent (e.g., ref-CR1, B1, r1)
+      if (number === null) {
+        let idSource = item;
+        // For PNAS, the ID like "r1" might be on the parent of div.citation
+        if (item.matches && item.matches('div.citation, div.citation-content') && item.parentElement && item.parentElement.id) {
+            idSource = item.parentElement;
+        } else if (!item.id && item.closest && item.closest('[id^="r"], [id^="ref-"], [id^="cite_note-"]')) {
+            idSource = item.closest('[id^="r"], [id^="ref-"], [id^="cite_note-"]');
+        }
+
+        if (idSource && idSource.id) {
+            const idMatch = idSource.id.match(/(?:CR|B|ref-|reference-|cite_note-|r)(\d+)/i);
+            if (idMatch && idMatch[1]) {
+                const parsedIdNum = parseInt(idMatch[1], 10);
+                if (!isNaN(parsedIdNum)) {
+                    number = parsedIdNum;
+                }
+            }
         }
       }
 
-      // 3. Try specific label elements for numbers (e.g., MDPI's <span class="reference-label">1.</span>)
+
+      // 3. Try specific label elements for numbers
       if (number === null) {
-        const labelElement = item.querySelector(
-          // Common selectors for reference number elements
-          '.reference-label, .ref-count, .c-article-references__counter, .refnumber, .citation-number, .label, .ref-label'
-        );
+        let labelTextContent = null;
+        const labelSelectors = '.reference-label, .ref-count, .c-article-references__counter, .refnumber, .citation-number, .label, .ref-label, .ref-num, .ref-number';
+
+        // First, try finding a label within the current item
+        let labelElement = item.querySelector(labelSelectors);
         if (labelElement && labelElement.textContent) {
-          const labelMatch = labelElement.textContent.trim().match(/^\[?(\d+)\]?/); // Matches "1" or "[1]" etc.
-          if (labelMatch && labelMatch[1]) {
-            const parsedLabelNum = parseInt(labelMatch[1], 10);
-            if (!isNaN(parsedLabelNum)) {
-              number = parsedLabelNum;
+          labelTextContent = labelElement.textContent;
+        }
+
+        // If not found, and item might be nested (e.g., PNAS div.citation), try finding label in closest list item ancestor
+        if (!labelTextContent) {
+          // Common list item selectors including PNAS specific div[role="listitem"]
+          const commonListItemSelectors = 'li, div[role="listitem"], tr';
+          const closestListItem = item.closest(commonListItemSelectors);
+          if (closestListItem) {
+            labelElement = closestListItem.querySelector(labelSelectors);
+            if (labelElement && labelElement.textContent) {
+              labelTextContent = labelElement.textContent;
             }
+          }
+        }
+        
+        // If still not found, check immediate previous sibling of the item or its citation container
+        if(!labelTextContent) {
+            let targetPreviousSiblingOf = item;
+            // If item is citation content, check sibling of its container
+            if (item.matches && item.matches('div.citation-content, div.csl-entry') && item.parentElement) {
+                targetPreviousSiblingOf = item.parentElement;
+            }
+            if (targetPreviousSiblingOf.previousElementSibling) {
+                const prevSibling = targetPreviousSiblingOf.previousElementSibling;
+                // Check if the previous sibling itself is a label-like element
+                if (prevSibling.matches && prevSibling.matches(labelSelectors.split(',').map(s => s.trim() + ':not(a)').join(','))) { // Avoid matching if it's an anchor
+                    if (prevSibling.textContent) {
+                        labelTextContent = prevSibling.textContent;
+                    }
+                }
+            }
+        }
+
+        if (labelTextContent) {
+          // Extract leading digits, remove trailing non-digits (like dots, brackets).
+          // Handles "1.", "[1]", "1. Author", "1"
+          const cleanedText = labelTextContent.trim().replace(/[\[\]]/g, ''); // Remove brackets first
+          const numMatch = cleanedText.match(/^(\d+)/); // Match leading digits
+          if (numMatch && numMatch[1]) {
+            number = parseInt(numMatch[1], 10);
           }
         }
       }
@@ -251,9 +298,9 @@ if (!window.mdpiFilterInjected) {
 
       // 5. Try to extract number from the start of the rawTextContent if not found yet
       if (number === null) {
-        const textMatch = rawTextContent.match(referenceStartRegex);
-        if (textMatch && textMatch[1]) {
-          const parsedTextNum = parseInt(textMatch[1], 10);
+        const textNumMatch = rawTextContent.match(referenceStartRegex);
+        if (textNumMatch && textNumMatch[1]) {
+          const parsedTextNum = parseInt(textNumMatch[1], 10);
           if (!isNaN(parsedTextNum)) {
             number = parsedTextNum;
           }
@@ -263,43 +310,57 @@ if (!window.mdpiFilterInjected) {
       // 6. Prepare the final display text: remove the number prefix if we successfully extracted it
       text = rawTextContent;
       if (number !== null) {
-        const prefixMatch = rawTextContent.match(referenceStartRegex);
-        if (prefixMatch && prefixMatch[0]) {
-            // Only remove the prefix if the number it contains matches the extracted 'number'
-            // or if we just extracted the number from this prefix.
-            if (parseInt(prefixMatch[1], 10) === number) {
-                 text = rawTextContent.substring(prefixMatch[0].length).trim();
-            }
-        }
+        // More robustly remove the prefix, considering variations
+        const prefixRegex = new RegExp(`^\\s*\\[?${number}\\]?\\s*\\.?\\s*`);
+        text = text.replace(prefixRegex, '');
       }
-      text = localSanitize(text); // Sanitize after potential prefix removal. Sanitize strips HTML.
+      text = localSanitize(text); // Sanitize after potential number removal
 
       // 7. Extract link
       const linkSelectors = [
-        'a[data-doi]', // Specific DOI link
+        'a[data-doi]', // Specific data-doi attribute
         'a[href*="doi.org"]', // Links containing doi.org
-        'a[data-track-action="article reference"]', // Common tracking attribute for main article link
+        'a[href*="/10."]', // Links that look like DOIs, e.g. /10.xxxx/yyyy
+        'a.c-bibliographic-information__link[href*="springer.com"]', // Springer article links
         'a.article-link', // Common class for article links
-        'a[href^="http"]' // General http/https link as fallback
+        'a[data-track-action="article reference"]', // Tracking attributes
+        'div.citation-content > a[href]', // First link in citation content
+        'p > a[href]', // First link in a paragraph (generic)
+        'a[href^="http"]:not([href*="#"])', // Any http link not an anchor
+        '.c-article-references__text a[href]', // Link within reference text (e.g. Wiley)
+        '.citation__title a[href]', // Link on citation title
+        '.hlFld-Fulltext > a[href]', // e.g. Taylor & Francis
       ];
       
       for (const selector of linkSelectors) {
         const linkElement = item.querySelector(selector);
-        if (linkElement && linkElement.href && !linkElement.href.startsWith('mailto:')) {
-          link = linkElement.href;
-          break; 
+        if (linkElement && linkElement.href && !linkElement.href.startsWith('javascript:')) {
+          // Prioritize DOI links or links that seem like primary article links
+          if (linkElement.href.includes('doi.org') || (link === null || !link.includes('doi.org'))) {
+            link = linkElement.href;
+            if (link.includes('doi.org')) break; // Found a DOI link, prefer this.
+          }
         }
       }
       
       // For Wikipedia, the main link might be inside the text.
-      if (item.matches('li[id^="cite_note-"]')) {
-          const wikiLink = item.querySelector('.reference-text > a[href]');
-          if (wikiLink && wikiLink.href) { // Override if a more specific wiki link is found
-              link = wikiLink.href;
+      // This is often the first link if not a citation link (e.g. #cite_note-X)
+      if (!link && item.closest && item.closest('li[id^="cite_note-"]')) {
+        const wikiLink = item.querySelector('.reference-text > a:not([href^="#"])');
+        if (wikiLink && wikiLink.href) {
+            link = wikiLink.href;
+        }
+      }
+      // If no link found yet, take the first valid HTTP link within the item
+      if (!link) {
+          const genericLink = item.querySelector('a[href^="http"]:not([href*="#"])');
+          if (genericLink && genericLink.href && !genericLink.href.startsWith('javascript:')) {
+              link = genericLink.href;
           }
       }
 
-      return { id: refId, text, link, number };
+
+      return { id: refId, number, text, link, rawHTML: sanitize(item.innerHTML) };
     };
 
     const isSearchSite = () => {

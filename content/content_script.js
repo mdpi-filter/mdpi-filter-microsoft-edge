@@ -817,9 +817,9 @@ if (!window.mdpiFilterInjected) {
         processAllReferences(runCache); 
         // console.log(`[runAll ${source}] After processAllReferences. unique: ${uniqueMdpiReferences.size}, collected: ${collectedMdpiReferences.length}`);
         
-        processSearchSites();       
-        processCitedByEntries();    
-        styleInlineFootnotes();     
+        // processSearchSites();       // Temporarily commented out as it's not defined
+        // processCitedByEntries();    // Temporarily commented out as it's not defined
+        // styleInlineFootnotes();     // Temporarily commented out as it's not defined
         processDirectMdpiLinks();   
         
         // console.log(`[runAll ${source}] Before updateBadgeAndReferences. unique: ${uniqueMdpiReferences.size}, collected: ${collectedMdpiReferences.length}`);
@@ -882,7 +882,7 @@ if (!window.mdpiFilterInjected) {
 
       const observer = new MutationObserver((mutationsList, observer) => {
         // console.log("[MDPI Filter] Cited By observer detected mutations.");
-        debouncedProcessCitedByEntries();
+        // debouncedProcessCitedByEntries(); // Temporarily commented out as processCitedByEntries is not defined
       });
 
       observer.observe(targetNode, observerConfig);
@@ -894,7 +894,7 @@ if (!window.mdpiFilterInjected) {
       requestAnimationFrame(async () => { // Make callback async
         // console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
         await runAll("initial load"); // Await runAll
-        setupCitedByObserver();
+        // setupCitedByObserver(); // Temporarily commented out as its utility is not fully defined
         setupMainObserver();
       });
     } else {

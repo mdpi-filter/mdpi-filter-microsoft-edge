@@ -159,122 +159,142 @@ if (!window.mdpiFilterInjected) {
     // --- Core Logic Functions ---
 
     // New helper: Just checks content, no side effects on datasets or global lists.
-    const isMdpiItemByContent = (item) => {
-      if (!item) return false; // Added a guard for null item
+    const isMdpiItemByContent = async (item) => { // Made async
+      if (!item) return false;
       const textContent = item.textContent || '';
       const innerHTML = item.innerHTML || '';
 
-      // MDPI_DOMAIN = 'mdpi.com'; MDPI_DOI = '10.3390';
+      // MDPI_DOMAIN and MDPI_DOI are defined in the outer scope
+
+      // Helper function to check a given ID (PMID or PMCID) via NCBI API
+      async function checkNcbiIdForMdpi(id, idType) {
+        if (!id || !idType) return false;
+        // Use generic tool/email as per NCBI's request for programmatic use
+        const toolName = 'MDPIFilterChromeExtension';
+        const maintainerEmail = 'filter-dev@example.com'; // Replace if you have a specific contact
+        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${encodeURIComponent(id)}&idtype=${encodeURIComponent(idType)}&format=json&versions=no&tool=${toolName}&email=${maintainerEmail}`;
+
+        try {
+          const response = await fetch(apiUrl);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.records && data.records.length > 0 && data.records[0].doi) {
+              const doi = data.records[0].doi;
+              if (doi.startsWith(MDPI_DOI)) {
+                // console.log(`[MDPI Filter] NCBI API: Found MDPI DOI ${doi} for ${idType.toUpperCase()} ${id}`);
+                return true; // MDPI article found via NCBI API
+              }
+            }
+          } else {
+            // console.warn(`[MDPI Filter] NCBI API request failed for ${idType.toUpperCase()} ${id}: ${response.status}`);
+          }
+        } catch (error) {
+          // console.error(`[MDPI Filter] Error fetching from NCBI API for ${idType.toUpperCase()} ${id}:`, error);
+        }
+        return false;
+      }
 
       // Priority 1: Check for direct MDPI links
-      // Links to mdpi.com domain
       if (item.querySelector(`a[href*="${MDPI_DOMAIN}"]`)) {
         return true;
       }
 
-      // Links containing specific MDPI DOI patterns (e.g., "10.3390/" or "doi.org/10.3390/")
-      // This pattern looks for MDPI_DOI followed by a slash, or within a doi.org/dx.doi.org URL.
       const mdpiDoiPatternInLink = new RegExp(`${MDPI_DOI.replace(/\./g, '\\.')}/|doi\\.org/${MDPI_DOI.replace(/\./g, '\\.')}/|dx\\.doi\\.org/${MDPI_DOI.replace(/\./g, '\\.')}/`);
-      const allLinksQuery = item.querySelectorAll('a[href], a[data-track-item_id]');
+      const allLinksInItem = Array.from(item.querySelectorAll('a[href], a[data-track-item_id]'));
 
-      for (const link of allLinksQuery) {
+      // Priority 2: Check links for MDPI DOI patterns or resolve NCBI links via API
+      for (const link of allLinksInItem) {
         const href = link.href; // Use link.href for resolved URL
-        const dataTrackId = link.getAttribute('data-track-item_id'); // getAttribute is fine for data attributes
+        const dataTrackId = link.getAttribute('data-track-item_id');
+
         if ((href && mdpiDoiPatternInLink.test(href)) ||
-            (dataTrackId && dataTrackId.includes(`${MDPI_DOI}/`))) { // data-track-item_id usually contains the DOI directly
+            (dataTrackId && dataTrackId.includes(`${MDPI_DOI}/`))) {
           return true;
+        }
+
+        if (href) {
+          const pmcMatch = href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+(\.\d+)?)/i);
+          if (pmcMatch && pmcMatch[1]) {
+            if (await checkNcbiIdForMdpi(pmcMatch[1], 'pmcid')) return true;
+          } else {
+            const pmidMatch = href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
+            if (pmidMatch && pmidMatch[1]) {
+              if (await checkNcbiIdForMdpi(pmidMatch[1], 'pmid')) return true;
+            }
+          }
         }
       }
 
-      // Priority 2: Check for MDPI DOI string in text content (e.g., "DOI: 10.3390/...")
-      // Use "MDPI_DOI}/" to be more specific.
+      // Priority 3: Check for MDPI DOI string in text content
       if (textContent.includes(`${MDPI_DOI}/`)) {
         let hasConflictingNonMdpiDoiLink = false;
-        const allLinks = item.querySelectorAll('a[href]');
-        for (const link of allLinks) {
+        for (const link of allLinksInItem) {
           const href = link.href;
-          // A link is a conflicting non-MDPI DOI if it's a DOI link (resolver or pattern)
-          // AND it does not match the specific MDPI DOI pattern.
-          const isDoiResolverLinkConflicting = href && (href.includes('doi.org/') || href.includes('dx.doi.org/'));
-          const containsDoiPatternConflicting = href && /\b10\.\d{4,9}\/[^?\s#]+/.test(href);
+          if (!href) continue;
+          const isDoiResolverLinkConflicting = href.includes('doi.org/') || href.includes('dx.doi.org/');
+          const containsDoiPatternConflicting = /\b10\.\d{4,9}\/[^?\s#]+/.test(href);
           if ((isDoiResolverLinkConflicting || containsDoiPatternConflicting) && !mdpiDoiPatternInLink.test(href)) {
             hasConflictingNonMdpiDoiLink = true;
             break;
           }
         }
         if (!hasConflictingNonMdpiDoiLink) {
-          return true; // MDPI DOI text found, and no definitive non-MDPI DOI link.
+          return true;
         }
-        // If MDPI DOI text is present but also a non-MDPI DOI link, it's ambiguous. Fall through.
       }
 
-      // Priority 3: If a definitive non-MDPI DOI link exists, this item is NOT MDPI.
+      // Priority 4: If a definitive non-MDPI DOI link exists, this item is NOT MDPI.
       let hasDefinitiveNonMdpiDoiLink = false;
-      const allLinksForNonMdpiCheck = item.querySelectorAll('a[href]');
-
-      for (const link of allLinksForNonMdpiCheck) {
+      for (const link of allLinksInItem) {
         const href = link.href;
         if (!href) continue;
 
-        // Check 1: Is it a link to a known DOI resolver?
         const isDoiResolverLink = href.includes('doi.org/') || href.includes('dx.doi.org/');
-
-        // Check 2: Does the href contain any general DOI pattern?
         const containsGeneralDoiPattern = /\b10\.\d{4,9}\/[^?\s#]+/.test(href);
 
         if (isDoiResolverLink || containsGeneralDoiPattern) {
-          // It appears to be a DOI link. Now, check if it's an MDPI DOI link.
-          // mdpiDoiPatternInLink checks for "10.3390/" or "doi.org/10.3390/" etc.
           if (!mdpiDoiPatternInLink.test(href)) {
-            // This DOI link does NOT match the MDPI DOI pattern,
-            // so it's a definitive non-MDPI DOI.
             hasDefinitiveNonMdpiDoiLink = true;
             break;
           }
         }
       }
-
       if (hasDefinitiveNonMdpiDoiLink) {
-        return false; // Found a non-MDPI DOI link, so this item is not MDPI.
+        return false;
       }
 
-      // Priority 4: Journal name check (last resort if no conclusive DOI info)
-      const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS']; // Add other highly specific MDPI journal names/abbreviations
-      const M_JOURNALS_WEAK = ['Nutrients', 'Molecules'];    // Ambiguous names that need careful handling
+      // Priority 5: Journal name check (last resort)
+      const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS'];
+      const M_JOURNALS_WEAK = ['Nutrients', 'Molecules'];
 
       const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.join('|')})\\b`, 'i');
       if (strongJournalRegex.test(innerHTML)) {
-        return true; // Strong signal from a specific MDPI journal name.
+        return true;
       }
 
       const weakJournalRegex = new RegExp(`\\b(${M_JOURNALS_WEAK.join('|')})\\b`, 'i');
       if (weakJournalRegex.test(innerHTML)) {
-        // A "weak" (ambiguous) MDPI journal name is present.
-        // Check if there's any non-MDPI link in the item. If so, the weak match is likely coincidental.
-        const allLinksInItem = item.querySelectorAll('a[href]');
-        let hasAnyNonMdpiLink = false;
+        let hasStrongNonMdpiEvidenceFromOtherLinks = false;
         for (const linkEl of allLinksInItem) {
           const href = linkEl.href;
           if (!href) continue;
 
-          const isClearlyMdpiLink = mdpiDoiPatternInLink.test(href) || href.includes(MDPI_DOMAIN);
-          if (!isClearlyMdpiLink) {
-            // This link is not an MDPI link.
-            hasAnyNonMdpiLink = true;
+          const isClearlyMdpiLinkByPatternOrDomain = mdpiDoiPatternInLink.test(href) || href.includes(MDPI_DOMAIN);
+          const isNcbiLink = href.includes("ncbi.nlm.nih.gov/");
+
+          if (!isClearlyMdpiLinkByPatternOrDomain && !isNcbiLink) {
+            hasStrongNonMdpiEvidenceFromOtherLinks = true;
             break;
           }
         }
 
-        if (hasAnyNonMdpiLink) {
-          // Weak journal name found, but also another non-MDPI link.
-          // This makes the weak journal name match less reliable.
+        if (hasStrongNonMdpiEvidenceFromOtherLinks) {
           return false;
         }
-        // Weak journal name found, and no other non-MDPI links to cast doubt.
         return true;
       }
 
-      return false; // No MDPI journal name found by any criteria.
+      return false;
     };
 
     const extractReferenceData = (item) => {
@@ -726,14 +746,14 @@ if (!window.mdpiFilterInjected) {
       });
     }
 
-    function processAllReferences() {
-      document.querySelectorAll(referenceListSelectors).forEach(item => {
+    async function processAllReferences() { // Made async
+      const referenceItems = document.querySelectorAll(referenceListSelectors);
+      for (const item of referenceItems) { // Use for...of for await in loop
         let currentAncestor = item.parentElement;
-        let skipItemDueToProcessedAncestor = false; // Fixed typo: "Due to" to "DueTo"
+        let skipItemDueToProcessedAncestor = false;
         while (currentAncestor && currentAncestor !== document.body) {
           if (currentAncestor.matches(referenceListSelectors)) {
             const ancestorRefId = currentAncestor.dataset.mdpiFilterRefId;
-            // Check if ancestor was processed and its fingerprint is in uniqueMdpiReferences
             if (ancestorRefId && currentAncestor.dataset.mdpiFingerprint && uniqueMdpiReferences.has(currentAncestor.dataset.mdpiFingerprint)) {
               skipItemDueToProcessedAncestor = true;
               break;
@@ -743,20 +763,22 @@ if (!window.mdpiFilterInjected) {
         }
 
         if (skipItemDueToProcessedAncestor) {
-          return; 
+          continue; 
         }
 
-        if (isMdpiItemByContent(item)) {
+        if (item.dataset.mdpiProcessedInThisRun) {
+            continue;
+        }
+        item.dataset.mdpiProcessedInThisRun = 'true';
+
+        if (await isMdpiItemByContent(item)) { // Await the async call
           const refData = extractReferenceData(item); 
-          item.dataset.mdpiFingerprint = refData.fingerprint; // Store fingerprint on the element
-          // console.log(`[MDPI Filter] processAllReferences - Processing item. ID: ${refData.id}, Fingerprint: "${refData.fingerprint}"`);
+          item.dataset.mdpiResult = 'mdpi'; 
+          item.dataset.mdpiFingerprint = refData.fingerprint;
 
           if (!uniqueMdpiReferences.has(refData.fingerprint)) {
-            // console.log(`[MDPI Filter] processAllReferences - New fingerprint. Before add, uniqueMdpiReferences.size: ${uniqueMdpiReferences.size}`); // Corrected malformed comment
             uniqueMdpiReferences.add(refData.fingerprint);
             collectedMdpiReferences.push(refData); 
-            // console.log(`[MDPI Filter] processAllReferences - After add, uniqueMdpiReferences.size: ${uniqueMdpiReferences.size}. Added to collected:`, JSON.stringify(refData));
-
 
             if (mode === 'highlight') {
               styleRef(item, refData.id); 
@@ -764,12 +786,10 @@ if (!window.mdpiFilterInjected) {
               item.style.display = 'none';
               const parentListItem = item.closest('li, div.citation, div.reference'); 
               if (parentListItem && parentListItem !== item && item.matches(referenceListSelectors)) {
-                // parentListItem.style.display = 'none'; // This might be too aggressive
+                // Future: Consider hiding parent if it only contains this item and becomes empty.
               }
             }
           } else {
-            // Fingerprint already seen. This reference content is already counted.
-            // Still style/hide this specific occurrence.
             if (mode === 'highlight') {
               styleRef(item, refData.id); 
             } else if (mode === 'hide') {
@@ -777,16 +797,24 @@ if (!window.mdpiFilterInjected) {
             }
           }
         } else {
-          // Element matches selector but is not an MDPI item by content.
-          // Ensure it's visible if mode is 'highlight' and it was previously hidden.
-          // This handles cases where an item was MDPI, then content changed and it's no longer MDPI.
-          if (item.style.display === 'none' && item.dataset.mdpiFilterRefId) {
-             // item.style.display = ''; 
+          item.dataset.mdpiResult = 'not-mdpi';
+          delete item.dataset.mdpiFingerprint;
+          if (item.dataset.mdpiFilterRefId) { 
+             item.style.color = '';
+             item.style.border = '';
+             item.style.padding = '';
+             if (item.style.display === 'none' && mode === 'hide') { 
+                // Only unhide if it was hidden by 'hide' mode and is no longer MDPI.
+                // If mode is 'highlight', display should not have been 'none' from us.
+             } else if (item.style.display === 'none' && mode === 'highlight' && item.dataset.mdpiPreviouslyHiddenByFilter === 'true') {
+                // If mode changed from hide to highlight and this item was hidden
+                item.style.display = '';
+                delete item.dataset.mdpiPreviouslyHiddenByFilter;
+             }
           }
-          delete item.dataset.mdpiFingerprint; // Clean up fingerprint if not MDPI
         }
-      });
-      updateBadgeAndReferences();
+      }
+      // updateBadgeAndReferences is called at the end of runAll
     }
 
     function processDirectMdpiLinks() {
@@ -822,23 +850,40 @@ if (!window.mdpiFilterInjected) {
       }, 2000);
     };
 
-    function runAll(source = "initial") {
+    async function runAll(source = "initial") { // Made async
       // console.log(`[MDPI Filter] runAll triggered by: ${source}`);
-      refIdCounter = 0; // Reset ID counter for this run
+      refIdCounter = 0; 
 
-      // Clear dataset attributes and styles from previous runs or other elements
       document.querySelectorAll('[data-mdpi-processed-in-this-run], [data-mdpi-result], [data-mdpi-filter-ref-id], [data-mdpi-fingerprint], [data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
+        // Store if element was hidden by 'hide' mode before clearing styles
+        if (el.style.display === 'none' && el.dataset.mdpiFilterRefId) {
+            el.dataset.mdpiPreviouslyHiddenByFilter = 'true';
+        } else {
+            delete el.dataset.mdpiPreviouslyHiddenByFilter;
+        }
+
         el.style.color = '';
         el.style.fontWeight = '';
         el.style.border = '';
         el.style.padding = '';
-        el.style.display = ''; 
+        // Don't reset display here if mode is 'hide', allow 'hide' to take effect.
+        // Reset display only if it's not going to be hidden again by 'hide' mode.
+        if (mode !== 'hide' && el.style.display === 'none' && el.dataset.mdpiPreviouslyHiddenByFilter === 'true') {
+           el.style.display = '';
+        } else if (mode === 'hide' && el.style.display === 'none' && !el.dataset.mdpiPreviouslyHiddenByFilter) {
+           // If mode is hide, and it's already hidden but not by us, leave it.
+           // If it was hidden by us, processAllReferences will re-hide if still MDPI.
+        } else if (mode !== 'hide') {
+            el.style.display = ''; // General reset for highlight mode
+        }
+
+
         el.style.outline = ''; 
 
         delete el.dataset.mdpiProcessedInThisRun;
         delete el.dataset.mdpiResult;
         delete el.dataset.mdpiFilterRefId;
-        delete el.dataset.mdpiFingerprint; // Added to clear fingerprint
+        delete el.dataset.mdpiFingerprint; 
         delete el.dataset.mdpiChecked;
         delete el.dataset.mdpiCitedByProcessed;
       });
@@ -847,23 +892,22 @@ if (!window.mdpiFilterInjected) {
         el.style.fontWeight = '';
         el.style.borderBottom = '';
         el.style.textDecoration = '';
-        // el.style.display = ''; // Be cautious with resetting display broadly
       });
 
       uniqueMdpiReferences.clear();
-      collectedMdpiReferences = []; // Clear references for the new run
+      collectedMdpiReferences = []; 
 
       try {
         if (!window.MDPIFilterDomains || !window.sanitize) {
           console.error("[MDPI Filter] runAll aborted: Dependencies (domains/sanitizer) not loaded.");
           return;
         }
-        processSearchSites();
-        processCitedByEntries();
-        processAllReferences();     // Populates collectedMdpiReferences
-        styleInlineFootnotes();     // Uses data-mdpi-result set by processAllReferences
-        processDirectMdpiLinks();
-        updateBadgeAndReferences(); // Sends collectedMdpiReferences (now sorted)
+        processSearchSites();       
+        processCitedByEntries();    
+        await processAllReferences(); 
+        styleInlineFootnotes();     
+        processDirectMdpiLinks();   
+        updateBadgeAndReferences(); 
       } catch (error) {
         console.error(`[MDPI Filter] Error during runAll (source: ${source}):`, error);
       } finally {
@@ -931,9 +975,9 @@ if (!window.mdpiFilterInjected) {
 
     if (window.MDPIFilterDomains && window.sanitize) {
       // console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll and setting up observers.");
-      requestAnimationFrame(() => {
+      requestAnimationFrame(async () => { // Make callback async
         // console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
-        runAll("initial load");
+        await runAll("initial load"); // Await runAll
         setupCitedByObserver();
         setupMainObserver();
       });
@@ -943,9 +987,9 @@ if (!window.mdpiFilterInjected) {
 
     window.addEventListener('hashchange', () => {
       // console.log("[MDPI Filter] hashchange detected. Requesting runAll.");
-      requestAnimationFrame(() => {
+      requestAnimationFrame(async () => { // Make callback async
         // console.log("[MDPI Filter] Running runAll via requestAnimationFrame after hashchange.");
-        runAll("hashchange");
+        await runAll("hashchange"); // Await runAll
       });
     });
 

@@ -201,17 +201,28 @@ if (!window.mdpiFilterInjected) {
           let foundMdpiInBatch = false;
           if (data.records && data.records.length > 0) {
             data.records.forEach(record => {
-              const originalId = record.pmcid || record.pmid || idsToQuery.find(iq => record.requested_id === iq || (record.pmcid || record.pmid) === iq); // Try to map back to original queried ID
-              if (record.doi && record.doi.startsWith(MDPI_DOI)) {
-                if (originalId) runCache.set(originalId, true);
-                foundMdpiInBatch = true;
-              } else {
-                if (originalId) runCache.set(originalId, false);
+              const idThisRecordIsFor = record.requested_id;
+
+              // We only process records that correspond to an ID we explicitly queried in this batch.
+              // This ensures that the cache is updated for the exact ID string used in the query.
+              if (idThisRecordIsFor && idsToQuery.includes(idThisRecordIsFor)) {
+                if (record.doi && record.doi.startsWith(MDPI_DOI)) {
+                  runCache.set(idThisRecordIsFor, true);
+                  foundMdpiInBatch = true; // Indicates an MDPI item was found in this specific API call's results
+                } else {
+                  runCache.set(idThisRecordIsFor, false);
+                }
               }
+              // If record.requested_id is not in idsToQuery, we ignore this record here.
+              // This could happen if the API returns info for a related ID not explicitly in this batch,
+              // or if requested_id is null/undefined.
             });
           }
-          // For any IDs in the original `idsToQuery` list that weren't in `data.records` (e.g. invalid IDs),
-          // mark them as false in cache to avoid re-querying.
+          // After processing all records, iterate through the IDs we sent in this batch.
+          // If any of them haven't been added to the cache by the loop above
+          // (e.g., because they were invalid and the API returned no record for them,
+          // or the record had no requested_id), mark them as 'false' in the cache
+          // to prevent re-querying them in subsequent operations within this runAll cycle.
           idsToQuery.forEach(id => {
             if (!runCache.has(id)) {
               runCache.set(id, false);

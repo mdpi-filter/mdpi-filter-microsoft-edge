@@ -159,7 +159,7 @@ if (!window.mdpiFilterInjected) {
 
     // New helper: Just checks content, no side effects on datasets or global lists.
     const isMdpiItemByContent = (item) => {
-      if (!item) return false;
+      if (!item) return false; // Added a guard for null item
       const textContent = item.textContent || '';
       const innerHTML = item.innerHTML || '';
 
@@ -167,134 +167,139 @@ if (!window.mdpiFilterInjected) {
         `a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"], a[data-track-item_id*="${MDPI_DOI}"]`
       );
       const hasMdpiText = textContent.includes(MDPI_DOI);
-      const journalRegex = /\b(Nutrients|Int J Mol Sci|IJMS|Molecules)\b/i;
-      const hasMdpiJournal = journalRegex.test(innerHTML);
+      // Updated journalRegex to be more specific and avoid partial matches if possible
+      const journalRegex = new RegExp(`\\b(${['Nutrients', 'Int J Mol Sci', 'IJMS', 'Molecules', /* add other known MDPI journals if needed */].join('|')})\\b`, 'i');
+      const hasMdpiJournal = journalRegex.test(innerHTML); // Check innerHTML for journal titles that might be in italics
 
       return !!(hasMdpiLink || hasMdpiText || hasMdpiJournal);
     };
 
     const extractReferenceData = (item) => {
       let refId = item.dataset.mdpiFilterRefId;
+      // Ensure refId is assigned if not already present
       if (!refId) {
+        // refIdCounter is defined in the outer scope
         refId = `mdpi-ref-${refIdCounter++}`;
         item.dataset.mdpiFilterRefId = refId;
       }
 
-      let fullText = '';
       let number = null;
+      let text = '';
       let link = null;
-      const referenceStartRegex = /^\s*(\d+)\.\s*/;
+      const localSanitize = window.sanitize || (htmlInput => htmlInput.replace(/<[^>]+>/g, ''));
 
-      const linkElement = item.querySelector('a[href]');
-      if (linkElement) {
-        link = linkElement.href;
-      }
-
-      const pnasListItem = item.closest('[role="listitem"][data-has="label"]');
-      if (pnasListItem) {
-        const labelEl = pnasListItem.querySelector('.label');
-        if (labelEl && labelEl.textContent) {
-          const parsedNum = parseInt(labelEl.textContent.trim(), 10);
-          if (!isNaN(parsedNum)) {
-            number = String(parsedNum);
-          }
+      // 1. Try data-counter attribute (e.g., BMC "data-counter='1'")
+      if (item.dataset.counter) {
+        const parsedCounter = parseInt(item.dataset.counter, 10);
+        if (!isNaN(parsedCounter)) {
+          number = parsedCounter;
         }
       }
 
-      if (item.matches('li[id^="cite_note-"]')) {
-        const idParts = item.id.split('-');
-        const potentialNumber = idParts[idParts.length - 1];
-        if (potentialNumber && !isNaN(parseInt(potentialNumber, 10))) {
-          number = potentialNumber;
+      // 2. Try to parse from ID (e.g., ref-CR1, B1, reference-1, cite_note-1)
+      if (number === null && item.id) {
+        const idMatch = item.id.match(/(?:CR|B|ref-|reference-|cite_note-)(\d+)/i);
+        if (idMatch && idMatch[1]) {
+          const parsedIdNum = parseInt(idMatch[1], 10);
+          if (!isNaN(parsedIdNum)) {
+            number = parsedIdNum;
+          }
         }
-        const refTextElement = item.querySelector('span.reference-text');
-        if (refTextElement) {
-          fullText = refTextElement.textContent.trim();
-        } else {
-          fullText = item.textContent.trim();
-          const backlinkSpan = item.querySelector('span.mw-cite-backlink');
-          if (backlinkSpan) {
-            const backlinkText = backlinkSpan.textContent.trim();
-            if (fullText.startsWith(backlinkText)) {
-              fullText = fullText.substring(backlinkText.length).trim();
+      }
+
+      // 3. Try specific label elements for numbers (e.g., MDPI's <span class="reference-label">1.</span>)
+      if (number === null) {
+        const labelElement = item.querySelector(
+          // Common selectors for reference number elements
+          '.reference-label, .ref-count, .c-article-references__counter, .refnumber, .citation-number, .label, .ref-label'
+        );
+        if (labelElement && labelElement.textContent) {
+          const labelMatch = labelElement.textContent.trim().match(/^\[?(\d+)\]?/); // Matches "1" or "[1]" etc.
+          if (labelMatch && labelMatch[1]) {
+            const parsedLabelNum = parseInt(labelMatch[1], 10);
+            if (!isNaN(parsedLabelNum)) {
+              number = parsedLabelNum;
             }
           }
         }
-      } else if (item.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
-        let currentTextCollector = '';
-        let currentElement = item;
-        while (currentElement && currentElement.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
-          currentTextCollector += currentElement.textContent.trim() + ' ';
-          const nextSib = currentElement.nextElementSibling;
-          if (currentElement.querySelector('a[href]') || !nextSib || !nextSib.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
-             if (nextSib && /^\s*\[?\d+\]?\s*$/.test(nextSib.textContent.trim())) {
-                break;
-             }
-          }
-          if (!nextSib || !nextSib.matches('span[aria-owns^="pdfjs_internal_id_"]')) break;
-          currentElement = nextSib;
-        }
-        fullText = currentTextCollector.trim();
-        if (!number) { 
-            const numMatchPdf = fullText.match(/^\s*\[?(\d+)\]?[\.\s]?/);
-            if (numMatchPdf && numMatchPdf[1]) {
-              number = numMatchPdf[1];
-            }
-        }
+      }
+      
+      const referenceStartRegex = /^\s*\[?(\d+)\]?\s*\.?\s*/; // For matching numbers like "1. ", "[1]", "1 "
+
+      // 4. Extract raw text content for number parsing and final text
+      let rawTextContent = '';
+      const specificTextElement = item.querySelector(
+        // Prioritize specific text container elements
+        'p.c-article-references__text, div.reference-content, div.citation-text, span.reference-text, div.citation__summary, li > p, .c-bibliographic-information__title, .hlFld-Title'
+      );
+
+      if (specificTextElement) {
+        rawTextContent = specificTextElement.textContent || '';
       } else {
-        if (!fullText) {
-            fullText = item.textContent.trim();
+        // Fallback: Clone item, remove known non-content children, then get textContent
+        const clone = item.cloneNode(true);
+        const selectorsToRemove = [
+            '.c-article-references__links', '.reference-links', '.ref-label', 
+            '.reference-label', '.ref-count', '.c-article-references__counter', 
+            '.refnumber', '.citation-number', '.label', 'ul.c-article-references__links',
+            '.c-article-references__links-list', '.access-options', '.icon-file-pdf', '.extra-links'
+        ];
+        clone.querySelectorAll(selectorsToRemove.join(', ')).forEach(el => el.remove());
+        rawTextContent = clone.textContent || '';
+      }
+      rawTextContent = rawTextContent.trim();
+
+      // 5. Try to extract number from the start of the rawTextContent if not found yet
+      if (number === null) {
+        const textMatch = rawTextContent.match(referenceStartRegex);
+        if (textMatch && textMatch[1]) {
+          const parsedTextNum = parseInt(textMatch[1], 10);
+          if (!isNaN(parsedTextNum)) {
+            number = parsedTextNum;
+          }
         }
-        if (!number) {
-            const match = fullText.match(referenceStartRegex);
-            if (match && match[1]) {
-              number = match[1];
+      }
+
+      // 6. Prepare the final display text: remove the number prefix if we successfully extracted it
+      text = rawTextContent;
+      if (number !== null) {
+        const prefixMatch = rawTextContent.match(referenceStartRegex);
+        if (prefixMatch && prefixMatch[0]) {
+            // Only remove the prefix if the number it contains matches the extracted 'number'
+            // or if we just extracted the number from this prefix.
+            if (parseInt(prefixMatch[1], 10) === number) {
+                 text = rawTextContent.substring(prefixMatch[0].length).trim();
             }
         }
       }
+      text = localSanitize(text); // Sanitize after potential prefix removal. Sanitize strips HTML.
 
-      if (!fullText && item.textContent) {
-        fullText = item.textContent.trim();
-      }
-      if (!fullText) {
-        fullText = "Reference text not available.";
-      }
-
-      // --- Fingerprint generation ---
-      let fingerprint = null;
-      const doiRegex = /\b(10\.\d{4,9}\/[-._;()/:A-Z0-9]+)\b/i; 
+      // 7. Extract link
+      const linkSelectors = [
+        'a[data-doi]', // Specific DOI link
+        'a[href*="doi.org"]', // Links containing doi.org
+        'a[data-track-action="article reference"]', // Common tracking attribute for main article link
+        'a.article-link', // Common class for article links
+        'a[href^="http"]' // General http/https link as fallback
+      ];
       
-      if (link) {
-        const hrefLower = link.toLowerCase();
-        if (hrefLower.includes('doi.org/') || hrefLower.includes('dx.doi.org/')) {
-            const match = hrefLower.match(doiRegex);
-            if (match) fingerprint = match[0];
+      for (const selector of linkSelectors) {
+        const linkElement = item.querySelector(selector);
+        if (linkElement && linkElement.href && !linkElement.href.startsWith('mailto:')) {
+          link = linkElement.href;
+          break; 
         }
       }
-
-      if (!fingerprint && fullText) {
-        const textLower = fullText.toLowerCase();
-        const match = textLower.match(doiRegex);
-        if (match) fingerprint = match[0];
-      }
       
-      if (!fingerprint) {
-        if (fullText && fullText !== "Reference text not available.") {
-          fingerprint = fullText.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 100);
-        } else {
-          fingerprint = `no-text-ref-${refId}`; 
-        }
+      // For Wikipedia, the main link might be inside the text.
+      if (item.matches('li[id^="cite_note-"]')) {
+          const wikiLink = item.querySelector('.reference-text > a[href]');
+          if (wikiLink && wikiLink.href) { // Override if a more specific wiki link is found
+              link = wikiLink.href;
+          }
       }
-      // --- End Fingerprint generation ---
 
-      return {
-        id: refId,
-        number: number,
-        text: fullText,
-        link: link,
-        element: item,
-        fingerprint: fingerprint
-      };
+      return { id: refId, text, link, number };
     };
 
     const isSearchSite = () => {
@@ -319,71 +324,46 @@ if (!window.mdpiFilterInjected) {
     };
 
     const updateBadgeAndReferences = () => {
-      try {
-        // Check if the runtime and its ID are available.
-        // If not, the context is likely invalidated, so skip sending the message.
-        if (!chrome.runtime || !chrome.runtime.id) {
-          console.warn("[MDPI Filter] Extension context invalidated. Skipping sendMessage in updateBadgeAndReferences.");
-          return;
-        }
-
-        let count = 0;
-        let referencesToSend = [];
-        let messageType = 'mdpiUpdate'; // Default message type
-
-        // Only the top-level frame should send the definitive update.
-        if (window.self === window.top) {
-          console.log("[MDPI Filter - Top Frame] Processing updateBadgeAndReferences.");
-          if (isSearchSite()) { // isSearchSite() uses the current frame's (top frame's) location.
-            console.log("[MDPI Filter - Top Frame] On search site, sending count 0 and no references.");
-            // count remains 0, referencesToSend remains []
-            // For search sites, the background script will clear its data based on this.
-          } else {
-            console.log("[MDPI Filter - Top Frame] Not on search site. Processing collected references.");
-            count = uniqueMdpiReferences.size;
-            // Sort references if they exist
-            if (collectedMdpiReferences.length > 0) {
-              collectedMdpiReferences.sort((a, b) => {
-                const numA = parseInt(a.number, 10);
-                const numB = parseInt(b.number, 10);
-                if (!isNaN(numA) && !isNaN(numB)) {
-                  return numA - numB;
-                }
-                if (!isNaN(numA)) return -1;
-                if (!isNaN(numB)) return 1;
-                return (a.text || "").localeCompare(b.text || "");
-              });
-            }
-            referencesToSend = collectedMdpiReferences.map(ref => ({
-              id: ref.id, // Send the ID
-              number: ref.number,
-              text: ref.text,
-              link: ref.link
-            }));
-          }
-          // Top frame sends the update.
-          console.log(`[MDPI Filter - Top Frame] Sending message type: ${messageType}, count: ${count}, refs: ${referencesToSend.length}`);
-          chrome.runtime.sendMessage({ type: messageType, count: count, references: referencesToSend });
-        } else {
-          // This is an iframe.
-          // For now, iframes will not send 'mdpiUpdate' to simplify and prevent overwriting top-level decision.
-          // MDPI content solely within an iframe might not be centrally reported by this simplified logic
-          // if the iframe's content isn't directly scannable by the top frame's selectors.
-          // Each frame processes its own DOM, but only top frame reports.
-          console.log("[MDPI Filter - Iframe] Skipping mdpiUpdate message to prevent overwriting top-frame data.");
-          return; // Iframe does not send the main update message
-        }
-
-      } catch (error) {
-        console.warn("[MDPI Filter] Could not send message to background (try/catch):", error.message, error);
-      } finally {
-        // Check chrome.runtime.lastError, as sendMessage might set it if the receiving end is gone.
-        // This check is particularly useful if the initial `!chrome.runtime || !chrome.runtime.id` passed
-        // but the context became invalid just before/during sendMessage.
-        if (chrome.runtime && chrome.runtime.lastError) {
-          console.warn("[MDPI Filter] chrome.runtime.lastError after sendMessage in updateBadgeAndReferences:", chrome.runtime.lastError.message || chrome.runtime.lastError);
-        }
+      // console.log("[MDPI Filter - Top Frame] Processing updateBadgeAndReferences.");
+      if (isSearchSite()) {
+        // console.log("[MDPI Filter - Top Frame] On search site. Badge update handled by processSearchSites.");
+        return; 
       }
+
+      // console.log("[MDPI Filter - Top Frame] Not on search site. Processing collected references.");
+      // Sort collectedMdpiReferences by number, then by original discovery order (using refId as a proxy)
+      const sortedReferences = [...collectedMdpiReferences].sort((a, b) => {
+        // Prioritize items with numbers
+        if (a.number !== null && b.number === null) return -1;
+        if (a.number === null && b.number !== null) return 1;
+        
+        // If both have numbers, sort by number
+        if (a.number !== null && b.number !== null) {
+          if (a.number !== b.number) {
+            return a.number - b.number;
+          }
+        }
+        // If numbers are the same, or both are null, sort by refId (discovery order)
+        // refId is "mdpi-ref-X", extract X for numeric sort
+        const numA = parseInt(a.id.split('-').pop(), 10);
+        const numB = parseInt(b.id.split('-').pop(), 10);
+        
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return numA - numB;
+        } else if (!isNaN(numA)) {
+            return -1; 
+        } else if (!isNaN(numB)) {
+            return 1;  
+        }
+        return a.id.localeCompare(b.id); // Fallback to string compare of ID if parsing fails
+      });
+
+      // console.log(`[MDPI Filter - Top Frame] Sending message type: mdpiUpdate, count: ${uniqueMdpiReferences.size}, refs: ${sortedReferences.length}`);
+      chrome.runtime.sendMessage({
+        type: 'mdpiUpdate',
+        count: uniqueMdpiReferences.size, 
+        references: sortedReferences     
+      });
     };
 
     function processSearchSites() {

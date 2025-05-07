@@ -75,22 +75,23 @@ if (!window.mdpiFilterInjected) {
     const styleSup = supOrA => {
       if (!supOrA) return;
 
-      // Style the main element (sup or a)
-      supOrA.style.color      = '#E2211C'; // MDPI Red
-      supOrA.style.fontWeight = 'bold';
+      // Style the main element (sup or a) using !important
+      supOrA.style.setProperty('color', '#E2211C', 'important'); // MDPI Red
+      supOrA.style.setProperty('font-weight', 'bold', 'important');
 
       // If supOrA is a sup element, specifically style any anchor tag and its content within it
       if (supOrA.tagName.toLowerCase() === 'sup') {
         const anchorElement = supOrA.querySelector('a');
         if (anchorElement) {
-          anchorElement.style.color = '#E2211C'; // Ensure link text is red
-          anchorElement.style.fontWeight = 'bold'; // Ensure link text is bold
+          anchorElement.style.setProperty('color', '#E2211C', 'important'); // Ensure link text is red
+          anchorElement.style.setProperty('font-weight', 'bold', 'important'); // Ensure link text is bold
 
           // Wikipedia uses spans for brackets, ensure they are also red
           const bracketSpans = anchorElement.querySelectorAll('span.cite-bracket');
           bracketSpans.forEach(span => {
-            span.style.color = '#E2211C';
-            // fontWeight will be inherited from the anchor or sup
+            span.style.setProperty('color', '#E2211C', 'important');
+            // fontWeight will be inherited or can be explicitly set if needed
+            // span.style.setProperty('font-weight', 'bold', 'important');
           });
         }
       }
@@ -98,8 +99,8 @@ if (!window.mdpiFilterInjected) {
       else if (supOrA.tagName.toLowerCase() === 'a') {
         const supElementInside = supOrA.querySelector('sup');
         if (supElementInside) {
-            supElementInside.style.color = '#E2211C';
-            supElementInside.style.fontWeight = 'bold';
+            supElementInside.style.setProperty('color', '#E2211C', 'important');
+            supElementInside.style.setProperty('font-weight', 'bold', 'important');
         }
       }
     };

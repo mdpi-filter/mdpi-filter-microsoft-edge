@@ -52,7 +52,8 @@ if (!window.mdpiFilterInjected) {
     'span[aria-owns^="pdfjs_internal_id_"]', // PDF.js rendered spans
     'li[id^="cite_note-"]', // Wikipedia reference list items
     'div.refbegin li', // Wikipedia "Sources" or "Further reading" list items
-    'li.scroll-mt-28' // Examine.com reference list items
+    'li.scroll-mt-28', // Examine.com reference list items
+    'li:has(hl-trusted-source a[href])' // Healthline citation list items
   ].join(',');
   // ---
 

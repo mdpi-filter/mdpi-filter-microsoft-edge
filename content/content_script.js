@@ -180,41 +180,60 @@ if (!window.mdpiFilterInjected) {
 
     // --- Core Logic Functions ---
 
-    // New helper: Just checks content, no side effects on datasets or global lists.
-    const isMdpiItemByContent = async (item) => { // Made async
+    // Renamed and refactored to handle multiple IDs and use a cache
+    async function checkNcbiIdsForMdpi(ids, idType, runCache) { // ids is an array
+      if (!ids || ids.length === 0) return false;
+
+      const idsToQuery = ids.filter(id => !runCache.has(id)); // Only query IDs not in cache
+      if (idsToQuery.length === 0) { // All IDs were in cache
+        return ids.some(id => runCache.get(id) === true); // Check if any cached ID was MDPI
+      }
+
+      const idsString = idsToQuery.join(',');
+      const toolName = 'MDPIFilterChromeExtension';
+      const maintainerEmail = 'filter-dev@example.com'; // Replace if you have a specific contact
+      const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${encodeURIComponent(idsString)}&idtype=${encodeURIComponent(idType)}&format=json&versions=no&tool=${toolName}&email=${maintainerEmail}`;
+
+      try {
+        const response = await fetch(apiUrl);
+        if (response.ok) {
+          const data = await response.json();
+          let foundMdpiInBatch = false;
+          if (data.records && data.records.length > 0) {
+            data.records.forEach(record => {
+              const originalId = record.pmcid || record.pmid || idsToQuery.find(iq => record.requested_id === iq || (record.pmcid || record.pmid) === iq); // Try to map back to original queried ID
+              if (record.doi && record.doi.startsWith(MDPI_DOI)) {
+                if (originalId) runCache.set(originalId, true);
+                foundMdpiInBatch = true;
+              } else {
+                if (originalId) runCache.set(originalId, false);
+              }
+            });
+          }
+          // For any IDs in the original `idsToQuery` list that weren't in `data.records` (e.g. invalid IDs),
+          // mark them as false in cache to avoid re-querying.
+          idsToQuery.forEach(id => {
+            if (!runCache.has(id)) {
+              runCache.set(id, false);
+            }
+          });
+          return foundMdpiInBatch || ids.some(id => runCache.get(id) === true); // Check current batch OR already cached positive IDs
+        } else {
+          // console.warn(`[MDPI Filter] NCBI API request failed for ${idType.toUpperCase()}s ${idsString}: ${response.status}`);
+          idsToQuery.forEach(id => runCache.set(id, false)); // Cache as false on API error
+        }
+      } catch (error) {
+        // console.error(`[MDPI Filter] Error fetching from NCBI API for ${idType.toUpperCase()}s ${idsString}:`, error);
+        idsToQuery.forEach(id => runCache.set(id, false)); // Cache as false on fetch error
+      }
+      return ids.some(id => runCache.get(id) === true); // Fallback to checking cache if API failed
+    }
+
+    // Modified to use the new batched NCBI check and runCache
+    const isMdpiItemByContent = async (item, runCache) => { // Added runCache parameter
       if (!item) return false;
       const textContent = item.textContent || '';
       const innerHTML = item.innerHTML || '';
-
-      // MDPI_DOMAIN and MDPI_DOI are defined in the outer scope
-
-      // Helper function to check a given ID (PMID or PMCID) via NCBI API
-      async function checkNcbiIdForMdpi(id, idType) {
-        if (!id || !idType) return false;
-        // Use generic tool/email as per NCBI's request for programmatic use
-        const toolName = 'MDPIFilterChromeExtension';
-        const maintainerEmail = 'filter-dev@example.com'; // Replace if you have a specific contact
-        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${encodeURIComponent(id)}&idtype=${encodeURIComponent(idType)}&format=json&versions=no&tool=${toolName}&email=${maintainerEmail}`;
-
-        try {
-          const response = await fetch(apiUrl);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.records && data.records.length > 0 && data.records[0].doi) {
-              const doi = data.records[0].doi;
-              if (doi.startsWith(MDPI_DOI)) {
-                // console.log(`[MDPI Filter] NCBI API: Found MDPI DOI ${doi} for ${idType.toUpperCase()} ${id}`);
-                return true; // MDPI article found via NCBI API
-              }
-            }
-          } else {
-            // console.warn(`[MDPI Filter] NCBI API request failed for ${idType.toUpperCase()} ${id}: ${response.status}`);
-          }
-        } catch (error) {
-          // console.error(`[MDPI Filter] Error fetching from NCBI API for ${idType.toUpperCase()} ${id}:`, error);
-        }
-        return false;
-      }
 
       // Priority 1: Check for direct MDPI links
       if (item.querySelector(`a[href*="${MDPI_DOMAIN}"]`)) {
@@ -224,9 +243,12 @@ if (!window.mdpiFilterInjected) {
       const mdpiDoiPatternInLink = new RegExp(`${MDPI_DOI.replace(/\./g, '\\.')}/|doi\\.org/${MDPI_DOI.replace(/\./g, '\\.')}/|dx\\.doi\\.org/${MDPI_DOI.replace(/\./g, '\\.')}/`);
       const allLinksInItem = Array.from(item.querySelectorAll('a[href], a[data-track-item_id]'));
 
-      // Priority 2: Check links for MDPI DOI patterns or resolve NCBI links via API
+      let pmcIdStrings = new Set();
+      let pmidStrings = new Set();
+
+      // Priority 2a: Check links for MDPI DOI patterns (fast check)
       for (const link of allLinksInItem) {
-        const href = link.href; // Use link.href for resolved URL
+        const href = link.href;
         const dataTrackId = link.getAttribute('data-track-item_id');
 
         if ((href && mdpiDoiPatternInLink.test(href)) ||
@@ -234,18 +256,55 @@ if (!window.mdpiFilterInjected) {
           return true;
         }
 
+        // Collect PMCIDs and PMIDs for batch API call
         if (href) {
           const pmcMatch = href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+(\.\d+)?)/i);
           if (pmcMatch && pmcMatch[1]) {
-            if (await checkNcbiIdForMdpi(pmcMatch[1], 'pmcid')) return true;
+            pmcIdStrings.add(pmcMatch[1]);
           } else {
             const pmidMatch = href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
             if (pmidMatch && pmidMatch[1]) {
-              if (await checkNcbiIdForMdpi(pmidMatch[1], 'pmid')) return true;
+              pmidStrings.add(pmidMatch[1]);
             }
           }
         }
       }
+
+      // Priority 2b: Check collected PMCIDs/PMIDs via NCBI API (batched)
+      // First, check cache for any immediate positive hits from the collected IDs
+      for (const pmcId of pmcIdStrings) {
+        if (runCache.has(pmcId) && runCache.get(pmcId) === true) return true;
+      }
+      for (const pmid of pmidStrings) {
+        if (runCache.has(pmid) && runCache.get(pmid) === true) return true;
+      }
+
+      let apiCheckPromises = [];
+      const pmcIdsToFetchArray = Array.from(pmcIdStrings).filter(id => !runCache.has(id));
+      const pmidIdsToFetchArray = Array.from(pmidStrings).filter(id => !runCache.has(id));
+
+      if (pmcIdsToFetchArray.length > 0) {
+        apiCheckPromises.push(checkNcbiIdsForMdpi(pmcIdsToFetchArray, 'pmcid', runCache));
+      }
+      if (pmidIdsToFetchArray.length > 0) {
+        apiCheckPromises.push(checkNcbiIdsForMdpi(pmidIdsToFetchArray, 'pmid', runCache));
+      }
+
+      if (apiCheckPromises.length > 0) {
+        const results = await Promise.all(apiCheckPromises);
+        if (results.some(result => result === true)) {
+          return true;
+        }
+      }
+      // After Promise.all, all fetched IDs are now in runCache.
+      // Re-check the original sets against the now populated cache.
+      for (const pmcId of pmcIdStrings) {
+        if (runCache.get(pmcId) === true) return true;
+      }
+      for (const pmid of pmidStrings) {
+        if (runCache.get(pmid) === true) return true;
+      }
+
 
       // Priority 3: Check for MDPI DOI string in text content
       if (textContent.includes(`${MDPI_DOI}/`)) {
@@ -789,7 +848,7 @@ if (!window.mdpiFilterInjected) {
       });
     }
 
-    async function processAllReferences() { // Made async
+    async function processAllReferences(runCache) { // Added runCache parameter
       const referenceItems = document.querySelectorAll(referenceListSelectors);
       for (const item of referenceItems) { // Use for...of for await in loop
         let currentAncestor = item.parentElement;
@@ -814,7 +873,7 @@ if (!window.mdpiFilterInjected) {
         }
         item.dataset.mdpiProcessedInThisRun = 'true';
 
-        if (await isMdpiItemByContent(item)) { // Await the async call
+        if (await isMdpiItemByContent(item, runCache)) { // Pass runCache
           const refData = extractReferenceData(item); 
           item.dataset.mdpiResult = 'mdpi'; 
           item.dataset.mdpiFingerprint = refData.fingerprint;
@@ -896,6 +955,7 @@ if (!window.mdpiFilterInjected) {
     async function runAll(source = "initial") { // Made async
       // console.log(`[MDPI Filter] runAll triggered by: ${source}`);
       refIdCounter = 0; 
+      const runCache = new Map(); // Initialize cache for this run
 
       document.querySelectorAll('[data-mdpi-processed-in-this-run], [data-mdpi-result], [data-mdpi-filter-ref-id], [data-mdpi-fingerprint], [data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
         // Store if element was hidden by 'hide' mode before clearing styles
@@ -944,7 +1004,7 @@ if (!window.mdpiFilterInjected) {
         }
         processSearchSites();       
         processCitedByEntries();    
-        await processAllReferences(); 
+        await processAllReferences(runCache); // Pass runCache
         styleInlineFootnotes();     
         processDirectMdpiLinks();   
         updateBadgeAndReferences(); 

@@ -405,38 +405,43 @@ if (!window.mdpiFilterInjected) {
         refId = `mdpi-ref-${refIdCounter++}`;
         item.dataset.mdpiFilterRefId = refId;
       }
-      // console.log(`[extractReferenceData START] refId: ${refId}, Item HTML (start): ${item.innerHTML.substring(0,100)}`);
-
+      
       let number = null;
       let text = '';
       let link = null;
       const localSanitize = window.sanitize || (htmlInput => htmlInput.replace(/<[^>]+>/g, ''));
+      let numberSource = "none"; // To track where the number came from
 
       // 1. Try data-counter attribute
       if (item.dataset.counter) {
         const parsedCounter = parseInt(item.dataset.counter, 10);
         if (!isNaN(parsedCounter)) {
           number = parsedCounter;
-          // console.log(`[extractReferenceData - ${refId}] Number from data-counter: ${number}`);
+          numberSource = "data-counter";
         }
       }
 
       // 2. Try to parse from ID
       if (number === null) {
-        let idSource = item;
+        let idSourceElement = item; // Renamed for clarity
+        // Check if the item itself is a content div and its parent has an ID
         if (item.matches && item.matches('div.citation, div.citation-content') && item.parentElement && item.parentElement.id) {
-            idSource = item.parentElement;
-        } else if (!item.id && item.closest && item.closest('[id^="r"], [id^="ref-"], [id^="cite_note-"]')) {
-            idSource = item.closest('[id^="r"], [id^="ref-"], [id^="cite_note-"]');
+            idSourceElement = item.parentElement;
+        } else if (!item.id && item.closest) { // If item has no ID, check closest ancestor
+            const closestWithRefId = item.closest('[id^="r"], [id^="ref-"], [id^="cite_note-"], [id^="CR"], [id^="B"]');
+            if (closestWithRefId) {
+                idSourceElement = closestWithRefId;
+            }
         }
-
-        if (idSource && idSource.id) {
-            const idMatch = idSource.id.match(/(?:CR|B|ref-|reference-|cite_note-|r)(\d+)/i);
+        // If idSourceElement is still the item, and it has no ID, this block won't run.
+        // If idSourceElement was updated or item itself has an ID, this will run.
+        if (idSourceElement && idSourceElement.id) {
+            const idMatch = idSourceElement.id.match(/(?:CR|B|ref-|reference-|cite_note-|r)(\d+)/i);
             if (idMatch && idMatch[1]) {
                 const parsedIdNum = parseInt(idMatch[1], 10);
                 if (!isNaN(parsedIdNum)) {
                     number = parsedIdNum;
-                    // console.log(`[extractReferenceData - ${refId}] Number from ID attribute ('${idSource.id}'): ${number}`);
+                    numberSource = `id-attribute ('${idSourceElement.id}')`;
                 }
             }
         }
@@ -447,26 +452,28 @@ if (!window.mdpiFilterInjected) {
         let labelTextContent = null;
         const labelSelectors = '.reference-label, .ref-count, .c-article-references__counter, .refnumber, .citation-number, .label, .ref-label, .ref-num, .ref-number';
         let labelElement = item.querySelector(labelSelectors);
+        
         if (labelElement && labelElement.textContent) {
           labelTextContent = labelElement.textContent;
-        }
-        if (!labelTextContent) {
-          const commonListItemSelectors = 'li, div[role="listitem"], tr';
-          const closestListItem = item.closest(commonListItemSelectors);
-          if (closestListItem) {
-            labelElement = closestListItem.querySelector(labelSelectors);
-            if (labelElement && labelElement.textContent) {
-              labelTextContent = labelElement.textContent;
+        } else { // Try finding in closest list item if item itself is not the LI
+            const commonListItemSelectors = 'li, div[role="listitem"], tr';
+            const closestListItem = item.closest(commonListItemSelectors);
+            if (closestListItem) {
+                labelElement = closestListItem.querySelector(labelSelectors);
+                if (labelElement && labelElement.textContent) {
+                labelTextContent = labelElement.textContent;
+                }
             }
-          }
         }
-        if(!labelTextContent) {
-            let targetPreviousSiblingOf = item;
+        
+        if(!labelTextContent) { // Try previous sibling of item or its direct parent
+            let targetForPrevSibling = item;
             if (item.matches && item.matches('div.citation-content, div.csl-entry') && item.parentElement) {
-                targetPreviousSiblingOf = item.parentElement;
+                targetForPrevSibling = item.parentElement;
             }
-            if (targetPreviousSiblingOf.previousElementSibling) {
-                const prevSibling = targetPreviousSiblingOf.previousElementSibling;
+            if (targetForPrevSibling.previousElementSibling) {
+                const prevSibling = targetForPrevSibling.previousElementSibling;
+                // Ensure previous sibling is not an anchor itself, to avoid grabbing footnote links
                 if (prevSibling.matches && prevSibling.matches(labelSelectors.split(',').map(s => s.trim() + ':not(a)').join(','))) {
                     if (prevSibling.textContent) {
                         labelTextContent = prevSibling.textContent;
@@ -474,12 +481,13 @@ if (!window.mdpiFilterInjected) {
                 }
             }
         }
+
         if (labelTextContent) {
-          const cleanedText = labelTextContent.trim().replace(/[\[\]]/g, '');
+          const cleanedText = labelTextContent.trim().replace(/[\[\]().]/g, ''); // More aggressive cleaning for labels
           const numMatch = cleanedText.match(/^(\d+)/);
           if (numMatch && numMatch[1]) {
             number = parseInt(numMatch[1], 10);
-            // console.log(`[extractReferenceData - ${refId}] Number from label ('${labelTextContent.trim()}'): ${number}`);
+            numberSource = `label ('${labelTextContent.trim()}')`;
           }
         }
       }
@@ -487,37 +495,42 @@ if (!window.mdpiFilterInjected) {
       const referenceStartRegex = /^\s*\[?(\d+)\]?\s*\.?\s*/; 
 
       let rawTextContent = '';
+      // Prioritize specific text containers if they exist
       const specificTextElement = item.querySelector(
-        'p.c-article-references__text, div.reference-content, div.citation-text, span.reference-text, div.citation__summary, li > p, .c-bibliographic-information__title, .hlFld-Title'
+        'p.c-article-references__text, div.reference-content, div.citation-text, span.reference-text, div.citation__summary, li > p, .c-bibliographic-information__title, .hlFld-Title, .csl-entry'
       );
+
       if (specificTextElement) {
         rawTextContent = specificTextElement.textContent || '';
       } else {
+        // Fallback: clone the item and remove known non-content elements
         const clone = item.cloneNode(true);
         const selectorsToRemove = [
             '.c-article-references__links', '.reference-links', '.ref-label', 
             '.reference-label', '.ref-count', '.c-article-references__counter', 
             '.refnumber', '.citation-number', '.label', 'ul.c-article-references__links',
-            '.c-article-references__links-list', '.access-options', '.icon-file-pdf', '.extra-links'
+            '.c-article-references__links-list', '.access-options', '.icon-file-pdf', '.extra-links',
+            'sup', // Remove sup elements which might contain citation numbers
+            'span[class*="label"], span[class*="counter"]' // Generic label/counter spans
         ];
         clone.querySelectorAll(selectorsToRemove.join(', ')).forEach(el => el.remove());
         rawTextContent = clone.textContent || '';
       }
       rawTextContent = rawTextContent.trim();
 
-      // 5. Try to extract number from the start of the rawTextContent
+      // 4. Try to extract number from the start of the rawTextContent (was 5)
       if (number === null) {
         const textNumMatch = rawTextContent.match(referenceStartRegex);
         if (textNumMatch && textNumMatch[1]) {
           const parsedTextNum = parseInt(textNumMatch[1], 10);
           if (!isNaN(parsedTextNum)) {
             number = parsedTextNum;
-            // console.log(`[extractReferenceData - ${refId}] Number from rawTextContent start ('${rawTextContent.substring(0,20)}...'): ${number}`);
+            numberSource = `rawTextContent start ('${rawTextContent.substring(0,20)}...')`;
           }
         }
       }
 
-      // 5b. Try to determine number from <ol> parent
+      // 5. Try to determine number from <ol> parent (was 5b)
       if (number === null && item.tagName === 'LI') {
         const parentOl = item.parentElement;
         if (parentOl && parentOl.tagName === 'OL') {
@@ -532,26 +545,27 @@ if (!window.mdpiFilterInjected) {
               }
             }
             number = startValue + indexInList;
-            // console.log(`[extractReferenceData - ${refId}] Number from OL (index ${indexInList}, start ${startValue}, parent HTML: ${parentOl.outerHTML.substring(0,50)}): ${number}`);
+            numberSource = `OL (index ${indexInList}, start ${startValue})`;
           }
         }
       }
 
       text = rawTextContent;
+      // Remove the extracted number prefix from the text if a number was found
       if (number !== null) {
         const prefixRegex = new RegExp(`^\\s*\\[?${number}\\]?\\s*\\.?\\s*`);
-        text = text.replace(prefixRegex, '');
+        text = text.replace(prefixRegex, '').trim();
       }
-      text = localSanitize(text); // Sanitize after potential number removal
+      text = localSanitize(text); 
 
-      // 7. Extract link
+      // Link extraction logic (ensure this is comprehensive)
       const linkSelectors = [
-        'a[data-doi]', // Specific data-doi attribute
-        'a[href*="doi.org"]', // Links containing doi.org
+        'a[data-doi]', // Specific data-doi attribute 
+        'a[href*="doi.org"]', // Links containing doi.org 
         'a[href*="/10."]', // Links that look like DOIs, e.g. /10.xxxx/yyyy
-        'a.c-bibliographic-information__link[href*="springer.com"]', // Springer article links
-        'a.article-link', // Common class for article links
-        'a[data-track-action="article reference"]', // Tracking attributes
+        'a.c-bibliographic-information__link[href*="springer.com"]', // Springer article links 
+        'a.article-link', // Common class for article links 
+        'a[data-track-action="article reference"]',         // Tracking attributes
         'div.citation-content > a[href]', // First link in citation content
         'p > a[href]', // First link in a paragraph (generic)
         'a[href^="http"]:not([href*="#"])', // Any http link not an anchor
@@ -563,23 +577,22 @@ if (!window.mdpiFilterInjected) {
       for (const selector of linkSelectors) {
         const linkElement = item.querySelector(selector);
         if (linkElement && linkElement.href && !linkElement.href.startsWith('javascript:')) {
-          // Prioritize DOI links or links that seem like primary article links
+          // Prioritize DOI links, but take the first good one if no DOI link found yet
           if (linkElement.href.includes('doi.org') || (link === null || !link.includes('doi.org'))) {
             link = linkElement.href;
-            if (link.includes('doi.org')) break; // Found a DOI link, prefer this.
+            if (link.includes('doi.org')) break; // Found a DOI link, prefer this
           }
         }
       }
       
       // For Wikipedia, the main link might be inside the text.
-      // This is often the first link if not a citation link (e.g. #cite_note-X)
       if (!link && item.closest && item.closest('li[id^="cite_note-"]')) {
         const wikiLink = item.querySelector('.reference-text > a:not([href^="#"])');
         if (wikiLink && wikiLink.href) {
             link = wikiLink.href;
         }
       }
-      // If no link found yet, take the first valid HTTP link within the item
+      // Fallback if no link found by specific selectors
       if (!link) {
           const genericLink = item.querySelector('a[href^="http"]:not([href*="#"])');
           if (genericLink && genericLink.href && !genericLink.href.startsWith('javascript:')) {
@@ -587,54 +600,116 @@ if (!window.mdpiFilterInjected) {
           }
       }
 
-      // 8. Generate fingerprint
-      // Use a combination of the beginning of the text and the link for uniqueness.
-      // Normalize text by removing extra whitespace and taking a substring.
       const normalizedTextForFingerprint = (text || '').replace(/\s+/g, ' ').trim().substring(0, 100);
       const fingerprint = `${normalizedTextForFingerprint}|${link || ''}`;
       
-      // console.log(`[extractReferenceData END - ${refId}] Final num: ${number}, Text: "${text.substring(0, 30)}...", Link: ${link}, Fingerprint: ${fingerprint}`);
-      return { id: refId, number, text, link, rawHTML: sanitize(item.innerHTML), fingerprint };
+      console.log(`%c[extractReferenceData - ${refId}] FP: ${fingerprint.substring(0,50)}... Num: ${number} (Source: ${numberSource}), Text: "${text.substring(0, 30)}..."`, 'color: green;');
+      return { id: refId, number, text, link, rawHTML: sanitize(item.innerHTML), fingerprint, numberSource };
     };
 
-    const isSearchSite = () => {
-      if (!window.MDPIFilterDomains) {
-        // console.warn("[MDPI Filter] isSearchSite check skipped: domains not loaded.");
-        return false;
-      }
-      const host = location.hostname;
-      const path = location.pathname;
-      for (const cfg of Object.values(domains)) {
-        const matchHost = cfg.host
-          ? host === cfg.host
-          : cfg.hostRegex?.test(host);
-        const matchPath = !cfg.path || cfg.path.test(path);
-        if (matchHost && matchPath) {
-          // console.log(`[MDPI Filter] isSearchSite: Matched ${cfg.host || cfg.hostRegex}`);
-          return true;
+    function processAllReferences(runCache) {
+      // console.log(`[processAllReferences START] Time: ${new Date().toISOString()}`);
+      const referenceItems = document.querySelectorAll(referenceListSelectors);
+      // console.log(`[processAllReferences] Found ${referenceItems.length} items with selectors.`);
+      let mdpiFoundInThisPass = 0; 
+      for (const item of referenceItems) {
+        let currentAncestor = item.parentElement;
+        let skipItemDueToProcessedAncestor = false; 
+        while (currentAncestor && currentAncestor !== document.body) {
+          if (currentAncestor.matches(referenceListSelectors)) {
+            // If an ancestor is already a processed MDPI reference item, skip this nested one.
+            if (currentAncestor.dataset.mdpiFingerprint && uniqueMdpiReferences.has(currentAncestor.dataset.mdpiFingerprint)) {
+              skipItemDueToProcessedAncestor = true; 
+              break;
+            }
+          }
+          currentAncestor = currentAncestor.parentElement;
+        }
+
+        if (skipItemDueToProcessedAncestor) {
+          // console.log(`[processAllReferences] Skipping item (child of already processed MDPI ref): ${item.textContent.substring(0,50)}...`);
+          continue;
+        }
+
+        // Avoid re-processing an item if it was already handled in *this specific runAll execution*
+        // (e.g. if it matched multiple times in referenceListSelectors due to broad selectors)
+        if (item.dataset.mdpiProcessedInThisRun === 'true') { 
+            // console.log(`[processAllReferences] Item already processed in this run: ${item.textContent.substring(0,50)}...`);
+            continue;
+        }
+        item.dataset.mdpiProcessedInThisRun = 'true';
+
+        if (isMdpiItemByContent(item, runCache)) {
+          mdpiFoundInThisPass++;
+          const refData = extractReferenceData(item); 
+          item.dataset.mdpiResult = 'mdpi'; 
+          item.dataset.mdpiFingerprint = refData.fingerprint; // Store fingerprint on the element
+
+          console.log(`%c[processAllReferences - MDPI item] FP: ${refData.fingerprint.substring(0,50)}... Num: ${refData.number} (Source: ${refData.numberSource}), Text: "${refData.text.substring(0,30)}..."`, 'color: orange;');
+
+          const existingRefIndex = collectedMdpiReferences.findIndex(r => r.fingerprint === refData.fingerprint);
+
+          if (existingRefIndex === -1) { // New MDPI item based on fingerprint
+            uniqueMdpiReferences.add(refData.fingerprint);
+            collectedMdpiReferences.push(refData); 
+            // console.log(`%c[processAllReferences - ADDED NEW MDPI] FP: ${refData.fingerprint.substring(0,50)}...`, 'color: cyan');
+          } else { // Existing MDPI item, update its data
+            if (collectedMdpiReferences[existingRefIndex].number !== refData.number || 
+                collectedMdpiReferences[existingRefIndex].id !== refData.id ||
+                collectedMdpiReferences[existingRefIndex].text !== refData.text) { // Check more fields if necessary
+                 console.warn(`%c[processAllReferences - MDPI item UPDATE] FP: ${refData.fingerprint.substring(0,50)}... OLD Num: ${collectedMdpiReferences[existingRefIndex].number}, NEW Num: ${refData.number} (NewSrc: ${refData.numberSource}). OLD ID: ${collectedMdpiReferences[existingRefIndex].id}, NEW ID: ${refData.id}`, 'color: red; font-weight: bold;');
+            }
+            // Always update with the latest extracted data, as DOM might have changed
+            collectedMdpiReferences[existingRefIndex] = refData; 
+          }
+          
+          if (mode === 'highlight') {
+            styleRef(item, refData.id); 
+          } else if (mode === 'hide') {
+            item.style.display = 'none';
+            item.dataset.mdpiPreviouslyHiddenByFilter = 'true'; // Mark that we hid it
+          }
+
+        } else { 
+          item.dataset.mdpiResult = 'not-mdpi';
+          // If it was previously an MDPI item (has a fingerprint), remove it from our collections
+          if (item.dataset.mdpiFingerprint) {
+            // console.log(`%c[processAllReferences - MDPI item NO LONGER MDPI] FP: ${item.dataset.mdpiFingerprint.substring(0,50)}...`, 'color: magenta;');
+            uniqueMdpiReferences.delete(item.dataset.mdpiFingerprint);
+            collectedMdpiReferences = collectedMdpiReferences.filter(r => r.fingerprint !== item.dataset.mdpiFingerprint);
+            delete item.dataset.mdpiFingerprint;
+          }
+          
+          // Reset styles if previously styled by the extension
+          if (item.dataset.mdpiFilterRefId) { 
+             // Reset explicit styles. Be careful if the site uses inline styles for these.
+             // A more robust way might be to add/remove a class.
+             item.style.color = ''; 
+             item.style.border = '';
+             item.style.padding = '';
+             // If it was hidden by 'hide' mode and now it's not MDPI, or mode changed
+             if (item.style.display === 'none' && item.dataset.mdpiPreviouslyHiddenByFilter === 'true') {
+                item.style.display = ''; 
+                delete item.dataset.mdpiPreviouslyHiddenByFilter;
+             }
+          }
         }
       }
-      // console.log("[MDPI Filter] isSearchSite: No match");
-      return false;
-    };
+      // console.log(`[processAllReferences END] MDPI items found in this pass: ${mdpiFoundInThisPass}. Total unique overall: ${uniqueMdpiReferences.size}. Collected overall: ${collectedMdpiReferences.length}. Time: ${new Date().toISOString()}`);
+    }
 
     const updateBadgeAndReferences = () => {
       const sortedReferences = [...collectedMdpiReferences].sort((a, b) => {
-        // Prioritize items with numbers
         if (a.number !== null && b.number === null) return -1;
         if (a.number === null && b.number !== null) return 1;
-        
-        // If both have numbers, sort by number
         if (a.number !== null && b.number !== null) {
           if (a.number !== b.number) {
             return a.number - b.number;
           }
         }
-        // If numbers are the same, or both are null, sort by refId (discovery order)
-        // refId is "mdpi-ref-X", extract X for numeric sort
+        // Fallback sort by original discovery order (refId) if numbers are same or both null
         const numA = parseInt(a.id.split('-').pop(), 10);
         const numB = parseInt(b.id.split('-').pop(), 10);
-        
         if (!isNaN(numA) && !isNaN(numB)) {
             return numA - numB;
         } else if (!isNaN(numA)) {
@@ -642,13 +717,17 @@ if (!window.mdpiFilterInjected) {
         } else if (!isNaN(numB)) {
             return 1;  
         }
-        return a.id.localeCompare(b.id); // Fallback to string compare of ID if parsing fails
+        return a.id.localeCompare(b.id); // Absolute fallback
       });
 
-      // console.log(`[updateBadgeAndReferences] Sending to popup. Count: ${uniqueMdpiReferences.size}, Refs length: ${sortedReferences.length}`);
-      // To avoid overly long logs, let's log only IDs and numbers
-      // console.log(`[updateBadgeAndReferences] Refs being sent: ${JSON.stringify(sortedReferences.map(r => ({id: r.id, number: r.number})))}`);
-
+      console.log(`%c[updateBadgeAndReferences] Sending to popup. Count: ${uniqueMdpiReferences.size}, Refs length: ${sortedReferences.length}`, 'color: purple; font-weight: bold;');
+      if (sortedReferences.length > 0) {
+        console.log('%cReferences being sent to popup:', 'color: purple;');
+        sortedReferences.forEach(r => {
+          console.log(`%c  - FP: ${r.fingerprint.substring(0,50)}... Num: ${r.number} (Source: ${r.numberSource || 'N/A'}), Text: "${r.text.substring(0,30)}..." ID: ${r.id}`, 'color: purple;');
+        });
+      }
+      
       chrome.runtime.sendMessage({
         type: 'mdpiUpdate',
         count: uniqueMdpiReferences.size, 

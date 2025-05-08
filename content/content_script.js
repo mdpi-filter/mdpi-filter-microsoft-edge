@@ -821,24 +821,58 @@ if (!window.mdpiFilterInjected) {
 
         allPotentialItemsForNcbiScan.forEach(item => {
             const textContent = item.textContent || '';
-            const innerHTML = item.innerHTML || '';
+            // const innerHTML = item.innerHTML || ''; // innerHTML not directly used for ID extraction here
 
-            // Extract PMIDs and PMCIDs from text content
-            const pmidMatches = textContent.match(/\b\d{7,8}\b/g); // Basic PMID pattern
-            if (pmidMatches) pmidMatches.forEach(id => allPmidsToFetch.add(id));
-
-            const pmcMatchesText = textContent.match(/PMC\d{7,}/g);
-            if (pmcMatchesText) pmcMatchesText.forEach(id => allPmcidsToFetch.add(id.substring(3))); // Store without "PMC"
-
-            // Extract PMIDs and PMCIDs from links (more robust)
+            // --- Extract PMIDs and PMCIDs from links (more robust, prioritized) ---
             item.querySelectorAll('a[href]').forEach(link => {
                 const href = link.href;
-                const pmidLinkMatch = href.match(/pubmed\/(\d{7,8})/);
-                if (pmidLinkMatch) allPmidsToFetch.add(pmidLinkMatch[1]);
 
-                const pmcLinkMatch = href.match(/pmc\/articles\/PMC(\d{7,})/);
-                if (pmcLinkMatch) allPmcidsToFetch.add(pmcLinkMatch[1]); // Store without "PMC"
+                // PubMed links for PMIDs
+                const pmidLinkMatch = href.match(/pubmed\/(\d{7,8})/);
+                if (pmidLinkMatch && pmidLinkMatch[1]) {
+                    const numericId = parseInt(pmidLinkMatch[1], 10);
+                    if (!isNaN(numericId) && numericId > 0) {
+                        allPmidsToFetch.add(numericId.toString()); // Add normalized ID
+                    }
+                }
+
+                // PMC links for PMCIDs
+                const pmcLinkMatch = href.match(/pmc\/articles\/PMC(\d{7,})/i); // Added 'i' for case-insensitivity
+                if (pmcLinkMatch && pmcLinkMatch[1]) {
+                    const pmcIdOnly = pmcLinkMatch[1];
+                    if (/^\d+$/.test(pmcIdOnly)) { // Basic validation (digits only)
+                        allPmcidsToFetch.add(pmcIdOnly); // PMC IDs are typically stored as is after "PMC"
+                    }
+                }
             });
+
+            // --- Extract PMIDs and PMCIDs from text content (fallback/complementary) ---
+
+            // PMCIDs from text (e.g., "PMC1234567")
+            const pmcMatchesText = textContent.match(/PMC\d{7,}/gi); // Added 'i' for case-insensitivity
+            if (pmcMatchesText) {
+                pmcMatchesText.forEach(pmcString => {
+                    const pmcIdOnly = pmcString.substring(3);
+                    if (/^\d+$/.test(pmcIdOnly)) {
+                        allPmcidsToFetch.add(pmcIdOnly);
+                    }
+                });
+            }
+
+            // PMIDs from text (with improved regex and normalization)
+            // Looks for 7 or 8 digit numbers not immediately part of a DOI-like structure or other numbers.
+            const pmidTextRegex = /(?<![\d./-])\b(\d{7,8})\b(?![\d.-])/g;
+            let pmidTextMatch;
+            while ((pmidTextMatch = pmidTextRegex.exec(textContent)) !== null) {
+                const capturedId = pmidTextMatch[1];
+                const numericId = parseInt(capturedId, 10);
+                if (!isNaN(numericId) && numericId > 0) {
+                    // Avoid adding if it's likely part of a DOI found in text,
+                    // though the regex itself should largely prevent this.
+                    // For simplicity, we'll rely on the regex and normalization for now.
+                    allPmidsToFetch.add(numericId.toString());
+                }
+            }
         });
         // console.log("[MDPI Filter] NCBI Pre-scan - PMIDs to fetch:", Array.from(allPmidsToFetch));
         // console.log("[MDPI Filter] NCBI Pre-scan - PMCIDs to fetch:", Array.from(allPmcidsToFetch));

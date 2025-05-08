@@ -828,6 +828,16 @@ if (!window.mdpiFilterInjected) {
     };
 
     async function runAll(source = "initial") {
+      // Clear 'processed in this run' flags from all elements that might have it from a previous run.
+      // This ensures that processAllReferences correctly re-evaluates items in the current run.
+      try {
+        document.querySelectorAll('[data-mdpi-processed-in-this-run="true"]').forEach(el => {
+          delete el.dataset.mdpiProcessedInThisRun;
+        });
+      } catch (e) {
+        console.warn("[MDPI Filter] Error clearing 'data-mdpi-processed-in-this-run' attributes:", e);
+      }
+
       if (mainObserverInstance) {
         mainObserverInstance.disconnect();
         // console.log('[MDPI Filter] Main observer disconnected for runAll.');
@@ -835,14 +845,13 @@ if (!window.mdpiFilterInjected) {
       try {
         console.log(`[MDPI Filter] runAll STARTING... Source: ${source}, Time: ${new Date().toISOString()}`);
 
-        // Clear previous results for a fresh run, especially if called by observer
-        if (source !== "initial load" && source !== "hashchange" && source !== "message") {
-            // console.log("[MDPI Filter] Clearing previous MDPI references for re-scan due to source:", source);
+        // Clear previous results and reset counter only for sources that imply a full page re-scan.
+        // For observer-triggered runs, we want to update the existing collections.
+        if (source === "initial load" || source === "hashchange" || source === "message") {
+            console.log("[MDPI Filter] Clearing all references and resetting counter for full re-scan due to source:", source);
             uniqueMdpiReferences.clear();
             collectedMdpiReferences = [];
-            // refIdCounter = 0; // Resetting this might lead to duplicate IDs if not careful,
-                               // but if we are re-processing everything, it should be fine.
-                               // For now, let's keep it incrementing to ensure unique IDs across runs.
+            refIdCounter = 0; // Reset for full scans
         }
 
 

@@ -202,19 +202,15 @@ if (!window.mdpiFilterInjected) {
         }
 
         const idsString = batchIdsToQuery.join(','); // Commas should be literal in the query
-        const toolName = 'MDPIFilterChromeExtension';
-        // It's good practice to use a real email if you have one for contact,
-        // but example.com should generally work if properly encoded.
-        const maintainerEmail = 'filter-dev@example.com'; 
-        
         const encodedIdType = encodeURIComponent(idType);
-        const encodedToolName = encodeURIComponent(toolName);
-        const encodedMaintainerEmail = encodeURIComponent(maintainerEmail);
+        // const toolName = 'MDPIFilterChromeExtension'; // Removed for testing
+        // const maintainerEmail = 'filter-dev@example.com'; // Removed for testing
+        // const encodedToolName = encodeURIComponent(toolName); // Removed for testing
+        // const encodedMaintainerEmail = encodeURIComponent(maintainerEmail); // Removed for testing
 
-        // Corrected apiUrl:
+        // Corrected apiUrl (Simplified: removed tool and email for testing):
         // - idsString is used directly as its commas should not be encoded.
-        // - toolName and maintainerEmail are now properly encoded.
-        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${idsString}&idtype=${encodedIdType}&format=json&versions=no&tool=${encodedToolName}&email=${encodedMaintainerEmail}`;
+        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${idsString}&idtype=${encodedIdType}&format=json&versions=no`;
         
         // console.log(`[MDPI Filter API] Fetching batch for ${idType.toUpperCase()}s. Batch size: ${batchIdsToQuery.length}. URL: ${apiUrl}`);
 

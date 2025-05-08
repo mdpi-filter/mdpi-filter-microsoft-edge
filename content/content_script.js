@@ -201,10 +201,20 @@ if (!window.mdpiFilterInjected) {
           continue;
         }
 
-        const idsString = batchIdsToQuery.join(',');
+        const idsString = batchIdsToQuery.join(','); // Commas should be literal in the query
         const toolName = 'MDPIFilterChromeExtension';
-        const maintainerEmail = 'filter-dev@example.com'; // Replace if you have a specific contact
-        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${encodeURIComponent(idsString)}&idtype=${encodeURIComponent(idType)}&format=json&versions=no&tool=${toolName}&email=${maintainerEmail}`;
+        // It's good practice to use a real email if you have one for contact,
+        // but example.com should generally work if properly encoded.
+        const maintainerEmail = 'filter-dev@example.com'; 
+        
+        const encodedIdType = encodeURIComponent(idType);
+        const encodedToolName = encodeURIComponent(toolName);
+        const encodedMaintainerEmail = encodeURIComponent(maintainerEmail);
+
+        // Corrected apiUrl:
+        // - idsString is used directly as its commas should not be encoded.
+        // - toolName and maintainerEmail are now properly encoded.
+        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${idsString}&idtype=${encodedIdType}&format=json&versions=no&tool=${encodedToolName}&email=${encodedMaintainerEmail}`;
         
         // console.log(`[MDPI Filter API] Fetching batch for ${idType.toUpperCase()}s. Batch size: ${batchIdsToQuery.length}. URL: ${apiUrl}`);
 
@@ -239,12 +249,12 @@ if (!window.mdpiFilterInjected) {
               overallFoundMdpiInBatches = true;
             }
           } else {
-            console.warn(`[MDPI Filter API] NCBI API request failed for batch ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}): ${response.status}`);
+            console.warn(`[MDPI Filter API] NCBI API request failed for batch ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}): ${response.status} - URL: ${apiUrl}`);
             // Cache all IDs in this failed batch as false
             batchIdsToQuery.forEach(id => runCache.set(id, false));
           }
         } catch (error) {
-          console.error(`[MDPI Filter API] Error fetching batch from NCBI API for ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}):`, error);
+          console.error(`[MDPI Filter API] Error fetching batch from NCBI API for ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}):`, error, `URL: ${apiUrl}`);
           // Cache all IDs in this failed batch as false
           batchIdsToQuery.forEach(id => runCache.set(id, false));
         }

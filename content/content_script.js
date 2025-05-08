@@ -605,94 +605,26 @@ if (!window.mdpiFilterInjected) {
 
     // This is the definition of processAllReferences that should be kept
     function processAllReferences(runCache) {
-      // console.log(`[processAllReferences START] Time: ${new Date().toISOString()}`);
-      const referenceItems = document.querySelectorAll(referenceListSelectors);
-      // console.log(`[processAllReferences] Found ${referenceItems.length} items with selectors.`);
-      let mdpiFoundInThisPass = 0; 
-      for (const item of referenceItems) {
-        let currentAncestor = item.parentElement;
-        let skipItemDueToProcessedAncestor = false; 
-        while (currentAncestor && currentAncestor !== document.body) {
-          if (currentAncestor.matches(referenceListSelectors)) {
-            // If an ancestor is already a processed MDPI reference item, skip this nested one.
-            if (currentAncestor.dataset.mdpiFingerprint && uniqueMdpiReferences.has(currentAncestor.dataset.mdpiFingerprint)) {
-              skipItemDueToProcessedAncestor = true; 
-              break;
-            }
-          }
-          currentAncestor = currentAncestor.parentElement;
-        }
+      // console.log("[MDPI Filter] processAllReferences STARTING");
+      const items = document.querySelectorAll(referenceListSelectors);
+      // console.log(`[MDPI Filter] Found ${items.length} potential reference items.`);
 
-        if (skipItemDueToProcessedAncestor) {
-          // console.log(`[processAllReferences] Skipping item (child of already processed MDPI ref): ${item.textContent.substring(0,50)}...`);
-          continue;
+      items.forEach(item => {
+        // Prevent processing known dynamic elements like MediaWiki's UTCLiveClock
+        // Common IDs for UTCLiveClock are 'utcdate' or 'pt-utcdate' (often within an <li>)
+        if (item.id === 'utcdate' || item.closest('#utcdate') || item.id === 'pt-utcdate' || item.closest('#pt-utcdate')) {
+          // console.log("[MDPI Filter] Skipping UTCLiveClock-related element to prevent interference:", item);
+          return; // Skip this item
         }
-
-        // Avoid re-processing an item if it was already handled in *this specific runAll execution*
-        // (e.g. if it matched multiple times in referenceListSelectors due to broad selectors)
-        if (item.dataset.mdpiProcessedInThisRun === 'true') { 
-            // console.log(`[processAllReferences] Item already processed in this run: ${item.textContent.substring(0,50)}...`);
-            continue;
-        }
-        item.dataset.mdpiProcessedInThisRun = 'true';
 
         if (isMdpiItemByContent(item, runCache)) {
-          mdpiFoundInThisPass++;
-          const refData = extractReferenceData(item); 
-          item.dataset.mdpiResult = 'mdpi'; 
-          item.dataset.mdpiFingerprint = refData.fingerprint; // Store fingerprint on the element
-
-          console.log(`%c[processAllReferences - MDPI item] FP: ${refData.fingerprint.substring(0,50)}... Num: ${refData.number} (Source: ${refData.numberSource}), Text: "${refData.text.substring(0,30)}..."`, 'color: orange;');
-
-          const existingRefIndex = collectedMdpiReferences.findIndex(r => r.fingerprint === refData.fingerprint);
-
-          if (existingRefIndex === -1) { // New MDPI item based on fingerprint
-            uniqueMdpiReferences.add(refData.fingerprint);
-            collectedMdpiReferences.push(refData); 
-            // console.log(`%c[processAllReferences - ADDED NEW MDPI] FP: ${refData.fingerprint.substring(0,50)}...`, 'color: cyan');
-          } else { // Existing MDPI item, update its data
-            if (collectedMdpiReferences[existingRefIndex].number !== refData.number || 
-                collectedMdpiReferences[existingRefIndex].id !== refData.id ||
-                collectedMdpiReferences[existingRefIndex].text !== refData.text) { // Check more fields if necessary
-                 console.warn(`%c[processAllReferences - MDPI item UPDATE] FP: ${refData.fingerprint.substring(0,50)}... OLD Num: ${collectedMdpiReferences[existingRefIndex].number}, NEW Num: ${refData.number} (NewSrc: ${refData.numberSource}). OLD ID: ${collectedMdpiReferences[existingRefIndex].id}, NEW ID: ${refData.id}`, 'color: red; font-weight: bold;');
-            }
-            // Always update with the latest extracted data, as DOM might have changed
-            collectedMdpiReferences[existingRefIndex] = refData; 
-          }
-          
-          if (mode === 'highlight') {
-            styleRef(item, refData.id); 
-          } else if (mode === 'hide') {
-            item.style.display = 'none';
-            item.dataset.mdpiPreviouslyHiddenByFilter = 'true'; // Mark that we hid it
-          }
-
-        } else { 
-          item.dataset.mdpiResult = 'not-mdpi';
-          // If it was previously an MDPI item (has a fingerprint), remove it from our collections
-          if (item.dataset.mdpiFingerprint) {
-            // console.log(`%c[processAllReferences - MDPI item NO LONGER MDPI] FP: ${item.dataset.mdpiFingerprint.substring(0,50)}...`, 'color: magenta;');
-            uniqueMdpiReferences.delete(item.dataset.mdpiFingerprint);
-            collectedMdpiReferences = collectedMdpiReferences.filter(r => r.fingerprint !== item.dataset.mdpiFingerprint);
-            delete item.dataset.mdpiFingerprint;
-          }
-          
-          // Reset styles if previously styled by the extension
-          if (item.dataset.mdpiFilterRefId) {
-             // Reset explicit styles. Be careful if the site uses inline styles for these.
-             // A more robust way might be to add/remove a class.
-             item.style.color = ''; 
-             item.style.border = '';
-             item.style.padding = '';
-             // If it was hidden by 'hide' mode and now it's not MDPI, or mode changed
-             if (item.style.display === 'none' && item.dataset.mdpiPreviouslyHiddenByFilter === 'true') {
-                item.style.display = ''; 
-                delete item.dataset.mdpiPreviouslyHiddenByFilter;
-             }
-          }
+          const refId = `mdpi-ref-${refIdCounter++}`;
+          collectedMdpiReferences.push(extractReferenceData(item)); // Store data before styling
+          styleRef(item, refId); // Style the reference item itself
+          // No need to call styleSearch here as it's for search result pages, not reference lists.
         }
-      }
-      // console.log(`[processAllReferences END] MDPI items found in this pass: ${mdpiFoundInThisPass}. Total unique overall: ${uniqueMdpiReferences.size}. Collected overall: ${collectedMdpiReferences.length}. Time: ${new Date().toISOString()}`);
+      });
+      // console.log("[MDPI Filter] processAllReferences FINISHED");
     }
 
     const updateBadgeAndReferences = () => {

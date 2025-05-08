@@ -34,6 +34,9 @@ if (!window.mdpiFilterInjected) {
   let collectedMdpiReferences = []; // Array to store detailed reference info
   let refIdCounter = 0; // Counter for unique reference IDs
 
+  // Declare mainObserverInstance in a scope accessible by runAll and setupMainObserver
+  let mainObserverInstance = null;
+
   const referenceListSelectors = [
     'li.c-article-references__item',
     'div.References p.ReferencesCopy1',
@@ -825,147 +828,180 @@ if (!window.mdpiFilterInjected) {
     };
 
     async function runAll(source = "initial") {
-      console.log(`%c [MDPI Filter] runAll STARTING... Source: ${source}, Time: ${new Date().toISOString()}`, 'color: blue; font-weight: bold;');
-      refIdCounter = 0;
-      const runCache = new Map();
-
-      // Clear existing styles and data attributes
-      document.querySelectorAll('[data-mdpi-processed-in-this-run], [data-mdpi-result], [data-mdpi-filter-ref-id], [data-mdpi-fingerprint], [data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
-        if (el.style.display === 'none' && el.dataset.mdpiFilterRefId) {
-            el.dataset.mdpiPreviouslyHiddenByFilter = 'true';
-        } else {
-            delete el.dataset.mdpiPreviouslyHiddenByFilter;
-        }
-
-        el.style.color = '';
-        el.style.fontWeight = ''; // Ensure fontWeight is reset for sup elements
-        el.style.border = '';
-        el.style.padding = '';
-        el.style.outline = '';
-        // el.style.textDecoration = ''; // Already handled by specific styling functions if needed
-
-        // Reset display, considering "hide" mode
-        if (mode !== 'hide' && el.style.display === 'none' && el.dataset.mdpiPreviouslyHiddenByFilter === 'true') {
-           el.style.display = '';
-        } else if (mode === 'hide' && el.style.display === 'none' && !el.dataset.mdpiPreviouslyHiddenByFilter) {
-           // If mode is hide, and it's already hidden but not by us, leave it.
-        } else if (mode !== 'hide') {
-            el.style.display = ''; // General reset for highlight mode
-        }
-
-
-        // Selectively delete data attributes. mdpiFilterRefId on the main LI should be preserved if it's re-identified.
-        // However, styleRef will re-add it. Footnote links' mdpiFilterRefId (if any were added) should be cleared.
-        // For simplicity in cleanup, we clear it here. extractReferenceData and styleRef will re-add to LIs.
-        // Spans preceding LIs that get mdpiFilterRefId from styleRef will also have it cleared and re-added.
-        delete el.dataset.mdpiProcessedInThisRun;
-        delete el.dataset.mdpiResult;
-        // For footnote links (<a> or <sup>), they don't get mdpiFilterRefId directly from extractReferenceData.
-        // The main list items (e.g. <li>) get it from extractReferenceData.
-        // styleRef adds it to the <li> and potentially preceding <span> number.
-        // styleInlineFootnotes *reads* it from the target <li> to decide to style the <a>/<sup>.
-        // So, clearing mdpiFilterRefId here is generally okay as it will be re-established on MDPI LIs.
-        delete el.dataset.mdpiFilterRefId;
-        delete el.dataset.mdpiFingerprint;
-        delete el.dataset.mdpiChecked;
-        delete el.dataset.mdpiCitedByProcessed;
-      });
-      // A more targeted cleanup for elements styled with MDPI red, in case some were missed by dataset selectors
-      document.querySelectorAll('[style*="color: rgb(226, 33, 28)"]').forEach(el => {
-        el.style.color = '';
-        el.style.fontWeight = ''; // Also reset fontWeight
-        // el.style.borderBottom = ''; // Reset if styleDirectLink or styleLinkElement was used
-        // el.style.textDecoration = '';
-      });
-
-
-      uniqueMdpiReferences.clear();
-      collectedMdpiReferences = [];
-      // console.log(`[runAll ${source}] Cleared uniqueMdpiReferences and collectedMdpiReferences.`);
-
+      if (mainObserverInstance) {
+        mainObserverInstance.disconnect();
+        // console.log('[MDPI Filter] Main observer disconnected for runAll.');
+      }
       try {
-        if (!window.MDPIFilterDomains || !window.sanitize) {
-          console.error("[MDPI Filter] runAll aborted: Dependencies (domains/sanitizer) not loaded.");
-          return;
+        console.log(`[MDPI Filter] runAll STARTING... Source: ${source}, Time: ${new Date().toISOString()}`);
+
+        // Clear previous results for a fresh run, especially if called by observer
+        if (source !== "initial load" && source !== "hashchange" && source !== "message") {
+            // console.log("[MDPI Filter] Clearing previous MDPI references for re-scan due to source:", source);
+            uniqueMdpiReferences.clear();
+            collectedMdpiReferences = [];
+            // refIdCounter = 0; // Resetting this might lead to duplicate IDs if not careful,
+                               // but if we are re-processing everything, it should be fine.
+                               // For now, let's keep it incrementing to ensure unique IDs across runs.
         }
 
-        // Pre-fetch NCBI data
-        const allPotentialPmcids = new Set();
-        const allPotentialPmids = new Set();
-        document.querySelectorAll(referenceListSelectors).forEach(item => {
-          item.querySelectorAll('a[href]').forEach(link => {
-            const href = link.href;
-            if (href) {
-              const pmcMatch = href.match(/PMC\d+/i);
-              if (pmcMatch) allPotentialPmcids.add(pmcMatch[0].toUpperCase());
-              const pmidMatch = href.match(/(?:pubmed\/|pubmed\.ncbi\.nlm\.nih\.gov\/)(\d+)/i);
-              if (pmidMatch && pmidMatch[1]) allPotentialPmids.add(pmidMatch[1]);
+
+        // Determine if we are on a known search site
+        const currentDomainConfig = (() => {
+          const host = window.location.hostname;
+          const path = window.location.pathname;
+          for (const key in domains) {
+            const domainInfo = domains[key];
+            if (domainInfo.host && host === domainInfo.host) {
+              if (domainInfo.path) {
+                if (domainInfo.path.test(path)) return domainInfo;
+              } else {
+                return domainInfo; // No path specified, host match is enough
+              }
+            } else if (domainInfo.hostRegex && domainInfo.hostRegex.test(host)) {
+               // For hostRegex, path check is also important if specified
+              if (domainInfo.path) {
+                if (domainInfo.path.test(path)) return domainInfo;
+              } else {
+                return domainInfo; // No path specified, hostRegex match is enough
+              }
+            }
+          }
+          return null;
+        })();
+
+        // Create a cache for this run of NCBI API results to avoid redundant checks for the same ID
+        const runCache = new Map(); // Stores pmid/pmcid -> isMdpi (boolean)
+
+        // --- Step 1: Pre-fetch all NCBI IDs if on PubMed or similar ---
+        // This is a global pre-fetch for IDs found on the page, to populate runCache
+        // This step is now more generalized.
+        const allPotentialItemsForNcbiScan = document.querySelectorAll(referenceListSelectors);
+        let allPmcidsToFetch = new Set();
+        let allPmidsToFetch = new Set();
+
+        allPotentialItemsForNcbiScan.forEach(item => {
+            const textContent = item.textContent || '';
+            const innerHTML = item.innerHTML || '';
+
+            // Extract PMIDs and PMCIDs from text content
+            const pmidMatches = textContent.match(/\b\d{7,8}\b/g); // Basic PMID pattern
+            if (pmidMatches) pmidMatches.forEach(id => allPmidsToFetch.add(id));
+
+            const pmcMatchesText = textContent.match(/PMC\d{7,}/g);
+            if (pmcMatchesText) pmcMatchesText.forEach(id => allPmcidsToFetch.add(id.substring(3))); // Store without "PMC"
+
+            // Extract PMIDs and PMCIDs from links (more robust)
+            item.querySelectorAll('a[href]').forEach(link => {
+                const href = link.href;
+                const pmidLinkMatch = href.match(/pubmed\/(\d{7,8})/);
+                if (pmidLinkMatch) allPmidsToFetch.add(pmidLinkMatch[1]);
+
+                const pmcLinkMatch = href.match(/pmc\/articles\/PMC(\d{7,})/);
+                if (pmcLinkMatch) allPmcidsToFetch.add(pmcLinkMatch[1]); // Store without "PMC"
+            });
+        });
+        // console.log("[MDPI Filter] NCBI Pre-scan - PMIDs to fetch:", Array.from(allPmidsToFetch));
+        // console.log("[MDPI Filter] NCBI Pre-scan - PMCIDs to fetch:", Array.from(allPmcidsToFetch));
+
+        if (allPmidsToFetch.size > 0) {
+            await checkNcbiIdsForMdpi(Array.from(allPmidsToFetch), 'pmid', runCache);
+        }
+        if (allPmcidsToFetch.size > 0) {
+            await checkNcbiIdsForMdpi(Array.from(allPmcidsToFetch), 'pmcid', runCache);
+        }
+        // console.log("[MDPI Filter] NCBI Pre-scan - runCache populated:", runCache);
+        // --- End Step 1 ---
+
+
+        if (currentDomainConfig) {
+          // console.log("[MDPI Filter] Operating on known search site:", currentDomainConfig);
+          const { container, linkSelector, itemSelector, doiPattern, htmlContains } = currentDomainConfig;
+          let itemsToProcess = [];
+
+          if (itemSelector) {
+            itemsToProcess = Array.from(document.querySelectorAll(itemSelector));
+          } else if (container) { // Fallback to container if itemSelector is not specific enough
+            itemsToProcess = Array.from(document.querySelectorAll(container));
+          }
+          // console.log(`[MDPI Filter] Found ${itemsToProcess.length} items/containers to process on search site.`);
+
+          itemsToProcess.forEach(item => {
+            let isMdpi = false;
+            if (linkSelector) {
+              if (item.matches(linkSelector) || item.querySelector(linkSelector)) {
+                isMdpi = true;
+              }
+            }
+            if (!isMdpi && doiPattern) {
+              if ((item.textContent || '').includes(doiPattern)) {
+                isMdpi = true;
+              }
+            }
+            if (!isMdpi && htmlContains) {
+              if ((item.innerHTML || '').includes(htmlContains)) {
+                isMdpi = true;
+              }
+            }
+            // Additional check using isMdpiItemByContent for search results if needed
+            if (!isMdpi && isMdpiItemByContent(item, runCache)) {
+                isMdpi = true;
+            }
+
+
+            if (isMdpi) {
+              const referenceData = extractReferenceData(item);
+              if (referenceData.text && !uniqueMdpiReferences.has(referenceData.text.substring(0, 200))) { // Use a substring for uniqueness
+                uniqueMdpiReferences.add(referenceData.text.substring(0, 200));
+                collectedMdpiReferences.push(referenceData);
+                styleSearch(item); // Apply styling/hiding
+                // console.log("[MDPI Filter] Search result identified as MDPI and styled/hidden:", item);
+              }
             }
           });
-        });
-
-        // console.log(`[runAll ${source}] Potential PMCIDs to check: ${[...allPotentialPmcids].length}, PMIDs: ${[...allPotentialPmids].length}`);
-        const ncbiChecks = [];
-        if (allPotentialPmcids.size > 0) {
-          ncbiChecks.push(checkNcbiIdsForMdpi([...allPotentialPmcids], 'pmcid', runCache));
-        }
-        if (allPotentialPmids.size > 0) {
-          ncbiChecks.push(checkNcbiIdsForMdpi([...allPotentialPmids], 'pmid', runCache));
-        }
-        if (ncbiChecks.length > 0) {
-          // console.log(`[runAll ${source}] Awaiting ${ncbiChecks.length} NCBI API call batches...`);
-          await Promise.all(ncbiChecks);
-          // console.log(`[runAll ${source}] NCBI API calls finished. runCache size: ${runCache.size}`);
+        } else {
+          // console.log("[MDPI Filter] Not a known search site or no specific config. Processing general references and links.");
+          // Process general references if not on a specific search site or if config allows
+          processAllReferences(runCache); // Pass runCache here
+          // Process inline footnotes/citations
+          styleInlineFootnotes(runCache); // Pass runCache here
+          // Process direct MDPI links not in reference lists
+          processDirectMdpiLinks(runCache); // Pass runCache here
         }
 
+        updateBadgeAndReferences();
+        console.log(`[MDPI Filter] runAll FINISHED. Source: ${source}, unique: ${uniqueMdpiReferences.size}, collected: ${collectedMdpiReferences.length}, Time: ${new Date().toISOString()}`);
 
-        // processSearchSites(); // Assuming this is for different site types, ensure it's defined
-        // processCitedByEntries(); // Assuming this is for "cited by" sections, ensure it's defined
-        
-        processAllReferences(runCache); // This is synchronous now
-        styleInlineFootnotes();     // Style footnotes based on processed references
-        processDirectMdpiLinks();   // Style direct links to MDPI articles
-        
-        updateBadgeAndReferences(); 
       } catch (error) {
-        console.error(`[MDPI Filter runAll ${source}] Error:`, error);
+        console.error("[MDPI Filter] Error in runAll:", error);
+      } finally {
+        if (mainObserverInstance) {
+          mainObserverInstance.observe(document.documentElement, {
+            childList: true,
+            subtree: true
+          });
+          // console.log('[MDPI Filter] Main observer reconnected after runAll.');
+        }
       }
-      console.log(`%c [MDPI Filter] runAll FINISHED. Source: ${source}, unique: ${uniqueMdpiReferences.size}, collected: ${collectedMdpiReferences.length}, Time: ${new Date().toISOString()}`, 'color: blue; font-weight: bold;');
     }
 
     const debouncedRunAll = window.debounce(runAll, 250);
 
     function setupMainObserver() {
-      const targetNode = document.body;
-      if (!targetNode) {
-        console.error("[MDPI Filter] Cannot find document.body to observe.");
-        return;
+      if (mainObserverInstance) {
+        mainObserverInstance.disconnect(); // Disconnect previous if any
       }
-
-      // console.log("[MDPI Filter] Setting up Main observer for document.body");
-
-      const observerConfig = {
-        childList: true,
-        subtree: true
-      };
-
-      const observer = new MutationObserver((mutationsList, observer) => {
-        let nodesAdded = false;
-        for (const mutation of mutationsList) {
-          if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-            nodesAdded = true;
-            break;
-          }
-        }
-
-        if (nodesAdded) {
-          // console.log("[MDPI Filter] Main observer detected added nodes. Triggering debounced runAll.");
-          debouncedRunAll("main observer");
-        }
+      mainObserverInstance = new MutationObserver((mutationsList, observer) => {
+        // console.log('[MDPI Filter] Main observer detected DOM change.');
+        // No need to iterate mutationsList if we're just debouncing a full run
+        debouncedRunAll("main observer");
       });
 
-      observer.observe(targetNode, observerConfig);
-      // console.log("[MDPI Filter] Main observer started.");
+      mainObserverInstance.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+      // console.log("[MDPI Filter] Main MutationObserver set up.");
     }
 
     function setupCitedByObserver() {

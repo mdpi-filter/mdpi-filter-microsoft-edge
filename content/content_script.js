@@ -76,79 +76,74 @@ if (!window.mdpiFilterInjected) {
     const styleSup = supOrA => {
       if (!supOrA) return;
 
-      // Style the main element (sup or a) using !important
-      supOrA.style.setProperty('color', '#E2211C', 'important'); // MDPI Red
-      supOrA.style.setProperty('font-weight', 'bold', 'important');
+      // Style the main element (sup or a)
+      supOrA.style.color      = '#E2211C'; // MDPI Red
+      supOrA.style.fontWeight = 'bold';
 
-      // If supOrA is a sup element
+      // If supOrA is a sup element, specifically style any anchor tag and its content within it
       if (supOrA.tagName.toLowerCase() === 'sup') {
-        // We've already styled supOrA (the <sup> itself).
-        // Now, also style its immediate parent if it's an <a> tag.
-        // This handles <a><sup>text</sup></a> structures for full link highlighting.
-        if (supOrA.parentElement && supOrA.parentElement.tagName.toLowerCase() === 'a') {
-          const parentAnchor = supOrA.parentElement;
-          parentAnchor.style.setProperty('color', '#E2211C', 'important');
-          parentAnchor.style.setProperty('font-weight', 'bold', 'important');
-          // Consider styling text-decoration-color if underlines need to match
-          // parentAnchor.style.setProperty('text-decoration-color', '#E2211C', 'important');
-        }
-
-        // Original logic for Wikipedia-style sup > a > span (anchor *inside* sup)
-        const anchorElementInsideSup = supOrA.querySelector('a');
-        if (anchorElementInsideSup) {
-          anchorElementInsideSup.style.setProperty('color', '#E2211C', 'important'); // Ensure link text is red
-          anchorElementInsideSup.style.setProperty('font-weight', 'bold', 'important'); // Ensure link text is bold
+        const anchorElement = supOrA.querySelector('a');
+        if (anchorElement) {
+          anchorElement.style.color      = '#E2211C';
+          anchorElement.style.fontWeight = 'bold';
+          // Also style text nodes directly inside the anchor, if any, or its children
+          Array.from(anchorElement.childNodes).forEach(child => {
+            if (child.nodeType === Node.ELEMENT_NODE) {
+              child.style.color      = '#E2211C';
+              child.style.fontWeight = 'bold';
+            }
+          });
 
           // Wikipedia uses spans for brackets, ensure they are also red
-          const bracketSpans = anchorElementInsideSup.querySelectorAll('span.cite-bracket');
+          const bracketSpans = anchorElement.querySelectorAll('span.cite-bracket');
           bracketSpans.forEach(span => {
-            span.style.setProperty('color', '#E2211C', 'important');
-            // fontWeight will be inherited or can be explicitly set if needed
-            // span.style.setProperty('font-weight', 'bold', 'important');
+            span.style.color = '#E2211C';
+            // fontWeight will be inherited from the anchor or sup
           });
         }
       }
       // If supOrA is an anchor itself that contains a sup
       else if (supOrA.tagName.toLowerCase() === 'a') {
-        // We've already styled supOrA (the <a> itself).
-        // Now, find and style any <sup> element inside it.
-        const supElementInside = supOrA.querySelector('sup');
-        if (supElementInside) {
-            supElementInside.style.setProperty('color', '#E2211C', 'important');
-            supElementInside.style.setProperty('font-weight', 'bold', 'important');
+        const supInsideAnchor = supOrA.querySelector('sup');
+        if (supInsideAnchor) {
+          supInsideAnchor.style.color      = '#E2211C';
+          supInsideAnchor.style.fontWeight = 'bold';
+
+          // Check for Wikipedia brackets if the anchor itself is the primary target
+          // and contains a sup with an anchor that has brackets.
+          // This case might be less common if styleInlineFootnotes correctly identifies the sup first.
+          const anchorInsideSup = supInsideAnchor.querySelector('a');
+          if (anchorInsideSup) {
+            const bracketSpans = anchorInsideSup.querySelectorAll('span.cite-bracket');
+            bracketSpans.forEach(span => {
+                span.style.color = '#E2211C';
+            });
+          }
         }
       }
     };
 
-    const styleRef = (item, refId) => { // Accept refId
+    const styleRef = (item, refId) => {
       item.style.color = '#E2211C';
-      // Assign the unique ID as a data attribute
       item.dataset.mdpiFilterRefId = refId;
 
       let currentSibling = item.previousElementSibling;
-      // Use a more flexible regex, similar to extractReferenceData, to identify number patterns
-      // Matches: "[1]", "1.", "1", "1)"' etc. at the start of the text.
+      // Regex to identify common reference number patterns like "1.", "[1]", "1)"
       const referenceStartRegex = /^\s*(?:\[\s*\d+\s*\]|\d+\s*[.)]?)/;
 
       while (currentSibling) {
         if (currentSibling.matches('span[aria-owns^="pdfjs_internal_id_"]')) {
-          // Stop if we hit a PDF.js specific container, likely end of relevant preceding elements
-          break;
+          break; // Stop if we hit a PDF.js specific container
         }
 
         if (currentSibling.matches('span')) {
-          // Also assign the ID to preceding spans for potential targeting by popup click
-          currentSibling.dataset.mdpiFilterRefId = refId;
+          // If the span contains the reference number, style it and assign the refId
           if (referenceStartRegex.test(currentSibling.textContent || '')) {
             currentSibling.style.color = '#E2211C';
-            // Found and styled the reference number, assume this is the primary one.
-            break;
+            currentSibling.dataset.mdpiFilterRefId = refId; // Assign refId for scrolling
           }
-          // Removed the 'else' block that would style non-matching spans red.
-          // We only want to style the span if it's identified as the reference number.
         } else if (currentSibling.tagName !== 'BR') {
-          // If we encounter a non-span, non-BR element, stop traversing.
-          // This assumes numbers are typically in spans or the item itself.
+          // Stop if we hit a non-span, non-BR element
           break;
         }
         currentSibling = currentSibling.previousElementSibling;
@@ -181,7 +176,6 @@ if (!window.mdpiFilterInjected) {
 
     // --- Core Logic Functions ---
 
-    // Renamed and refactored to handle multiple IDs and use a cache
     async function checkNcbiIdsForMdpi(ids, idType, runCache) { // ids is an array
       // console.log(`[MDPI Filter API] checkNcbiIdsForMdpi called for ${idType.toUpperCase()}s:`, JSON.stringify(ids));
       if (!ids || ids.length === 0) {
@@ -266,7 +260,6 @@ if (!window.mdpiFilterInjected) {
       return fallbackResult;
     }
 
-    // Modified to use the pre-populated runCache. This function is now synchronous for NCBI ID checks.
     const isMdpiItemByContent = (item, runCache) => { // Removed async
       if (!item) return false;
       const textContent = item.textContent || '';
@@ -607,6 +600,7 @@ if (!window.mdpiFilterInjected) {
       return { id: refId, number, text, link, rawHTML: sanitize(item.innerHTML), fingerprint, numberSource };
     };
 
+    // This is the definition of processAllReferences that should be kept
     function processAllReferences(runCache) {
       // console.log(`[processAllReferences START] Time: ${new Date().toISOString()}`);
       const referenceItems = document.querySelectorAll(referenceListSelectors);
@@ -681,7 +675,7 @@ if (!window.mdpiFilterInjected) {
           }
           
           // Reset styles if previously styled by the extension
-          if (item.dataset.mdpiFilterRefId) { 
+          if (item.dataset.mdpiFilterRefId) {
              // Reset explicit styles. Be careful if the site uses inline styles for these.
              // A more robust way might be to add/remove a class.
              item.style.color = ''; 
@@ -735,80 +729,66 @@ if (!window.mdpiFilterInjected) {
       });
     };
 
-    // processAllReferences no longer needs to be async if isMdpiItemByContent is sync
-    function processAllReferences(runCache) {
-      // console.log(`[processAllReferences START] Time: ${new Date().toISOString()}`);
-      const referenceItems = document.querySelectorAll(referenceListSelectors);
-      // console.log(`[processAllReferences] Found ${referenceItems.length} items with selectors.`);
-      let mdpiFoundInThisPass = 0; // Renamed for clarity
-      for (const item of referenceItems) { // Use for...of for await in loop
-        let currentAncestor = item.parentElement;
-        let skipItemDueToProcessedAncestor = false; // Corrected variable name
-        while (currentAncestor && currentAncestor !== document.body) {
-          if (currentAncestor.matches(referenceListSelectors)) {
-            const ancestorRefId = currentAncestor.dataset.mdpiFilterRefId;
-            if (ancestorRefId && currentAncestor.dataset.mdpiFingerprint && uniqueMdpiReferences.has(currentAncestor.dataset.mdpiFingerprint)) {
-              skipItemDueToProcessedAncestor = true; // Corrected variable name
-              break;
-            }
+    function styleInlineFootnotes() {
+      document.querySelectorAll('a[href*="#"]').forEach(a => {
+        const href = a.getAttribute('href');
+        const rid = a.dataset.xmlRid;
+        let targetEl = null;
+        let frag = null;
+
+        if (rid) {
+          try {
+            targetEl = document.querySelector(`[id="${CSS.escape(rid)}"]`);
+          } catch (e) {
+            targetEl = null;
           }
-          currentAncestor = currentAncestor.parentElement;
         }
 
-        if (skipItemDueToProcessedAncestor) { // Corrected variable name
-          continue;
-        }
-
-        if (item.dataset.mdpiProcessedInThisRun) {
-            continue;
-        }
-        item.dataset.mdpiProcessedInThisRun = 'true';
-
-        if (isMdpiItemByContent(item, runCache)) { // Removed await
-          mdpiFoundInThisPass++;
-          const refData = extractReferenceData(item); 
-          item.dataset.mdpiResult = 'mdpi'; 
-          item.dataset.mdpiFingerprint = refData.fingerprint;
-
-          if (!uniqueMdpiReferences.has(refData.fingerprint)) {
-            uniqueMdpiReferences.add(refData.fingerprint);
-            collectedMdpiReferences.push(refData); 
-
-            if (mode === 'highlight') {
-              styleRef(item, refData.id); 
-            } else if (mode === 'hide') {
-              item.style.display = 'none';
-              const parentListItem = item.closest('li, div.citation, div.reference'); 
-              if (parentListItem && parentListItem !== item && item.matches(referenceListSelectors)) {
-                // Future: Consider hiding parent if it only contains this item and becomes empty.
+        if (!targetEl && href && href.includes('#')) {
+          const hashIndex = href.lastIndexOf('#');
+          if (hashIndex !== -1 && hashIndex < href.length - 1) {
+            frag = href.slice(hashIndex + 1);
+            if (frag) {
+              try {
+                targetEl = document.getElementById(frag);
+              } catch (e) {
+                targetEl = null;
               }
             }
-          } else {
-            if (mode === 'highlight') {
-              styleRef(item, refData.id); 
-            } else if (mode === 'hide') {
-              item.style.display = 'none';
-            }
-          }
-        } else {
-          item.dataset.mdpiResult = 'not-mdpi';
-          delete item.dataset.mdpiFingerprint;
-          if (item.dataset.mdpiFilterRefId) { 
-             item.style.color = '';
-             item.style.border = '';
-             item.style.padding = '';
-             if (item.style.display === 'none' && mode === 'hide') { 
-                // Only unhide if it was hidden by 'hide' mode and is no longer MDPI.
-                // If mode is 'highlight', display should not have been 'none' from us.
-             } else if (item.style.display === 'none' && mode === 'highlight' && item.dataset.mdpiPreviouslyHiddenByFilter === 'true') {
-                // If mode changed from hide to highlight and this item was hidden
-                item.style.display = '';
-                delete item.dataset.mdpiPreviouslyHiddenByFilter;
-             }
           }
         }
-      }
-      // updateBadgeAndReferences is called at the end of runAll
+
+        if (!targetEl) {
+          return;
+        }
+
+        let listItem = null;
+        try {
+          if (targetEl.matches(referenceListSelectors)) {
+            listItem = targetEl;
+          } else {
+            const innerRefElement = targetEl.querySelector(referenceListSelectors);
+            if (innerRefElement) {
+              listItem = innerRefElement;
+            } else {
+              listItem = targetEl.closest(referenceListSelectors);
+            }
+          }
+        } catch (e) {
+          // console.warn(`[MDPI Filter] DOMException with matches/closest for targetEl (href: "${href}", frag: "${frag}"):`, targetEl, e);
+          return;
+        }
+
+        if (listItem && listItem.dataset.mdpiFilterRefId) {
+          const supElement = a.closest('sup');
+          if (supElement) {
+            styleSup(supElement);
+          } else {
+            const supInsideA = a.querySelector('sup');
+            styleSup(supInsideA || a);
+          }
+        }
+      });
     }
 
     function processDirectMdpiLinks() {
@@ -844,13 +824,13 @@ if (!window.mdpiFilterInjected) {
       }, 2000);
     };
 
-    async function runAll(source = "initial") { 
+    async function runAll(source = "initial") {
       console.log(`%c [MDPI Filter] runAll STARTING... Source: ${source}, Time: ${new Date().toISOString()}`, 'color: blue; font-weight: bold;');
-      refIdCounter = 0; 
-      const runCache = new Map(); 
+      refIdCounter = 0;
+      const runCache = new Map();
 
+      // Clear existing styles and data attributes
       document.querySelectorAll('[data-mdpi-processed-in-this-run], [data-mdpi-result], [data-mdpi-filter-ref-id], [data-mdpi-fingerprint], [data-mdpi-checked], [data-mdpi-cited-by-processed]').forEach(el => {
-        // Store if element was hidden by 'hide' mode before clearing styles
         if (el.style.display === 'none' && el.dataset.mdpiFilterRefId) {
             el.dataset.mdpiPreviouslyHiddenByFilter = 'true';
         } else {
@@ -858,52 +838,95 @@ if (!window.mdpiFilterInjected) {
         }
 
         el.style.color = '';
-        el.style.fontWeight = '';
+        el.style.fontWeight = ''; // Ensure fontWeight is reset for sup elements
         el.style.border = '';
         el.style.padding = '';
-        // Don't reset display here if mode is 'hide', allow 'hide' to take effect.
-        // Reset display only if it's not going to be hidden again by 'hide' mode.
+        el.style.outline = '';
+        // el.style.textDecoration = ''; // Already handled by specific styling functions if needed
+
+        // Reset display, considering "hide" mode
         if (mode !== 'hide' && el.style.display === 'none' && el.dataset.mdpiPreviouslyHiddenByFilter === 'true') {
            el.style.display = '';
         } else if (mode === 'hide' && el.style.display === 'none' && !el.dataset.mdpiPreviouslyHiddenByFilter) {
            // If mode is hide, and it's already hidden but not by us, leave it.
-        } else if (mode !== 'hide') {} // Replaced {…} with {}
+        } else if (mode !== 'hide') {
+            el.style.display = ''; // General reset for highlight mode
+        }
 
 
-        el.style.outline = ''; 
-
+        // Selectively delete data attributes. mdpiFilterRefId on the main LI should be preserved if it's re-identified.
+        // However, styleRef will re-add it. Footnote links' mdpiFilterRefId (if any were added) should be cleared.
+        // For simplicity in cleanup, we clear it here. extractReferenceData and styleRef will re-add to LIs.
+        // Spans preceding LIs that get mdpiFilterRefId from styleRef will also have it cleared and re-added.
         delete el.dataset.mdpiProcessedInThisRun;
         delete el.dataset.mdpiResult;
+        // For footnote links (<a> or <sup>), they don't get mdpiFilterRefId directly from extractReferenceData.
+        // The main list items (e.g. <li>) get it from extractReferenceData.
+        // styleRef adds it to the <li> and potentially preceding <span> number.
+        // styleInlineFootnotes *reads* it from the target <li> to decide to style the <a>/<sup>.
+        // So, clearing mdpiFilterRefId here is generally okay as it will be re-established on MDPI LIs.
         delete el.dataset.mdpiFilterRefId;
-        delete el.dataset.mdpiFingerprint; 
+        delete el.dataset.mdpiFingerprint;
         delete el.dataset.mdpiChecked;
         delete el.dataset.mdpiCitedByProcessed;
       });
+      // A more targeted cleanup for elements styled with MDPI red, in case some were missed by dataset selectors
       document.querySelectorAll('[style*="color: rgb(226, 33, 28)"]').forEach(el => {
         el.style.color = '';
-        el.style.fontWeight = '';
-        el.style.borderBottom = '';
-        el.style.textDecoration = '';
+        el.style.fontWeight = ''; // Also reset fontWeight
+        // el.style.borderBottom = ''; // Reset if styleDirectLink or styleLinkElement was used
+        // el.style.textDecoration = '';
       });
 
+
       uniqueMdpiReferences.clear();
-      collectedMdpiReferences = []; 
+      collectedMdpiReferences = [];
       // console.log(`[runAll ${source}] Cleared uniqueMdpiReferences and collectedMdpiReferences.`);
 
       try {
-        // ... (API pre-fetch logic) ...
-        // console.log(`[runAll ${source}] Before processAllReferences. runCache size: ${runCache.size}`);
-        processAllReferences(runCache); 
-        // console.log(`[runAll ${source}] After processAllReferences. unique: ${uniqueMdpiReferences.size}, collected: ${collectedMdpiReferences.length}`);
+        if (!window.MDPIFilterDomains || !window.sanitize) {
+          console.error("[MDPI Filter] runAll aborted: Dependencies (domains/sanitizer) not loaded.");
+          return;
+        }
+
+        // Pre-fetch NCBI data
+        const allPotentialPmcids = new Set();
+        const allPotentialPmids = new Set();
+        document.querySelectorAll(referenceListSelectors).forEach(item => {
+          item.querySelectorAll('a[href]').forEach(link => {
+            const href = link.href;
+            if (href) {
+              const pmcMatch = href.match(/PMC\d+/i);
+              if (pmcMatch) allPotentialPmcids.add(pmcMatch[0].toUpperCase());
+              const pmidMatch = href.match(/(?:pubmed\/|pubmed\.ncbi\.nlm\.nih\.gov\/)(\d+)/i);
+              if (pmidMatch && pmidMatch[1]) allPotentialPmids.add(pmidMatch[1]);
+            }
+          });
+        });
+
+        // console.log(`[runAll ${source}] Potential PMCIDs to check: ${[...allPotentialPmcids].length}, PMIDs: ${[...allPotentialPmids].length}`);
+        const ncbiChecks = [];
+        if (allPotentialPmcids.size > 0) {
+          ncbiChecks.push(checkNcbiIdsForMdpi([...allPotentialPmcids], 'pmcid', runCache));
+        }
+        if (allPotentialPmids.size > 0) {
+          ncbiChecks.push(checkNcbiIdsForMdpi([...allPotentialPmids], 'pmid', runCache));
+        }
+        if (ncbiChecks.length > 0) {
+          // console.log(`[runAll ${source}] Awaiting ${ncbiChecks.length} NCBI API call batches...`);
+          await Promise.all(ncbiChecks);
+          // console.log(`[runAll ${source}] NCBI API calls finished. runCache size: ${runCache.size}`);
+        }
+
+
+        // processSearchSites(); // Assuming this is for different site types, ensure it's defined
+        // processCitedByEntries(); // Assuming this is for "cited by" sections, ensure it's defined
         
-        // processSearchSites();       // Temporarily commented out as it's not defined
-        // processCitedByEntries();    // Temporarily commented out as it's not defined
-        // styleInlineFootnotes();     // Temporarily commented out as it's not defined
-        processDirectMdpiLinks();   
+        processAllReferences(runCache); // This is synchronous now
+        styleInlineFootnotes();     // Style footnotes based on processed references
+        processDirectMdpiLinks();   // Style direct links to MDPI articles
         
-        // console.log(`[runAll ${source}] Before updateBadgeAndReferences. unique: ${uniqueMdpiReferences.size}, collected: ${collectedMdpiReferences.length}`);
         updateBadgeAndReferences(); 
-        
       } catch (error) {
         console.error(`[MDPI Filter runAll ${source}] Error:`, error);
       }

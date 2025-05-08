@@ -192,7 +192,7 @@ if (!window.mdpiFilterInjected) {
         return ids.some(id => runCache.get(id) === true);
       }
 
-      const BATCH_SIZE = 150; // Max IDs per NCBI API request (limit is ~200, 150 is safer)
+      const BATCH_SIZE = 50; // Max IDs per NCBI API request (REDUCED for testing)
       let overallFoundMdpiInBatches = false;
 
       for (let i = 0; i < idsToQueryInitially.length; i += BATCH_SIZE) {
@@ -203,14 +203,13 @@ if (!window.mdpiFilterInjected) {
 
         const idsString = batchIdsToQuery.join(','); // Commas should be literal in the query
         const encodedIdType = encodeURIComponent(idType);
-        // const toolName = 'MDPIFilterChromeExtension'; // Removed for testing
-        // const maintainerEmail = 'filter-dev@example.com'; // Removed for testing
-        // const encodedToolName = encodeURIComponent(toolName); // Removed for testing
-        // const encodedMaintainerEmail = encodeURIComponent(maintainerEmail); // Removed for testing
+        const toolName = 'MDPIFilterChromeExtension'; 
+        const maintainerEmail = 'dicing_nastily314@aleeas.com'; 
+        const encodedToolName = encodeURIComponent(toolName);
+        const encodedMaintainerEmail = encodeURIComponent(maintainerEmail);
 
-        // Corrected apiUrl (Simplified: removed tool and email for testing):
-        // - idsString is used directly as its commas should not be encoded.
-        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${idsString}&idtype=${encodedIdType}&format=json&versions=no`;
+        // Restored tool and email parameters
+        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${idsString}&idtype=${encodedIdType}&format=json&versions=no&tool=${encodedToolName}&email=${encodedMaintainerEmail}`;
         
         // console.log(`[MDPI Filter API] Fetching batch for ${idType.toUpperCase()}s. Batch size: ${batchIdsToQuery.length}. URL: ${apiUrl}`);
 

@@ -180,87 +180,80 @@ if (!window.mdpiFilterInjected) {
     // --- Core Logic Functions ---
 
     async function checkNcbiIdsForMdpi(ids, idType, runCache) { // ids is an array
-      // console.log(`[MDPI Filter API] checkNcbiIdsForMdpi called for ${idType.toUpperCase()}s:`, JSON.stringify(ids));
       if (!ids || ids.length === 0) {
-        // console.log(`[MDPI Filter API] No IDs provided for ${idType.toUpperCase()}, returning false.`);
         return false;
       }
 
-      const idsToQuery = ids.filter(id => {
-        if (runCache.has(id)) {
-          // console.log(`[MDPI Filter API Cache] ID ${id} (${idType.toUpperCase()}) found in cache: ${runCache.get(id)}`);
-          return false; // Already in cache, don't query
-        }
-        return true;
-      });
+      // Filter out IDs that are already in the runCache
+      const idsToQueryInitially = ids.filter(id => !runCache.has(id));
 
-      if (idsToQuery.length === 0) { // All IDs were in cache
-        // console.log(`[MDPI Filter API] All ${idType.toUpperCase()}s were in cache. Checking if any were MDPI.`);
+      if (idsToQueryInitially.length === 0) { // All IDs were already in cache
+        // Check if any of the original IDs (including those initially in cache) are MDPI
         return ids.some(id => runCache.get(id) === true);
       }
 
-      // console.log(`[MDPI Filter API] ${idType.toUpperCase()}s to query API:`, JSON.stringify(idsToQuery));
-      const idsString = idsToQuery.join(',');
-      const toolName = 'MDPIFilterChromeExtension';
-      const maintainerEmail = 'filter-dev@example.com'; // Replace if you have a specific contact
-      const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${encodeURIComponent(idsString)}&idtype=${encodeURIComponent(idType)}&format=json&versions=no&tool=${toolName}&email=${maintainerEmail}`;
-      // console.log(`[MDPI Filter API] Fetching URL for ${idType.toUpperCase()}s: ${apiUrl}`);
+      const BATCH_SIZE = 150; // Max IDs per NCBI API request (limit is ~200, 150 is safer)
+      let overallFoundMdpiInBatches = false;
 
-      try {
-        const response = await fetch(apiUrl);
-        // console.log(`[MDPI Filter API] Response for ${idType.toUpperCase()}s ${idsString}: ${response.status}, ok: ${response.ok}`);
-        if (response.ok) {
-          const data = await response.json();
-          // console.log(`[MDPI Filter API] Data for ${idType.toUpperCase()}s ${idsString}:`, data);
-          let foundMdpiInBatch = false;
-          if (data.records && data.records.length > 0) {
-            data.records.forEach(record => {
-              const idThisRecordIsFor = record.requested_id;
-              // console.log(`[MDPI Filter API] Processing record:`, record);
+      for (let i = 0; i < idsToQueryInitially.length; i += BATCH_SIZE) {
+        const batchIdsToQuery = idsToQueryInitially.slice(i, i + BATCH_SIZE);
+        if (batchIdsToQuery.length === 0) {
+          continue;
+        }
 
-              if (idThisRecordIsFor && idsToQuery.includes(idThisRecordIsFor)) {
-                if (record.doi && record.doi.startsWith(MDPI_DOI)) {
-                  // console.log(`[MDPI Filter API Cache SET] ID ${idThisRecordIsFor} (${idType.toUpperCase()}) is MDPI (DOI: ${record.doi}). Caching true.`);
-                  runCache.set(idThisRecordIsFor, true);
-                  foundMdpiInBatch = true;
-                } else {
-                  // console.log(`[MDPI Filter API Cache SET] ID ${idThisRecordIsFor} (${idType.toUpperCase()}) is NOT MDPI (DOI: ${record.doi || 'N/A'}). Caching false.`);
-                  runCache.set(idThisRecordIsFor, false);
+        const idsString = batchIdsToQuery.join(',');
+        const toolName = 'MDPIFilterChromeExtension';
+        const maintainerEmail = 'filter-dev@example.com'; // Replace if you have a specific contact
+        const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${encodeURIComponent(idsString)}&idtype=${encodeURIComponent(idType)}&format=json&versions=no&tool=${toolName}&email=${maintainerEmail}`;
+        
+        // console.log(`[MDPI Filter API] Fetching batch for ${idType.toUpperCase()}s. Batch size: ${batchIdsToQuery.length}. URL: ${apiUrl}`);
+
+        try {
+          const response = await fetch(apiUrl);
+          if (response.ok) {
+            const data = await response.json();
+            let foundMdpiInThisBatch = false;
+            if (data.records && data.records.length > 0) {
+              data.records.forEach(record => {
+                const idThisRecordIsFor = record.requested_id;
+                // Ensure the record's ID was actually part of this batch query
+                if (idThisRecordIsFor && batchIdsToQuery.includes(idThisRecordIsFor)) {
+                  if (record.doi && record.doi.startsWith(MDPI_DOI)) {
+                    runCache.set(idThisRecordIsFor, true);
+                    foundMdpiInThisBatch = true;
+                  } else {
+                    runCache.set(idThisRecordIsFor, false);
+                  }
                 }
-              } else {
-                // console.log(`[MDPI Filter API] Record's requested_id "${idThisRecordIsFor}" not in this query batch or missing. Ignoring for cache update based on this record.`);
+              });
+            }
+            // Ensure all IDs *queried in this specific batch* get an entry in the cache,
+            // even if they weren't in the API response (e.g. invalid IDs).
+            batchIdsToQuery.forEach(id => {
+              if (!runCache.has(id)) {
+                runCache.set(id, false);
               }
             });
-          } else {
-            // console.log(`[MDPI Filter API] No records found in API response for ${idType.toUpperCase()}s ${idsString}.`);
-          }
-          
-          idsToQuery.forEach(id => {
-            if (!runCache.has(id)) {
-              // console.log(`[MDPI Filter API Cache SET] ID ${id} (${idType.toUpperCase()}) not in API response records. Caching false.`);
-              runCache.set(id, false);
+
+            if (foundMdpiInThisBatch) {
+              overallFoundMdpiInBatches = true;
             }
-          });
-          const result = foundMdpiInBatch || ids.some(id => runCache.get(id) === true);
-          // console.log(`[MDPI Filter API] Returning ${result} for ${idType.toUpperCase()}s batch (foundMdpiInBatch: ${foundMdpiInBatch}, any cached MDPI: ${ids.some(id => runCache.get(id) === true)})`);
-          return result;
-        } else {
-          // console.warn(`[MDPI Filter API] NCBI API request failed for ${idType.toUpperCase()}s ${idsString}: ${response.status}`);
-          idsToQuery.forEach(id => {
-            // console.log(`[MDPI Filter API Cache SET] API error for ID ${id} (${idType.toUpperCase()}). Caching false.`);
-            runCache.set(id, false);
-          });
+          } else {
+            console.warn(`[MDPI Filter API] NCBI API request failed for batch ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}): ${response.status}`);
+            // Cache all IDs in this failed batch as false
+            batchIdsToQuery.forEach(id => runCache.set(id, false));
+          }
+        } catch (error) {
+          console.error(`[MDPI Filter API] Error fetching batch from NCBI API for ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}):`, error);
+          // Cache all IDs in this failed batch as false
+          batchIdsToQuery.forEach(id => runCache.set(id, false));
         }
-      } catch (error) {
-        // console.error(`[MDPI Filter API] Error fetching from NCBI API for ${idType.toUpperCase()}s ${idsString}:`, error);
-        idsToQuery.forEach(id => {
-          // console.log(`[MDPI Filter API Cache SET] Fetch exception for ID ${id} (${idType.toUpperCase()}). Caching false.`);
-          runCache.set(id, false);
-        });
       }
-      const fallbackResult = ids.some(id => runCache.get(id) === true);
-      // console.log(`[MDPI Filter API] Returning ${fallbackResult} (fallback after error/failure) for ${idType.toUpperCase()}s batch.`);
-      return fallbackResult;
+
+      // The function should return true if any MDPI ID was found in the processed batches
+      // OR if any of the original input 'ids' are now marked as true in the cache
+      // (this covers cases where some IDs might have been in cache before the call).
+      return overallFoundMdpiInBatches || ids.some(id => runCache.get(id) === true);
     }
 
     const isMdpiItemByContent = (item, runCache) => { // Removed async

@@ -192,7 +192,7 @@ if (!window.mdpiFilterInjected) {
         return ids.some(id => runCache.get(id) === true);
       }
 
-      const BATCH_SIZE = 50; // Max IDs per NCBI API request (REDUCED for testing)
+      const BATCH_SIZE = 20; // Max IDs per NCBI API request (REDUCED FURTHER for testing URL length)
       let overallFoundMdpiInBatches = false;
 
       for (let i = 0; i < idsToQueryInitially.length; i += BATCH_SIZE) {

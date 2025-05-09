@@ -46,6 +46,7 @@ if (!window.mdpiFilterInjected) {
     'div.reference',
     'li.separated-list-item',
     'li[id^="CR"]', // Springer
+    'li[id^="cit"]', // TandF and similar (e.g., id="cit0008")
     'li[id^="ref-"]', // Generic
     'li[id^="reference-"]', // Generic
     'li[id^="B"]', // NCBI/PMC specific Bxx-journal-id format

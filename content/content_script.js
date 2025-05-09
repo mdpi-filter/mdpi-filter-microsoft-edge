@@ -690,12 +690,12 @@ if (!window.mdpiFilterInjected) {
       // Create a unique set of references based on fingerprint for the popup list
       const uniqueFingerprints = new Set();
       const uniqueDisplayReferences = [];
-      collectedMdpiReferences.forEach(ref => {
-        if (ref && ref.fingerprint && !uniqueFingerprints.has(ref.fingerprint)) {
-          uniqueFingerprints.add(ref.fingerprint);
-          uniqueDisplayReferences.push(ref);
-        } else if (!ref || !ref.fingerprint) {
-          // console.warn('[MDPI Filter CS] Skipping ref in updateBadgeAndReferences due to missing fingerprint:', ref);
+      collectedMdpiReferences.forEach(refObject => { // Renamed to avoid confusion
+        if (refObject && refObject.fingerprint && !uniqueFingerprints.has(refObject.fingerprint)) {
+          uniqueFingerprints.add(refObject.fingerprint);
+          uniqueDisplayReferences.push(refObject);
+        } else if (!refObject || !refObject.fingerprint) {
+          // console.warn('[MDPI Filter CS] Skipping refObject in updateBadgeAndReferences due to missing fingerprint:', refObject);
         }
       });
 
@@ -715,8 +715,13 @@ if (!window.mdpiFilterInjected) {
       
       const badgeCount = sortedReferences.length; 
 
+      // Log the first item from sortedReferences BEFORE the map operation
+      if (sortedReferences.length > 0) {
+        console.log(`%c[MDPI Filter CS] updateBadgeAndReferences: First item in sortedReferences (BEFORE .map):\n  ref.text="${sortedReferences[0].text}"\n  ref.link="${sortedReferences[0].link}"`, 'color: purple; font-weight: bold;');
+      }
+
       // Transform references for the popup, ensuring URL is decoded and under the 'url' property
-      const referencesForPopup = sortedReferences.map(ref => {
+      const referencesForPopup = sortedReferences.map((ref, index) => { // Added index for logging
         const popupRef = {
           id: ref.id,
           fingerprint: ref.fingerprint,
@@ -726,6 +731,11 @@ if (!window.mdpiFilterInjected) {
           url: ref.link 
         };
         
+        // Log the state of popupRef.text BEFORE attempting to decode it for the first item
+        if (index === 0) {
+            console.log(`%c[MDPI Filter CS] updateBadgeAndReferences (map): First item's popupRef.text BEFORE decodeUrlsInString: "${popupRef.text}"`, 'color: orange; font-weight: bold;');
+        }
+
         if (popupRef.url && typeof popupRef.url === 'string') {
             try {
                 popupRef.url = decodeURIComponent(popupRef.url);
@@ -741,18 +751,13 @@ if (!window.mdpiFilterInjected) {
         return popupRef;
       });
 
-      // Modified log to inspect the text property more closely
       if (referencesForPopup.length > 0) {
         console.log(`%c[MDPI Filter CS] updateBadgeAndReferences: Sending ${referencesForPopup.length} items. First item text after decodeUrlsInString: "${referencesForPopup[0].text}"`, 'color: blue; font-weight: bold;');
-        // Optionally log the full first object to see all its properties
-        // console.log('%c[MDPI Filter CS] First full reference object for popup:', 'color: blue;', referencesForPopup[0]);
+        // console.log('%c[MDPI Filter CS] First full reference object for popup:', 'color: blue;', referencesForPopup[0]); // For more detailed inspection if needed
       } else {
         console.log(`%c[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup.`, 'color: blue; font-weight: bold;');
       }
       
-      // The original console.log for preparing to send the message can be kept or removed
-      // console.log(`%c[MDPI Filter CS] Preparing to send mdpiUpdate. BadgeCount: ${badgeCount}, Processed References for Popup: ${referencesForPopup.length} (${referencesForPopup.filter(ref => ref.isMdpi).length})`, 'color: green; font-weight: bold;', referencesForPopup.slice(0, 5));
-
       chrome.runtime.sendMessage({
           action: "mdpiUpdate",
           data: {

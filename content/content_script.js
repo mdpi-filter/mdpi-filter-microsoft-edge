@@ -292,9 +292,41 @@ if (!window.mdpiFilterInjected) {
       const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
 
       const isMdpiDoi = (doi) => doi && doi.startsWith(MDPI_DOI);
-      const extractDoiFromLink = (href) => {
-        if (!href) return null;
-        const doiMatch = href.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i); // Avoid matching HTML entities in DOIs
+      const extractDoiFromLink = (hrefAttribute) => { // Renamed parameter for clarity
+        if (!hrefAttribute) return null;
+        
+        let targetUrl = hrefAttribute;
+        // Check for redirector links like those on tandfonline
+        // e.g., /action/getFTRLinkout?url=https%3A%2F%2Fdoi.org%2F10.3390%2Fnu10101413
+        // or other sites that might put the DOI in a query parameter.
+        try {
+          // Create a full URL if hrefAttribute is relative, to allow URL object parsing
+          const base = hrefAttribute.startsWith('/') ? window.location.origin : undefined;
+          const urlObj = new URL(hrefAttribute, base);
+          
+          if (urlObj.searchParams.has('url')) {
+            const decodedUrlParam = decodeURIComponent(urlObj.searchParams.get('url'));
+            targetUrl = decodedUrlParam; // Now targetUrl is, e.g., https://doi.org/10.3390/nu10101413
+          } else if (urlObj.searchParams.has('doi')) { 
+            const doiParam = decodeURIComponent(urlObj.searchParams.get('doi'));
+            // If it's just the DOI string (e.g., "10.3390/xxxx"), prepend doi.org to form a URL-like string for the regex
+            if (!doiParam.toLowerCase().startsWith('http') && doiParam.includes('/')) {
+              targetUrl = `https://doi.org/${doiParam}`;
+            } else {
+              targetUrl = doiParam; // It might be a full URL already
+            }
+          }
+          // Add more parameter checks if other sites use different query params for DOIs
+          // else if (urlObj.searchParams.has('some_other_doi_param')) { ... }
+
+        } catch (e) {
+          // console.warn('[MDPI Filter] Error parsing URL in extractDoiFromLink:', hrefAttribute, e);
+          // Fallback to using the original hrefAttribute if URL parsing fails
+          // This ensures the original behavior is maintained if the URL isn't a redirector we handle
+        }
+
+        // Regex to find DOIs: 10. followed by 4+ digits, then /, then any chars except " ' & < > space
+        const doiMatch = targetUrl.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i); 
         return doiMatch ? doiMatch[1] : null;
       };
 

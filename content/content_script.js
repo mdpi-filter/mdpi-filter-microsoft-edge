@@ -71,6 +71,22 @@ if (!window.mdpiFilterInjected) {
     const citationProcessCache = new WeakMap(); // Stores Element -> isMDPI (boolean)
     // ---
 
+    // Helper function to decode URLs within a string
+    function decodeUrlsInString(str) {
+      if (!str || typeof str !== 'string') return str;
+      // Regex to find URLs
+      const urlRegex = /(https?:\/\/[^\s"'>]+)/g;
+      return str.replace(urlRegex, (url) => {
+          try {
+              // Decode the matched URL part
+              return decodeURIComponent(url);
+          } catch (e) {
+              // console.warn(`[MDPI Filter CS] Failed to decode URL part: ${url}`, e);
+              return url; // Return original URL part if decoding fails
+          }
+      });
+    }
+
     // --- Styling Functions ---
     const highlightStyle = '2px solid red';
 
@@ -705,20 +721,26 @@ if (!window.mdpiFilterInjected) {
           id: ref.id,
           fingerprint: ref.fingerprint,
           number: ref.number,
-          text: ref.text,
+          text: ref.text, // This is the text that will be displayed
           isMdpi: ref.isMdpi, // This should be true for all items in sortedReferences
           url: ref.link // Initialize url with the value from ref.link
         };
         
-        // Decode the URL
+        // Decode the 'url' property (which comes from ref.link)
         if (popupRef.url && typeof popupRef.url === 'string') {
             try {
                 popupRef.url = decodeURIComponent(popupRef.url);
             } catch (e) {
-                console.warn(`[MDPI Filter CS] Failed to decode URL for popup: ${popupRef.url}`, e);
+                console.warn(`[MDPI Filter CS] Failed to decode URL for popupRef.url: ${popupRef.url}`, e);
                 // If decoding fails, popupRef.url will retain its original value
             }
         }
+
+        // Decode any URLs found within the 'text' property itself
+        if (popupRef.text && typeof popupRef.text === 'string') {
+            popupRef.text = decodeUrlsInString(popupRef.text);
+        }
+
         return popupRef;
       });
 

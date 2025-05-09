@@ -473,7 +473,7 @@ if (!window.mdpiFilterInjected) {
         if (item.matches && item.matches('div.citation, div.citation-content') && item.parentElement && item.parentElement.id) {
             idSourceElement = item.parentElement;
         } else if (!item.id && item.closest) { 
-            const closestWithRefId = item.closest('[id^="r"], [id^="ref-"], [id^="cite_note-"], [id^="CR"], [id^="B"]');
+            const closestWithRefId = item.closest('[id^="r"], [id^="ref-"], [id^="cite_note-"], [id^="CR"], [id^="B"], [id^="cit"]'); // Added cit here for completeness with regex
             if (closestWithRefId) {
                 idSourceElement = closestWithRefId;
             }
@@ -481,7 +481,7 @@ if (!window.mdpiFilterInjected) {
         
         // Use idSourceElement.id, which could be listItemDomId if item has an ID, or an ancestor's ID
         if (idSourceElement && idSourceElement.id) {
-            const idMatch = idSourceElement.id.match(/(?:CR|B|ref-|reference-|cite_note-|r)(\d+)/i);
+            const idMatch = idSourceElement.id.match(/(?:CR|B|ref-|reference-|cite_note-|r|cit)(\d+)/i); // Added 'cit'
             if (idMatch && idMatch[1]) {
                 const parsedIdNum = parseInt(idMatch[1], 10);
                 if (!isNaN(parsedIdNum)) {
@@ -597,6 +597,7 @@ if (!window.mdpiFilterInjected) {
 
       text = rawTextContent;
       // Remove the extracted number prefix from the text if a number was found
+      // This ensures the base text is clean before we potentially prepend our formatted number
       if (number !== null) {
         const prefixRegex = new RegExp(`^\\s*\\[?${number}\\]?\\s*\\.?\\s*`);
         text = text.replace(prefixRegex, '').trim();
@@ -645,15 +646,21 @@ if (!window.mdpiFilterInjected) {
           }
       }
 
-      const normalizedTextForFingerprint = (text || '').replace(/\s+/g, ' ').trim().substring(0, 100);
+      const textForFingerprint = text; // Use the cleaned text before prepending the number for the fingerprint
+
+      if (number !== null) {
+        text = number + ". " + text; // Prepend the number to the text that will be displayed
+      }
+
+      const normalizedTextForFingerprint = (textForFingerprint || '').replace(/\s+/g, ' ').trim().substring(0, 100);
       const fingerprint = `${normalizedTextForFingerprint}|${link || ''}`;
       
-      console.log(`%c[extractReferenceData - ${internalScrollId}] DOM ID: ${listItemDomId || 'N/A'}, FP: ${fingerprint.substring(0,50)}... Num: ${number} (Source: ${numberSource}), Text: "${text.substring(0, 30)}..."`, 'color: green;');
+      console.log(`%c[extractReferenceData - ${internalScrollId}] DOM ID: ${listItemDomId || 'N/A'}, FP: ${fingerprint.substring(0,50)}... Num: ${number} (Source: ${numberSource}), Text (for popup): "${text.substring(0, 30)}..."`, 'color: green;');
       return { 
-        id: internalScrollId, // Internal ID like "mdpi-ref-0"
-        listItemDomId: listItemDomId, // Actual DOM ID like "CR35"
+        id: internalScrollId, 
+        listItemDomId: listItemDomId, 
         number, 
-        text, 
+        text, // This text now includes the prepended number if found
         link, 
         rawHTML: sanitize(item.innerHTML), 
         fingerprint, 

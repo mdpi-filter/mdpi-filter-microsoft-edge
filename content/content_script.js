@@ -221,13 +221,37 @@ if (!window.mdpiFilterInjected) {
             if (data.records && data.records.length > 0) {
               data.records.forEach(record => {
                 const idThisRecordIsFor = record.requested_id;
-                // Ensure the record's ID was actually part of this batch query
+                let isMdpiFromApi = false; // Default to not MDPI for this record
+
                 if (idThisRecordIsFor && batchIdsToQuery.includes(idThisRecordIsFor)) {
-                  if (record.doi && record.doi.startsWith(MDPI_DOI)) {
-                    runCache.set(idThisRecordIsFor, true);
-                    foundMdpiInThisBatch = true;
+                  // Primary check: DOI
+                  if (record.doi) {
+                    if (record.doi.startsWith(MDPI_DOI)) {
+                      isMdpiFromApi = true;
+                      // console.log(`%c[MDPI Filter API] Marked as MDPI (DOI): ${idType.toUpperCase()} ${idThisRecordIsFor} (DOI: ${record.doi})`, 'color: blue');
+                    } else {
+                      isMdpiFromApi = false; // Non-MDPI DOI explicitly means not MDPI by this check
+                      // console.log(`%c[MDPI Filter API] Marked as NOT MDPI (Non-MDPI DOI): ${idType.toUpperCase()} ${idThisRecordIsFor} (DOI: ${record.doi})`, 'color: red');
+                    }
                   } else {
-                    runCache.set(idThisRecordIsFor, false);
+                    // Secondary checks if no DOI is present in the record - Journal name check is last resort here
+                    // Define the short list of journals for API check (as per user request)
+                    const API_MDPI_JOURNALS_REGEX = /\b(Int J Mol Sci|IJMS|Nutrients|Molecules)\b/i;
+
+                    if (
+                      (record.publisher_name && record.publisher_name.toLowerCase().includes('mdpi')) ||
+                      (record.copyright && record.copyright.toLowerCase().includes('mdpi')) ||
+                      (record.journal_title && API_MDPI_JOURNALS_REGEX.test(record.journal_title))
+                    ) {
+                      isMdpiFromApi = true;
+                      // console.log(`%c[MDPI Filter API] Marked as MDPI (Other - No DOI in record): ${idType.toUpperCase()} ${idThisRecordIsFor} (Journal: ${record.journal_title}, Publisher: ${record.publisher_name})`, 'color: blue');
+                    } else {
+                      isMdpiFromApi = false;
+                    }
+                  }
+                  runCache.set(idThisRecordIsFor, isMdpiFromApi);
+                  if (isMdpiFromApi) {
+                    foundMdpiInThisBatch = true;
                   }
                 }
               });
@@ -261,39 +285,70 @@ if (!window.mdpiFilterInjected) {
       return overallFoundMdpiInBatches || ids.some(id => runCache.get(id) === true);
     }
 
-    const isMdpiItemByContent = (item, runCache) => { // Removed async
+    const isMdpiItemByContent = (item, runCache) => {
       if (!item) return false;
       const textContent = item.textContent || '';
       const innerHTML = item.innerHTML || '';
+      const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
 
-      // Priority 1: Check for direct MDPI links
-      if (item.querySelector(`a[href*="${MDPI_DOMAIN}"]`)) {
+      const isMdpiDoi = (doi) => doi && doi.startsWith(MDPI_DOI);
+      const extractDoiFromLink = (href) => {
+        if (!href) return null;
+        const doiMatch = href.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i); // Avoid matching HTML entities in DOIs
+        return doiMatch ? doiMatch[1] : null;
+      };
+
+      // Priority 1: DOI Check (from links)
+      let hasNonMdpiDoiLink = false;
+      let hasMdpiDoiLink = false;
+
+      for (const link of allLinksInItem) {
+        const doiInLink = extractDoiFromLink(link.href);
+        if (doiInLink) {
+          if (isMdpiDoi(doiInLink)) {
+            hasMdpiDoiLink = true;
+            break; 
+          } else {
+            hasNonMdpiDoiLink = true; 
+          }
+        }
+      }
+
+      if (hasMdpiDoiLink) {
+        // console.log('[MDPI Filter] Decision: MDPI (Priority 1: MDPI DOI in link)');
+        return true;
+      }
+      if (hasNonMdpiDoiLink) { // No MDPI DOI link found, but at least one non-MDPI DOI link was found
+        // console.log('[MDPI Filter] Decision: NOT MDPI (Priority 1: Non-MDPI DOI in link, no MDPI DOI link)');
+        return false;
+      }
+      // If we reach here, no DOI links of any kind were found in the item.
+
+      // Priority 2: MDPI DOI String in Text Content
+      const mdpiDoiTextPattern = new RegExp(MDPI_DOI.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
+      if (mdpiDoiTextPattern.test(textContent)) {
+        // console.log('[MDPI Filter] Decision: MDPI (Priority 2: MDPI DOI string in text)');
         return true;
       }
 
-      const mdpiDoiPatternInLink = new RegExp(`${MDPI_DOI.replace(/\./g, '\\.')}/|doi\\.org/${MDPI_DOI.replace(/\./g, '\\.')}/|dx\\.doi\\.org/${MDPI_DOI.replace(/\./g, '\\.')}/`);
-      const allLinksInItem = Array.from(item.querySelectorAll('a[href], a[data-track-item_id]'));
-
-      let pmcIdStrings = new Set(); // PMCIDs found specifically in *this* item
-      let pmidStrings = new Set();  // PMIDs found specifically in *this* item
-
-      // Priority 2a: Check links for MDPI DOI patterns (fast check)
+      // Priority 3: Direct MDPI Domain Link Check
       for (const link of allLinksInItem) {
-        const href = link.href;
-        const dataTrackId = link.getAttribute('data-track-item_id');
-
-        if ((href && mdpiDoiPatternInLink.test(href)) ||
-            (dataTrackId && dataTrackId.includes(`${MDPI_DOI}/`))) {
+        if (link.href && link.href.includes(MDPI_DOMAIN)) {
+          // console.log('[MDPI Filter] Decision: MDPI (Priority 3: Direct MDPI domain link)');
           return true;
         }
+      }
 
-        // Collect PMCIDs and PMIDs from *this item* for checking against the global cache
-        if (href) {
-          const pmcMatch = href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+(\.\d+)?)/i);
+      // Priority 4: PMID/PMCID to DOI Conversion Check (via runCache)
+      let pmcIdStrings = new Set();
+      let pmidStrings = new Set();
+      for (const link of allLinksInItem) {
+        if (link.href) {
+          const pmcMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+(\.\d+)?)/i);
           if (pmcMatch && pmcMatch[1]) {
-            pmcIdStrings.add(pmcMatch[1]);
+            pmcIdStrings.add(pmcMatch[1].replace(/\.\d+$/, ''));
           } else {
-            const pmidMatch = href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
+            const pmidMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
             if (pmidMatch && pmidMatch[1]) {
               pmidStrings.add(pmidMatch[1]);
             }
@@ -301,95 +356,57 @@ if (!window.mdpiFilterInjected) {
         }
       }
 
-      // Priority 2b: Check collected PMCIDs/PMIDs against the pre-populated runCache
-      // The runCache should have been populated by global API calls in runAll
-      let itemIsMdpiBasedOnNcbiId = false;
-      for (const pmcId of pmcIdStrings) {
-        if (runCache.get(pmcId) === true) { 
-          itemIsMdpiBasedOnNcbiId = true;
-          break;
-        }
-      }
-      if (itemIsMdpiBasedOnNcbiId) return true;
+      const allItemNcbiIds = [...pmidStrings, ...pmcIdStrings];
+      let itemHasNcbiIds = allItemNcbiIds.length > 0;
+      let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = true;
+      let atLeastOneIdNotInCacheOrFailed = false;
 
-      for (const pmid of pmidStrings) {
-        if (runCache.get(pmid) === true) {
-          itemIsMdpiBasedOnNcbiId = true;
-          break;
-        }
-      }
-      if (itemIsMdpiBasedOnNcbiId) return true;
-      // No API calls made from here for NCBI IDs anymore.
-
-      // Priority 3: Check for MDPI DOI string in text content
-      if (textContent.includes(`${MDPI_DOI}/`)) {
-        let hasConflictingNonMdpiDoiLink = false;
-        for (const link of allLinksInItem) {
-          const href = link.href;
-          if (!href) continue;
-          const isDoiResolverLinkConflicting = href.includes('doi.org/') || href.includes('dx.doi.org/');
-          const containsDoiPatternConflicting = /\b10\.\d{4,9}\/[^?\s#]+/.test(href);
-          if ((isDoiResolverLinkConflicting || containsDoiPatternConflicting) && !mdpiDoiPatternInLink.test(href)) {
-            hasConflictingNonMdpiDoiLink = true;
-            break;
+      if (itemHasNcbiIds) {
+        for (const id of allItemNcbiIds) {
+          if (runCache.has(id)) {
+            if (runCache.get(id) === true) { // API indicated MDPI
+              // console.log('[MDPI Filter] Decision: MDPI (Priority 4: PMID/PMCID resolved to MDPI via API cache)');
+              return true;
+            } else {
+              // runCache.get(id) is false, API indicated NOT MDPI for this ID.
+              // This specific ID does not make the item MDPI.
+            }
+          } else {
+            // This ID was not in the cache. API service might have failed for it or it wasn't processed.
+            atLeastOneIdNotInCacheOrFailed = true;
+            allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
           }
         }
-        if (!hasConflictingNonMdpiDoiLink) {
-          return true;
+        // If loop completes, no ID was cached as MDPI.
+        // Now check if all IDs were definitively non-MDPI.
+        if (allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) {
+          // console.log('[MDPI Filter] Decision: NOT MDPI (Priority 4: All PMIDs/PMCIDs in item resolved to non-MDPI via API cache)');
+          return false;
         }
+        // If atLeastOneIdNotInCacheOrFailed is true, it means API results were inconclusive for some IDs. Fall through.
       }
+      // Fall through if no NCBI IDs in item, or if API results were inconclusive for some IDs.
 
-      // Priority 4: If a definitive non-MDPI DOI link exists, this item is NOT MDPI.
-      let hasDefinitiveNonMdpiDoiLink = false;
-      for (const link of allLinksInItem) {
-        const href = link.href;
-        if (!href) continue;
-
-        const isDoiResolverLink = href.includes('doi.org/') || href.includes('dx.doi.org/');
-        const containsGeneralDoiPattern = /\b10\.\d{4,9}\/[^?\s#]+/.test(href);
-
-        if (isDoiResolverLink || containsGeneralDoiPattern) {
-          if (!mdpiDoiPatternInLink.test(href)) {
-            hasDefinitiveNonMdpiDoiLink = true;
-            break;
-          }
-        }
-      }
-      if (hasDefinitiveNonMdpiDoiLink) {
-        return false;
-      }
-
-      // Priority 5: Journal name check (last resort)
+      // Priority 5: Journal Name Check (Last Resort)
+      // Using existing M_JOURNALS_STRONG and M_JOURNALS_WEAK logic from your code.
+      // The user requested this to be the last resort and decisive if reached.
       const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS'];
       const M_JOURNALS_WEAK = ['Nutrients', 'Molecules'];
 
-      const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.join('|')})\\b`, 'i');
+
+      const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.map(j => j.replace('.', '\\.')).join('|')})\\b`, 'i');
       if (strongJournalRegex.test(innerHTML)) {
+        // console.log('[MDPI Filter] Decision: MDPI (Priority 5: Strong MDPI journal name)');
         return true;
       }
 
-      const weakJournalRegex = new RegExp(`\\b(${M_JOURNALS_WEAK.join('|')})\\b`, 'i');
+      const weakJournalRegex = new RegExp(`\\b(${M_JOURNALS_WEAK.map(j => j.replace('.', '\\.')).join('|')})\\b`, 'i');
       if (weakJournalRegex.test(innerHTML)) {
-        let hasStrongNonMdpiEvidenceFromOtherLinks = false;
-        for (const linkEl of allLinksInItem) {
-          const href = linkEl.href;
-          if (!href) continue;
-
-          const isClearlyMdpiLinkByPatternOrDomain = mdpiDoiPatternInLink.test(href) || href.includes(MDPI_DOMAIN);
-          const isNcbiLink = href.includes("ncbi.nlm.nih.gov/");
-
-          if (!isClearlyMdpiLinkByPatternOrDomain && !isNcbiLink) {
-            hasStrongNonMdpiEvidenceFromOtherLinks = true;
-            break;
-          }
-        }
-
-        if (hasStrongNonMdpiEvidenceFromOtherLinks) {
-          return false;
-        }
+        // console.log('[MDPI Filter] Decision: MDPI (Priority 5: Weak MDPI journal name - now considered MDPI)');
         return true;
       }
 
+      // console.log('[MDPI Filter] Decision: NOT MDPI (Fell through all checks)');
       return false;
     };
 

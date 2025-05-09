@@ -654,8 +654,8 @@ if (!window.mdpiFilterInjected) {
         id: internalScrollId, 
         listItemDomId: listItemDomId, 
         number, 
-        text: // This text now includes the prepended number if found
-        link, 
+        text: text, // This text now includes the prepended number if found
+        link: link, 
         rawHTML: sanitize(item.innerHTML), 
         fingerprint, 
         numberSource 

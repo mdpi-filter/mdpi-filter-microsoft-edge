@@ -177,17 +177,57 @@ if (!window.mdpiFilterInjected) {
       }
     };
 
-    const styleDirectLink = link => {
-      const titleElement = link.querySelector('h3');
-      const targetElement = titleElement || link;
-      targetElement.style.color = '#E2211C';
-      targetElement.style.borderBottom = '1px dotted #E2211C';
-      if (targetElement !== link) {
-        link.style.textDecoration = 'none';
+    const styleDirectLink = (elementToStyle) => {
+      if (elementToStyle && elementToStyle.matches && elementToStyle.matches('li.ListArticleItem') && elementToStyle.closest('#section-cited-by')) {
+        // This is a "Cited by" LI item from ScienceDirect
+        elementToStyle.style.borderLeft = '3px solid #E2211C';
+        elementToStyle.style.paddingLeft = '5px';
+        // console.log(`[MDPI Filter] Styling 'Cited by' LI:`, elementToStyle);
+
+        const titleH3 = elementToStyle.querySelector('h3.u-font-serif');
+        if (titleH3) {
+          titleH3.style.color = '#E2211C';
+          // console.log(`[MDPI Filter] Styling 'Cited by' H3:`, titleH3);
+          
+          // Also color the link text within H3
+          const linkInH3 = titleH3.querySelector('a.anchor-primary');
+          if (linkInH3) {
+            // Prefer styling the specific .anchor-text span if it exists
+            const anchorTextSpan = linkInH3.querySelector('.anchor-text');
+            const linkTextTarget = anchorTextSpan || linkInH3;
+            linkTextTarget.style.color = '#E2211C'; 
+            // console.log(`[MDPI Filter] Styling 'Cited by' link text in H3:`, linkTextTarget);
+          }
+        }
+      } else if (elementToStyle && elementToStyle.tagName === 'A') {
+        // This is a general MDPI link (not a "Cited by" LI container)
+        let textDisplayElement = elementToStyle; 
+        let borderTargetElement = elementToStyle; 
+
+        const h3Ancestor = elementToStyle.closest('h3');
+        if (h3Ancestor) {
+          textDisplayElement = h3Ancestor; // Color the H3
+        }
+
+        const anchorTextSpan = elementToStyle.querySelector('.anchor-text, .title, span');
+        if (anchorTextSpan) {
+          borderTargetElement = anchorTextSpan; // Border the span
+        }
+        
+        textDisplayElement.style.color = '#E2211C';
+        if (window.getComputedStyle(textDisplayElement).display === 'inline') {
+          textDisplayElement.style.display = 'inline-block';
+        }
+
+        borderTargetElement.style.borderBottom = '1px dotted #E2211C';
+        if (borderTargetElement !== textDisplayElement) { 
+            borderTargetElement.style.color = '#E2211C'; 
+        }
+        if (window.getComputedStyle(borderTargetElement).display === 'inline') {
+          borderTargetElement.style.display = 'inline-block';
+        }
       }
-      if (window.getComputedStyle(targetElement).display === 'inline') {
-        targetElement.style.display = 'inline-block';
-      }
+      // else: unhandled element type or context, do nothing
     };
 
     const styleLinkElement = link => {

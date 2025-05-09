@@ -144,10 +144,11 @@ chrome.webNavigation.onCompleted.addListener(
 // 3) Message listener for updates, popup requests, AND scroll requests
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Message from Content Script with count and references
-  if (msg.type === 'mdpiUpdate' && sender.tab?.id) {
+  if (msg.action === 'mdpiUpdate' && sender.tab?.id) { // Changed msg.type to msg.action
     const tabId = sender.tab.id;
-    const count = msg.count ?? 0;
-    const references = msg.references ?? [];
+    // Access data from msg.data
+    const count = msg.data?.badgeCount ?? 0; 
+    const references = msg.data?.references ?? [];
     const text = count > 0 ? String(count) : '';
 
     console.log(`[MDPI Filter BG] Received mdpiUpdate for tab ${tabId}. Count: ${count}, References array length: ${references.length}`);
@@ -160,7 +161,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     try {
         chrome.action.setBadgeText({ text, tabId });
         if (count > 0) {
-          chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId });
+          chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId }); // Example: Red for MDPI
+        } else {
+          chrome.action.setBadgeBackgroundColor({ color: '#6c757d', tabId }); // Example: Grey for no MDPI
         }
         // console.log(`[MDPI Filter BG] Badge text set to "${text}" for tab ${tabId}`);
     } catch (e) {
@@ -171,19 +174,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     tabReferenceData[tabId] = references;
     // console.log(`[MDPI Filter BG] Stored ${tabReferenceData[tabId].length} references for tab ${tabId}.`);
     sendResponse({status: "mdpiUpdate received by background"}); // Acknowledge receipt
-    return false; 
+    return false; // Message processed synchronously
   }
 
   // Message from Popup Script requesting references
   if (msg.type === 'getMdpiReferences') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0 && tabs[0].id) {
-        const activeTabId = tabs[0].id;
-        const references = tabReferenceData[activeTabId] || [];
-        console.log(`[MDPI Filter BG] Popup requested refs for tab ${activeTabId}. Sending ${references.length} references.`);
-        sendResponse({ references: references });
+        const tabId = tabs[0].id;
+        const data = tabReferenceData[tabId] || [];
+        // console.log(`[MDPI Filter BG] Sending ${data.length} references to popup for tab ${tabId}.`);
+        sendResponse({ references: data });
       } else {
-        console.warn("[MDPI Filter BG] Could not get active tab for popup request.");
+        console.warn("[MDPI Filter BG] getMdpiReferences: No active tab found or tab has no ID.");
         sendResponse({ references: [] });
       }
     });

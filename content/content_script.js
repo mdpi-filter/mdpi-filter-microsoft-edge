@@ -794,13 +794,7 @@ if (!window.mdpiFilterInjected) {
         // Fallback sort by original discovery order (refId) if numbers are same or both null
         const numA = parseInt(a.id.split('-').pop(), 10);
         const numB = parseInt(b.id.split('-').pop(), 10);
-        if (!isNaN(numA) && !isNaN(numB)) {
-            return numA - numB;
-        } else if (!isNaN(numA)) {
-            return -1; 
-        } else if (!isNaN(numB)) {
-            return 1;  
-        }
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
         return a.id.localeCompare(b.id); // Absolute fallback
       });
 
@@ -820,65 +814,117 @@ if (!window.mdpiFilterInjected) {
     };
 
     function styleInlineFootnotes() {
-      document.querySelectorAll('a[href*="#"]').forEach(a => {
-        const href = a.getAttribute('href');
-        const rid = a.dataset.xmlRid;
-        let targetEl = null;
-        let frag = null;
+      // console.log('[MDPI Filter] Styling inline footnotes. Collected MDPI refs:', collectedMdpiReferences.length);
+      if (collectedMdpiReferences.length === 0) return;
 
-        if (rid) {
-          try {
-            targetEl = document.querySelector(`[id="${CSS.escape(rid)}"]`);
-          } catch (e) {
-            targetEl = null;
-          }
+      const styledInlineRefs = new Set(); // Prevent styling the same inline ref multiple times
+
+      collectedMdpiReferences.forEach(refData => {
+        if (!refData || !refData.id) {
+          // console.warn("[MDPI Filter] Invalid refData or missing ID in styleInlineFootnotes:", refData);
+          return;
+        }
+        const refId = refData.id; // This is the ID from the reference list item (e.g., "CR28")
+        // console.log(`[MDPI Filter] Processing inline footnotes for MDPI ref ID: ${refId}`);
+
+        // Selectors for common inline citation patterns
+        // These usually link via href to an id in the reference list.
+        const commonSelectors = [
+          `a[href="#${refId}"]`,                        // Standard anchor link
+          // Handling for Wikipedia: refId might be "Foo_Bar_2023" or "1"
+          // If refId is purely numeric, cite_note-X is common.
+          // If refId is complex, direct href match is more likely.
+          `a[href="#cite_note-${refId}"]`,
+          // Try to get base part for wiki links, e.g. "Foo_Bar_2023" from "cite_note-Foo_Bar_2023-1"
+          // or "1" from "cite_note-1"
+          `a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
+          `a[href="#ref-${refId}"]`,                   // Common ref prefix
+          `a[href="#reference-${refId}"]`,             // Common reference prefix
+          // Handle cases where refId might be "B1" and link is "#B1" or refId is "1" and link is "#B1"
+          `a[href="#B${refId.replace(/^B/i, '')}"]`,   // NCBI Bxx style
+          `a[href="#CR${refId.replace(/^CR/i, '')}"]`, // Springer style
+          // ADDED FOR TANDFONLINE and similar sites using data-rid or data-bris-rid
+          `a[data-rid="${refId}"]`,
+          `a[data-bris-rid="${refId}"]`
+        ];
+
+        const numericRefIdPart = refId.replace(/\D/g, ''); // e.g. "28" from "CR28"
+        if (numericRefIdPart) {
+            // Add selectors using only the numeric part, as some sites are inconsistent
+            commonSelectors.push(`a[href="#cite_note-${numericRefIdPart}"]`);
+            commonSelectors.push(`a[href="#ref-${numericRefIdPart}"]`);
+            commonSelectors.push(`a[href="#reference-${numericRefIdPart}"]`);
+            commonSelectors.push(`a[href="#B${numericRefIdPart}"]`);
+            commonSelectors.push(`a[href="#CR${numericRefIdPart}"]`);
         }
 
-        if (!targetEl && href && href.includes('#')) {
-          const hashIndex = href.lastIndexOf('#');
-          if (hashIndex !== -1 && hashIndex < href.length - 1) {
-            frag = href.slice(hashIndex + 1);
-            if (frag) {
-              try {
-                targetEl = document.getElementById(frag);
-              } catch (e) {
-                targetEl = null;
+
+        // Selectors for <sup> elements containing links or specific IDs
+        const supParentSelectors = [
+          `sup a[href="#${refId}"]`,
+          `sup a[href="#cite_note-${refId}"]`,
+          // Add variations for sup selectors as well
+          `sup a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
+          `sup a[href="#ref-${refId}"]`,
+          `sup a[href="#reference-${refId}"]`,
+          `sup a[href="#B${refId.replace(/^B/i, '')}"]`,
+          `sup a[href="#CR${refId.replace(/^CR/i, '')}"]`,
+          `sup[id="ref${refId}"]`, // sup itself has ID (less common for linking)
+          // Tandfonline: if the structure was sup > a[data-rid], it would be:
+          `sup a[data-rid="${refId}"]`,
+          `sup a[data-bris-rid="${refId}"]`
+        ];
+         if (numericRefIdPart) {
+            supParentSelectors.push(`sup a[href="#cite_note-${numericRefIdPart}"]`);
+            supParentSelectors.push(`sup a[href="#ref-${numericRefIdPart}"]`);
+            supParentSelectors.push(`sup a[href="#reference-${numericRefIdPart}"]`);
+            supParentSelectors.push(`sup a[href="#B${numericRefIdPart}"]`);
+            supParentSelectors.push(`sup a[href="#CR${numericRefIdPart}"]`);
+            supParentSelectors.push(`sup[id="ref-${numericRefIdPart}"]`); // e.g. sup id="ref-1"
+        }
+
+        // Combine and query, ensuring uniqueness
+        const allSelectorsString = [...new Set([...commonSelectors, ...supParentSelectors])].join(', ');
+        // console.log(`[MDPI Filter CS] Querying inline for refId '${refId}' (num: '${numericRefIdPart}') with: ${allSelectorsString}`);
+
+        try {
+          document.querySelectorAll(allSelectorsString).forEach(el => {
+            let targetElementToStyle = el; // Default to the matched element
+
+            // Determine the most appropriate element to style (<sup> or <a>)
+            if (el.tagName.toLowerCase() === 'sup') {
+              // If a <sup> itself was matched (e.g., by its ID), or it contains a matched <a>.
+              targetElementToStyle = el;
+            } else if (el.tagName.toLowerCase() === 'a') {
+              // If an <a> was matched.
+              // Prefer styling its parent <sup> if it exists and is a direct parent.
+              // Check parentElement and also closest('sup') to handle nested structures if necessary,
+              // but prioritize direct parent.
+              const directSupParent = el.parentElement;
+              if (directSupParent && directSupParent.tagName.toLowerCase() === 'sup') {
+                targetElementToStyle = directSupParent;
+              } else {
+                // Otherwise, style the <a> itself. This covers tandfonline's a[data-rid].
+                targetElementToStyle = el;
               }
             }
-          }
-        }
 
-        if (!targetEl) {
-          return;
-        }
-
-        let listItem = null;
-        try {
-          if (targetEl.matches(referenceListSelectors)) {
-            listItem = targetEl;
-          } else {
-            const innerRefElement = targetEl.querySelector(referenceListSelectors);
-            if (innerRefElement) {
-              listItem = innerRefElement;
+            if (targetElementToStyle && !styledInlineRefs.has(targetElementToStyle)) {
+              // console.log(`[MDPI Filter CS] Styling inline for ${refId}:`, targetElementToStyle);
+              styleSup(targetElementToStyle); // styleSup handles <sup> and <a>
+              styledInlineRefs.add(targetElementToStyle);
+              // highlightElementTemporarily(targetElementToStyle); // Optional: for debugging
+            } else if (targetElementToStyle && styledInlineRefs.has(targetElementToStyle)) {
+              // console.log(`[MDPI Filter CS] Already styled inline element for ref ${refId}:`, targetElementToStyle);
             } else {
-              listItem = targetEl.closest(referenceListSelectors);
+              // console.log(`[MDPI Filter CS] No valid targetElementToStyle for ref ${refId} from element:`, el);
             }
-          }
-        } catch (e) {
-          // console.warn(`[MDPI Filter] DOMException with matches/closest for targetEl (href: "${href}", frag: "${frag}"):`, targetEl, e);
-          return;
-        }
-
-        if (listItem && listItem.dataset.mdpiFilterRefId) {
-          const supElement = a.closest('sup');
-          if (supElement) {
-            styleSup(supElement);
-          } else {
-            const supInsideA = a.querySelector('sup');
-            styleSup(supInsideA || a);
-          }
+          });
+        } catch (error) {
+          // console.error(`[MDPI Filter CS] Error querying/styling inline footnotes for refId ${refId} ('${allSelectorsString}'):`, error);
         }
       });
+      // console.log('[MDPI Filter CS] Finished styling inline footnotes.');
     }
 
     function processDirectMdpiLinks() {

@@ -599,7 +599,7 @@ if (!window.mdpiFilterInjected) {
       // Remove the extracted number prefix from the text if a number was found
       // This ensures the base text is clean before we potentially prepend our formatted number
       if (number !== null) {
-        const prefixRegex = new RegExp(`^\\s*\\[?${number}\\]?\\s*\\.?\\s*`);
+        const prefixRegex = new RegExp(`^\\s*(?:\\[${number}\\]|${number})\\s*[.)]?\\s*`);
         text = text.replace(prefixRegex, '').trim();
       }
       text = localSanitize(text); 

@@ -836,30 +836,30 @@ if (!window.mdpiFilterInjected) {
           // console.warn("[MDPI Filter CS] Skipping inline style: Invalid refData or missing/empty listItemDomId.", refData);
           return;
         }
-        const idToMatch = refData.listItemDomId; // This is the actual DOM ID, e.g., "CR35"
-        // console.log(`[MDPI Filter CS] Processing inline footnotes for listItemDomId: ${idToMatch} (Internal scroll ID: ${refData.id})`);
+        const refId = refData.listItemDomId; // Changed from idToMatch to refId
+        // console.log(`[MDPI Filter CS] Processing inline footnotes for listItemDomId: ${refId} (Internal scroll ID: ${refData.id})`);
 
         // Selectors for common inline citation patterns
         const commonSelectors = [
-          `a[href="#${idToMatch}"]`,                        // Standard anchor link
-          // Handling for Wikipedia: idToMatch might be "Foo_Bar_2023" or "1"
-          // If idToMatch is purely numeric, cite_note-X is common.
-          // If idToMatch is complex, direct href match is more likely.
-          `a[href="#cite_note-${idToMatch}"]`,
+          `a[href="#${refId}"]`,                        // Standard anchor link
+          // Handling for Wikipedia: refId might be "Foo_Bar_2023" or "1"
+          // If refId is purely numeric, cite_note-X is common.
+          // If refId is complex, direct href match is more likely.
+          `a[href="#cite_note-${refId}"]`,
           // Try to get base part for wiki links, e.g. "Foo_Bar_2023" from "cite_note-Foo_Bar_2023-1"
           // or "1" from "cite_note-1"
-          `a[href="#cite_note-${idToMatch.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
-          `a[href="#ref-${idToMatch}"]`,                   // Common ref prefix
-          `a[href="#reference-${idToMatch}"]`,             // Common reference prefix
-          // Handle cases where idToMatch might be "B1" and link is "#B1" or idToMatch is "1" and link is "#B1"
-          `a[href="#B${idToMatch.replace(/^B/i, '')}"]`,   // NCBI Bxx style
-          `a[href="#CR${idToMatch.replace(/^CR/i, '')}"]`, // Springer style
+          `a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
+          `a[href="#ref-${refId}"]`,                   // Common ref prefix
+          `a[href="#reference-${refId}"]`,             // Common reference prefix
+          // Handle cases where refId might be "B1" and link is "#B1" or refId is "1" and link is "#B1"
+          `a[href="#B${refId.replace(/^B/i, '')}"]`,   // NCBI Bxx style
+          `a[href="#CR${refId.replace(/^CR/i, '')}"]`, // Springer style
           // ADDED FOR TANDFONLINE and similar sites using data-rid or data-bris-rid
-          `a[data-rid="${idToMatch}"]`, // For sites like tandfonline
-          `a[data-bris-rid="${idToMatch}"]` // Another variant for data-rid
+          `a[data-rid="${refId}"]`,
+          `a[data-bris-rid="${refId}"]`
         ];
 
-        const numericRefIdPart = idToMatch.replace(/\D/g, ''); // e.g., "35" from "CR35"
+        const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35"
         if (numericRefIdPart) {
             commonSelectors.push(`a[href="#cite_note-${numericRefIdPart}"]`);
             commonSelectors.push(`a[href="#ref-${numericRefIdPart}"]`);
@@ -870,16 +870,16 @@ if (!window.mdpiFilterInjected) {
         }
 
         const supParentSelectors = [
-          `sup a[href="#${idToMatch}"]`,
-          `sup a[href="#cite_note-${idToMatch}"]`,
-          `sup a[href="#cite_note-${idToMatch.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
-          `sup a[href="#ref-${idToMatch}"]`,
-          `sup a[href="#reference-${idToMatch}"]`,
-          `sup a[href="#B${idToMatch.replace(/^B/i, '')}"]`,
-          `sup a[href="#CR${idToMatch.replace(/^CR/i, '')}"]`,
-          `sup[id="ref${idToMatch}"]`,
-          `sup a[data-rid="${idToMatch}"]`,
-          `sup a[data-bris-rid="${idToMatch}"]`
+          `sup a[href="#${refId}"]`,
+          `sup a[href="#cite_note-${refId}"]`,
+          `sup a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
+          `sup a[href="#ref-${refId}"]`,
+          `sup a[href="#reference-${refId}"]`,
+          `sup a[href="#B${refId.replace(/^B/i, '')}"]`,
+          `sup a[href="#CR${refId.replace(/^CR/i, '')}"]`,
+          `sup[id="ref${refId}"]`,
+          `sup a[data-rid="${refId}"]`,
+          `sup a[data-bris-rid="${refId}"]`
         ];
          if (numericRefIdPart) {
             supParentSelectors.push(`sup a[href="#cite_note-${numericRefIdPart}"]`);
@@ -891,7 +891,7 @@ if (!window.mdpiFilterInjected) {
         }
 
         const allSelectorsString = [...new Set([...commonSelectors, ...supParentSelectors])].join(', ');
-        // console.log(`[MDPI Filter CS] Querying inline for listItemDomId '${idToMatch}' (numeric: '${numericRefIdPart}') with: ${allSelectorsString}`);
+        // console.log(`[MDPI Filter CS] Querying inline for listItemDomId '${refId}' (numeric: '${numericRefIdPart}') with: ${allSelectorsString}`);
 
         try {
           document.querySelectorAll(allSelectorsString).forEach(el => {
@@ -904,23 +904,20 @@ if (!window.mdpiFilterInjected) {
               if (directSupParent && directSupParent.tagName.toLowerCase() === 'sup') {
                 targetElementToStyle = directSupParent;
               } else {
-                // This handles cases like tandfonline's <span class="ref-lnk"><a data-rid="CR35">...</a></span>
-                // where the <a> itself (or its span container if preferred) should be styled.
-                // For now, styling the <a> directly.
                 targetElementToStyle = el; 
               }
             }
 
             if (targetElementToStyle && !styledInlineRefs.has(targetElementToStyle)) {
-              // console.log(`[MDPI Filter CS] Styling inline for ${idToMatch}:`, targetElementToStyle);
+              // console.log(`[MDPI Filter CS] Styling inline for ${refId}:`, targetElementToStyle);
               styleSup(targetElementToStyle); 
               styledInlineRefs.add(targetElementToStyle);
             } else if (targetElementToStyle && styledInlineRefs.has(targetElementToStyle)) {
-              // console.log(`[MDPI Filter CS] Already styled inline element for ref ${idToMatch}:`, targetElementToStyle);
+              // console.log(`[MDPI Filter CS] Already styled inline element for ref ${refId}:`, targetElementToStyle);
             }
           });
         } catch (error) {
-          // console.error(`[MDPI Filter CS] Error querying/styling inline footnotes for listItemDomId ${idToMatch} ('${allSelectorsString}'):`, error);
+          // console.error(`[MDPI Filter CS] Error querying/styling inline footnotes for listItemDomId ${refId} ('${allSelectorsString}'):`, error);
         }
       });
       // console.log('[MDPI Filter CS] Finished styling inline footnotes.');

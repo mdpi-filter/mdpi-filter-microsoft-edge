@@ -643,6 +643,146 @@ if (!window.mdpiFilterInjected) {
     }
 
     const updateBadgeAndReferences = () => {
+      // Create a unique set of references based on fingerprint for the popup list
+      const uniqueFingerprints = new Set();
+      const uniqueDisplayReferences = [];
+      collectedMdpiReferences.forEach(ref => {
+        if (ref && ref.fingerprint && !uniqueFingerprints.has(ref.fingerprint)) {
+          uniqueFingerprints.add(ref.fingerprint);
+          uniqueDisplayReferences.push(ref);
+        } else if (!ref || !ref.fingerprint) {
+          // console.warn('[MDPI Filter CS] Skipping ref in updateBadgeAndReferences due to missing fingerprint:', ref);
+        }
+      });
+
+      const sortedReferences = uniqueDisplayReferences.sort((a, b) => { // Sort the unique ones
+        if (a.number !== null && b.number === null) return -1;
+        if (a.number === null && b.number !== null) return 1;
+        if (a.number !== null && b.number !== null) {
+          if (a.number !== b.number) {
+            return a.number - b.number;
+          }
+        }
+        const numA = parseInt(a.id.split('-').pop(), 10);
+        const numB = parseInt(b.id.split('-').pop(), 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.id.localeCompare(b.id);
+      });
+      
+      const badgeCount = sortedReferences.length; 
+
+      console.log(`%c[MDPI Filter CS] Preparing to send mdpiUpdate. BadgeCount: ${badgeCount}, SortedReferences length: ${sortedReferences.length}`, 'color: green; font-weight: bold;', sortedReferences.slice(0, 5)); // Log first 5
+      
+      chrome.runtime.sendMessage({
+        type: 'mdpiUpdate',
+        count: badgeCount,
+        references: sortedReferences     
+      }, response => {
+        if (chrome.runtime.lastError) {
+          console.error('[MDPI Filter CS] Error sending mdpiUpdate message:', chrome.runtime.lastError.message);
+        } else {
+          // console.log('[MDPI Filter CS] mdpiUpdate message sent, response:', response);
+        }
+      });
+    };
+
+    // Debounced version for progressive updates
+    const debouncedUpdateBadgeAndReferences = debounce(updateBadgeAndReferences, 300);
+
+
+    async function runAll(source = "initial") {
+      const startTime = new Date();
+      // ... (rest of runAll initialization) ...
+      // console.log(`[MDPI Filter] runAll STARTING... Source: ${source}, Time: ${startTime.toISOString()}`);
+
+      if (isProcessing && source !== "initial_force") {
+        // console.log('[MDPI Filter] Already processing, skipping runAll for source:', source);
+        return;
+      }
+      isProcessing = true;
+
+      if (source === "initial load" || source === "main observer" || source === "initial_force") {
+        // console.log(`[MDPI Filter] Clearing all references and resetting counter for full re-scan due to source: ${source}`);
+        collectedMdpiReferences = [];
+        mdpiRefCounter = 0; // Reset the global counter for mdpi-ref-X IDs
+        // Clear existing highlights/modifications if doing a full rescan
+        clearPreviousHighlights();
+      }
+      
+      const runCache = new Map();
+
+      // --- Step 1: Pre-fetch all NCBI IDs ---
+      const allPotentialItemsForNcbiScan = document.querySelectorAll(referenceListSelectors);
+      let allPmcidsToFetch = new Set();
+      let allPmidsToFetch = new Set();
+
+      allPotentialItemsForNcbiScan.forEach(item => {
+        // ... (ID extraction logic as before) ...
+      });
+
+      // console.log("[MDPI Filter] NCBI Pre-scan - PMIDs to fetch:", Array.from(allPmidsToFetch));
+      // console.log("[MDPI Filter] NCBI Pre-scan - PMCIDs to fetch:", Array.from(allPmcidsToFetch));
+
+      // Perform NCBI checks if any IDs were found
+      const pmidArray = Array.from(allPmidsToFetch);
+      const pmcidArray = Array.from(allPmcidsToFetch);
+
+      // Batch API calls
+      const pmidCheckPromise = pmidArray.length > 0 ? checkNcbiIdsForMdpi(pmidArray, 'pmid', runCache) : Promise.resolve(false);
+      const pmcidCheckPromise = pmcidArray.length > 0 ? checkNcbiIdsForMdpi(pmcidArray, 'pmcid', runCache) : Promise.resolve(false);
+      
+      try {
+        await Promise.all([pmidCheckPromise, pmcidCheckPromise]);
+        // console.log('[MDPI Filter] NCBI ID checks completed. RunCache populated:', runCache.size > 0 ? Object.fromEntries(runCache) : 'empty');
+
+        // --- Step 2: Process and style references ---
+        processAllReferences(runCache); // This will now call debouncedUpdateBadgeAndReferences internally
+
+        // --- Step 3: Process direct MDPI links on the page ---
+        processDirectMdpiLinks();
+
+        // --- Step 4: Style inline footnotes ---
+        styleInlineFootnotes(collectedMdpiReferences); // Pass collected references
+
+        // --- Step 5: Final update to badge and references ---
+        // This ensures that even if processAllReferences found nothing (so debounced didn't fire),
+        // or if there are pending debounced calls, a final accurate state is sent.
+        updateBadgeAndReferences(); // Final call
+
+      } catch (error) {
+        console.error('[MDPI Filter] Error in runAll main processing:', error);
+      } finally {
+        isProcessing = false;
+        const endTime = new Date();
+        const duration = (endTime - startTime) / 1000;
+        // The 'unique' here refers to a different set, let's clarify or remove if not used for badge
+        console.log(`[MDPI Filter] runAll FINISHED. Source: ${source}, collected (raw): ${collectedMdpiReferences.length}, Time: ${endTime.toISOString()}, Duration: ${duration.toFixed(2)}s`);
+      }
+    }
+
+    function processAllReferences(runCache) {
+      // console.log("[MDPI Filter] processAllReferences STARTING");
+      const items = document.querySelectorAll(referenceListSelectors);
+      // console.log(`[MDPI Filter] Found ${items.length} potential reference items using selectors: ${referenceListSelectors}`);
+      let foundInLoop = 0;
+      items.forEach(item => {
+        if (item.id === 'utcdate' || item.closest('#utcdate') || item.id === 'pt-utcdate' || item.closest('#pt-utcdate')) {
+          return;
+        }
+        if (isMdpiItemByContent(item, runCache)) {
+          const referenceData = extractReferenceData(item);
+          if (referenceData) { // Ensure data was extracted
+            collectedMdpiReferences.push(referenceData); // Add to global list
+            styleRef(item, referenceData.id);
+            foundInLoop++;
+            debouncedUpdateBadgeAndReferences(); // Progressive update
+          }
+        }
+      });
+      // console.log(`[MDPI Filter] processAllReferences FINISHED. Found and styled ${foundInLoop} items in this pass.`);
+    }
+
+    const updateBadgeAndReferencesOld = () => {
       const sortedReferences = [...collectedMdpiReferences].sort((a, b) => {
         if (a.number !== null && b.number === null) return -1;
         if (a.number === null && b.number !== null) return 1;

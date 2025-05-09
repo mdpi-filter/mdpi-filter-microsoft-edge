@@ -150,31 +150,41 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const references = msg.references ?? [];
     const text = count > 0 ? String(count) : '';
 
+    console.log(`[MDPI Filter BG] Received mdpiUpdate for tab ${tabId}. Count: ${count}, References array length: ${references.length}`);
+    if (references.length > 0) {
+      // console.log('[MDPI Filter BG] First few references data:', JSON.stringify(references.slice(0,2)));
+    }
+
+
     // Update badge
     try {
         chrome.action.setBadgeText({ text, tabId });
         if (count > 0) {
           chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId });
         }
-    } catch (e) { /* Ignore errors setting badge */ }
+        // console.log(`[MDPI Filter BG] Badge text set to "${text}" for tab ${tabId}`);
+    } catch (e) {
+        console.warn(`[MDPI Filter BG] Error setting badge for tab ${tabId}:`, e.message);
+    }
 
     // Store references (now including ID)
     tabReferenceData[tabId] = references;
-    console.log(`[MDPI Filter BG] Stored ${tabReferenceData[tabId].length} references for tab ${tabId}.`);
-    return false; // Indicate synchronous response (or no response needed)
+    // console.log(`[MDPI Filter BG] Stored ${tabReferenceData[tabId].length} references for tab ${tabId}.`);
+    sendResponse({status: "mdpiUpdate received by background"}); // Acknowledge receipt
+    return false; 
   }
 
   // Message from Popup Script requesting references
   if (msg.type === 'getMdpiReferences') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs.length > 0) {
+      if (tabs.length > 0 && tabs[0].id) {
         const activeTabId = tabs[0].id;
         const references = tabReferenceData[activeTabId] || [];
-        console.log(`[MDPI Filter BG] Sending ${references.length} references to popup for tab ${activeTabId}.`);
-        sendResponse({ references: references }); // Send references including ID
+        console.log(`[MDPI Filter BG] Popup requested refs for tab ${activeTabId}. Sending ${references.length} references.`);
+        sendResponse({ references: references });
       } else {
-        console.log("[MDPI Filter BG] Could not get active tab for popup request.");
-        sendResponse({ references: [] }); // Send empty array if no active tab
+        console.warn("[MDPI Filter BG] Could not get active tab for popup request.");
+        sendResponse({ references: [] });
       }
     });
     return true; // Indicate asynchronous response

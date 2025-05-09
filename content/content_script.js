@@ -295,7 +295,7 @@ if (!window.mdpiFilterInjected) {
       // if (!item) return false;
       // const textContent = item.textContent || '';
       // const innerHTML = item.innerHTML || '';
-      // ... (all your DOI checks, text checks, domain checks, NCBI ID checks using runCache, journal checks) ...
+      // ... (all your DOI checks, text checks, domain checks, NCBI ID checks, journal checks) ...
       // if (conditionForMdpi) return true;
       // ...
       // if (conditionForNonMdpi) return false;
@@ -698,12 +698,29 @@ if (!window.mdpiFilterInjected) {
       
       const badgeCount = sortedReferences.length; 
 
-      console.log(`%c[MDPI Filter CS] Preparing to send mdpiUpdate. BadgeCount: ${badgeCount}, SortedReferences length: ${sortedReferences.length}`, 'color: green; font-weight: bold;', sortedReferences.slice(0, 5)); // Log first 5
+      console.log(`%c[MDPI Filter CS] Preparing to send mdpiUpdate. BadgeCount: ${badgeCount}, SortedReferences length: ${sortedReferences.length} (${sortedReferences.filter(ref => ref.isMdpi).length})`, 'color: green; font-weight: bold;', sortedReferences.slice(0, 5)); // Log first 5
       
+      const referencesWithDecodedUrls = sortedReferences.map(ref => {
+        const newRef = { ...ref }; // Clone the reference object
+        // IMPORTANT: Replace 'url' with the actual property name in your reference object that stores the URL string.
+        // Common names could be 'url', 'link', 'href', 'fullUrl', etc.
+        if (newRef.url && typeof newRef.url === 'string') {
+            try {
+                newRef.url = decodeURIComponent(newRef.url);
+            } catch (e) {
+                // Log an error if decoding fails, and keep the original URL
+                console.warn(`[MDPI Filter CS] Failed to decode URL: ${newRef.url}`, e);
+            }
+        }
+        return newRef;
+      });
+
       chrome.runtime.sendMessage({
-        type: 'mdpiUpdate',
-        count: badgeCount,
-        references: sortedReferences     
+        action: "mdpiUpdate",
+        data: {
+            badgeCount: badgeCount, // Or referencesWithDecodedUrls.length if BadgeCount is derived from this array post-filtering
+            references: referencesWithDecodedUrls // Use the array with decoded URLs
+        }
       }, response => {
         if (chrome.runtime.lastError) {
           console.error('[MDPI Filter CS] Error sending mdpiUpdate message:', chrome.runtime.lastError.message);

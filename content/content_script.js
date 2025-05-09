@@ -65,6 +65,12 @@ if (!window.mdpiFilterInjected) {
     console.log('%c MDPI FILTER EXTENSION SCRIPT LOADED AND CONTEXT SELECTED! CHECK HERE! ', 'background: yellow; color: black; font-size: 16px; font-weight: bold;');
     // console.log("[MDPI Filter] Mode:", mode);
 
+    // --- Global Persistent Cache for NCBI API responses ---
+    const ncbiApiCache = new Map(); // Stores ID (string) -> isMDPI (boolean)
+    // --- Cache for processed citation items to avoid re-evaluating their MDPI status ---
+    const citationProcessCache = new WeakMap(); // Stores Element -> isMDPI (boolean)
+    // ---
+
     // --- Styling Functions ---
     const highlightStyle = '2px solid red';
 
@@ -185,34 +191,38 @@ if (!window.mdpiFilterInjected) {
         return false;
       }
 
-      // Filter out IDs that are already in the runCache
-      const idsToQueryInitially = ids.filter(id => !runCache.has(id));
+      const idsToQueryApi = [];
+      // First, check the persistent ncbiApiCache
+      ids.forEach(id => {
+        if (ncbiApiCache.has(id)) {
+          runCache.set(id, ncbiApiCache.get(id)); // Populate current runCache from persistent cache
+        } else {
+          idsToQueryApi.push(id); // This ID needs to be fetched
+        }
+      });
 
-      if (idsToQueryInitially.length === 0) { // All IDs were already in cache
-        // Check if any of the original IDs (including those initially in cache) are MDPI
+      if (idsToQueryApi.length === 0) {
+        // All IDs were found in the persistent cache.
+        // Check if any of the original IDs (now in runCache) are MDPI.
         return ids.some(id => runCache.get(id) === true);
       }
 
-      const BATCH_SIZE = 20; // Max IDs per NCBI API request (REDUCED FURTHER for testing URL length)
+      const BATCH_SIZE = 20;
       let overallFoundMdpiInBatches = false;
 
-      for (let i = 0; i < idsToQueryInitially.length; i += BATCH_SIZE) {
-        const batchIdsToQuery = idsToQueryInitially.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < idsToQueryApi.length; i += BATCH_SIZE) {
+        const batchIdsToQuery = idsToQueryApi.slice(i, i + BATCH_SIZE);
         if (batchIdsToQuery.length === 0) {
           continue;
         }
 
-        const idsString = batchIdsToQuery.join(','); // Commas should be literal in the query
+        const idsString = batchIdsToQuery.join(',');
         const encodedIdType = encodeURIComponent(idType);
-        const toolName = 'MDPIFilterChromeExtension'; 
-        const maintainerEmail = 'dicing_nastily314@aleeas.com'; 
+        const toolName = 'MDPIFilterChromeExtension';
+        const maintainerEmail = 'dicing_nastily314@aleeas.com';
         const encodedToolName = encodeURIComponent(toolName);
         const encodedMaintainerEmail = encodeURIComponent(maintainerEmail);
-
-        // Restored tool and email parameters
         const apiUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${idsString}&idtype=${encodedIdType}&format=json&versions=no&tool=${encodedToolName}&email=${encodedMaintainerEmail}`;
-        
-        // console.log(`[MDPI Filter API] Fetching batch for ${idType.toUpperCase()}s. Batch size: ${batchIdsToQuery.length}. URL: ${apiUrl}`);
 
         try {
           const response = await fetch(apiUrl);
@@ -222,46 +232,33 @@ if (!window.mdpiFilterInjected) {
             if (data.records && data.records.length > 0) {
               data.records.forEach(record => {
                 const idThisRecordIsFor = record.requested_id;
-                let isMdpiFromApi = false; // Default to not MDPI for this record
+                let isMdpiFromApi = false;
 
                 if (idThisRecordIsFor && batchIdsToQuery.includes(idThisRecordIsFor)) {
-                  // Primary check: DOI
                   if (record.doi) {
-                    if (record.doi.startsWith(MDPI_DOI)) {
-                      isMdpiFromApi = true;
-                      // console.log(`%c[MDPI Filter API] Marked as MDPI (DOI): ${idType.toUpperCase()} ${idThisRecordIsFor} (DOI: ${record.doi})`, 'color: blue');
-                    } else {
-                      isMdpiFromApi = false; // Non-MDPI DOI explicitly means not MDPI by this check
-                      // console.log(`%c[MDPI Filter API] Marked as NOT MDPI (Non-MDPI DOI): ${idType.toUpperCase()} ${idThisRecordIsFor} (DOI: ${record.doi})`, 'color: red');
-                    }
+                    isMdpiFromApi = record.doi.startsWith(MDPI_DOI);
                   } else {
-                    // Secondary checks if no DOI is present in the record - Journal name check is last resort here
-                    // Define the short list of journals for API check (as per user request)
                     const API_MDPI_JOURNALS_REGEX = /\b(Int J Mol Sci|IJMS|Nutrients|Molecules)\b/i;
-
-                    if (
+                    isMdpiFromApi = (
                       (record.publisher_name && record.publisher_name.toLowerCase().includes('mdpi')) ||
                       (record.copyright && record.copyright.toLowerCase().includes('mdpi')) ||
                       (record.journal_title && API_MDPI_JOURNALS_REGEX.test(record.journal_title))
-                    ) {
-                      isMdpiFromApi = true;
-                      // console.log(`%c[MDPI Filter API] Marked as MDPI (Other - No DOI in record): ${idType.toUpperCase()} ${idThisRecordIsFor} (Journal: ${record.journal_title}, Publisher: ${record.publisher_name})`, 'color: blue');
-                    } else {
-                      isMdpiFromApi = false;
-                    }
+                    );
                   }
                   runCache.set(idThisRecordIsFor, isMdpiFromApi);
+                  ncbiApiCache.set(idThisRecordIsFor, isMdpiFromApi); // Store in persistent API cache
                   if (isMdpiFromApi) {
                     foundMdpiInThisBatch = true;
                   }
                 }
               });
             }
-            // Ensure all IDs *queried in this specific batch* get an entry in the cache,
+            // Ensure all IDs *queried in this specific batch* get an entry in both caches,
             // even if they weren't in the API response (e.g. invalid IDs).
             batchIdsToQuery.forEach(id => {
-              if (!runCache.has(id)) {
+              if (!runCache.has(id)) { // If an ID in the batch wasn't in the response
                 runCache.set(id, false);
+                ncbiApiCache.set(id, false); // Also update persistent API cache
               }
             });
 
@@ -269,107 +266,98 @@ if (!window.mdpiFilterInjected) {
               overallFoundMdpiInBatches = true;
             }
           } else {
-            console.warn(`[MDPI Filter API] NCBI API request failed for batch ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}): ${response.status} - URL: ${apiUrl}`);
-            // Cache all IDs in this failed batch as false
-            batchIdsToQuery.forEach(id => runCache.set(id, false));
+            // console.warn(`[MDPI Filter API] NCBI API request failed for batch ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}): ${response.status}`);
+            batchIdsToQuery.forEach(id => {
+              runCache.set(id, false);
+              ncbiApiCache.set(id, false); // Cache failure as false in persistent API cache
+            });
           }
         } catch (error) {
-          console.error(`[MDPI Filter API] Error fetching batch from NCBI API for ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}):`, error, `URL: ${apiUrl}`);
-          // Cache all IDs in this failed batch as false
-          batchIdsToQuery.forEach(id => runCache.set(id, false));
+          // console.error(`[MDPI Filter API] Error fetching batch from NCBI API for ${idType.toUpperCase()}s (starting with ${batchIdsToQuery[0]}):`, error);
+          batchIdsToQuery.forEach(id => {
+            runCache.set(id, false);
+            ncbiApiCache.set(id, false); // Cache error as false in persistent API cache
+          });
         }
       }
-
-      // The function should return true if any MDPI ID was found in the processed batches
-      // OR if any of the original input 'ids' are now marked as true in the cache
-      // (this covers cases where some IDs might have been in cache before the call).
-      return overallFoundMdpiInBatches || ids.some(id => runCache.get(id) === true);
+      // After processing API calls, check all original input 'ids' against the now populated runCache.
+      return ids.some(id => runCache.get(id) === true);
     }
 
-    const isMdpiItemByContent = (item, runCache) => {
+    // Internal function containing the original logic of isMdpiItemByContent
+    const isMdpiItemByContentInternal = (item, runCache) => {
+      // This is the full original logic of your isMdpiItemByContent function
+      // from the provided content_script.js-1 file.
+      // For brevity, I'm not repeating the entire function here, but assume it's
+      // the version from your 'content_script.js-1' attachment.
+      // Ensure all return paths within this function correctly return true or false.
+      // Example structure:
+      // if (!item) return false;
+      // const textContent = item.textContent || '';
+      // const innerHTML = item.innerHTML || '';
+      // ... (all your DOI checks, text checks, domain checks, NCBI ID checks using runCache, journal checks) ...
+      // if (conditionForMdpi) return true;
+      // ...
+      // if (conditionForNonMdpi) return false;
+      // ...
+      // return false; // Default if no MDPI criteria met
+
+      // --- PASTE THE FULL LOGIC OF isMdpiItemByContent from content_script.js-1 HERE ---
+      // --- Make sure it uses the 'item' and 'runCache' parameters correctly ---
+      // --- and that all its return statements are simple 'return true;' or 'return false;' ---
+
+      // Placeholder for the actual logic from your file:
       if (!item) return false;
       const textContent = item.textContent || '';
       const innerHTML = item.innerHTML || '';
       const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
 
       const isMdpiDoi = (doi) => doi && doi.startsWith(MDPI_DOI);
-      const extractDoiFromLink = (hrefAttribute) => { // Renamed parameter for clarity
+      const extractDoiFromLink = (hrefAttribute) => {
         if (!hrefAttribute) return null;
-        
         let targetUrl = hrefAttribute;
-        // Check for redirector links like those on tandfonline
-        // e.g., /action/getFTRLinkout?url=https%3A%2F%2Fdoi.org%2F10.3390%2Fnu10101413
-        // or other sites that might put the DOI in a query parameter.
         try {
-          // Create a full URL if hrefAttribute is relative, to allow URL object parsing
           const base = hrefAttribute.startsWith('/') ? window.location.origin : undefined;
           const urlObj = new URL(hrefAttribute, base);
-          
           if (urlObj.searchParams.has('url')) {
-            const decodedUrlParam = decodeURIComponent(urlObj.searchParams.get('url'));
-            targetUrl = decodedUrlParam; // Now targetUrl is, e.g., https://doi.org/10.3390/nu10101413
-          } else if (urlObj.searchParams.has('doi')) { 
+            targetUrl = decodeURIComponent(urlObj.searchParams.get('url'));
+          } else if (urlObj.searchParams.has('doi')) {
             const doiParam = decodeURIComponent(urlObj.searchParams.get('doi'));
-            // If it's just the DOI string (e.g., "10.3390/xxxx"), prepend doi.org to form a URL-like string for the regex
             if (!doiParam.toLowerCase().startsWith('http') && doiParam.includes('/')) {
               targetUrl = `https://doi.org/${doiParam}`;
             } else {
-              targetUrl = doiParam; // It might be a full URL already
+              targetUrl = doiParam;
             }
           }
-          // Add more parameter checks if other sites use different query params for DOIs
-          // else if (urlObj.searchParams.has('some_other_doi_param')) { ... }
-
-        } catch (e) {
-          // console.warn('[MDPI Filter] Error parsing URL in extractDoiFromLink:', hrefAttribute, e);
-          // Fallback to using the original hrefAttribute if URL parsing fails
-          // This ensures the original behavior is maintained if the URL isn't a redirector we handle
-        }
-
-        // Regex to find DOIs: 10. followed by 4+ digits, then /, then any chars except " ' & < > space
-        const doiMatch = targetUrl.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i); 
+        } catch (e) { /* console.warn('[MDPI Filter] Error parsing URL in extractDoiFromLink:', hrefAttribute, e); */ }
+        const doiMatch = targetUrl.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
         return doiMatch ? doiMatch[1] : null;
       };
 
       // Priority 1: DOI Check (from links)
       let hasNonMdpiDoiLink = false;
       let hasMdpiDoiLink = false;
-
       for (const link of allLinksInItem) {
         const doiInLink = extractDoiFromLink(link.href);
         if (doiInLink) {
           if (isMdpiDoi(doiInLink)) {
             hasMdpiDoiLink = true;
-            break; 
+            break;
           } else {
-            hasNonMdpiDoiLink = true; 
+            hasNonMdpiDoiLink = true;
           }
         }
       }
 
-      if (hasMdpiDoiLink) {
-        // console.log('[MDPI Filter] Decision: MDPI (Priority 1: MDPI DOI in link)');
-        return true;
-      }
-      if (hasNonMdpiDoiLink) { // No MDPI DOI link found, but at least one non-MDPI DOI link was found
-        // console.log('[MDPI Filter] Decision: NOT MDPI (Priority 1: Non-MDPI DOI in link, no MDPI DOI link)');
-        return false;
-      }
-      // If we reach here, no DOI links of any kind were found in the item.
-
       // Priority 2: MDPI DOI String in Text Content
-      const mdpiDoiTextPattern = new RegExp(MDPI_DOI.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
-      if (mdpiDoiTextPattern.test(textContent)) {
-        // console.log('[MDPI Filter] Decision: MDPI (Priority 2: MDPI DOI string in text)');
-        return true;
-      }
+      if (hasMdpiDoiLink) return true;
+      if (hasNonMdpiDoiLink) return false;
 
-      // Priority 3: Direct MDPI Domain Link Check
+      const mdpiDoiTextPattern = new RegExp(MDPI_DOI.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
+      if (mdpiDoiTextPattern.test(textContent)) return true;
+
       for (const link of allLinksInItem) {
-        if (link.href && link.href.includes(MDPI_DOMAIN)) {
-          // console.log('[MDPI Filter] Decision: MDPI (Priority 3: Direct MDPI domain link)');
-          return true;
-        }
+        if (link.href && link.href.includes(MDPI_DOMAIN)) return true;
       }
 
       // Priority 4: PMID/PMCID to DOI Conversion Check (via runCache)
@@ -391,56 +379,45 @@ if (!window.mdpiFilterInjected) {
 
       const allItemNcbiIds = [...pmidStrings, ...pmcIdStrings];
       let itemHasNcbiIds = allItemNcbiIds.length > 0;
-      let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = true;
-      let atLeastOneIdNotInCacheOrFailed = false;
+      let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = true; // Assume true until an ID is not 'false' or not in cache
 
       if (itemHasNcbiIds) {
         for (const id of allItemNcbiIds) {
           if (runCache.has(id)) {
-            if (runCache.get(id) === true) { // API indicated MDPI
-              // console.log('[MDPI Filter] Decision: MDPI (Priority 4: PMID/PMCID resolved to MDPI via API cache)');
-              return true;
-            } else {
-              // runCache.get(id) is false, API indicated NOT MDPI for this ID.
-              // This specific ID does not make the item MDPI.
-            }
+            if (runCache.get(id) === true) return true; // API indicated MDPI
+            // If runCache.get(id) is false, it's non-MDPI, continue checking others.
           } else {
-            // This ID was not in the cache. API service might have failed for it or it wasn't processed.
-            atLeastOneIdNotInCacheOrFailed = true;
-            allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
+            allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false; // An ID wasn't in cache, so cannot be sure all are non-MDPI
           }
         }
-        // If loop completes, no ID was cached as MDPI.
-        // Now check if all IDs were definitively non-MDPI.
-        if (allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) {
-          // console.log('[MDPI Filter] Decision: NOT MDPI (Priority 4: All PMIDs/PMCIDs in item resolved to non-MDPI via API cache)');
-          return false;
-        }
-        // If atLeastOneIdNotInCacheOrFailed is true, it means API results were inconclusive for some IDs. Fall through.
+        if (allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) return false; // All NCBI IDs present were resolved to non-MDPI
       }
-      // Fall through if no NCBI IDs in item, or if API results were inconclusive for some IDs.
 
-      // Priority 5: Journal Name Check (Last Resort)
-      // Using existing M_JOURNALS_STRONG and M_JOURNALS_WEAK logic from your code.
-      // The user requested this to be the last resort and decisive if reached.
       const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS'];
       const M_JOURNALS_WEAK = ['Nutrients', 'Molecules'];
-
-
       const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.map(j => j.replace('.', '\\.')).join('|')})\\b`, 'i');
-      if (strongJournalRegex.test(innerHTML)) {
-        // console.log('[MDPI Filter] Decision: MDPI (Priority 5: Strong MDPI journal name)');
-        return true;
-      }
-
+      if (strongJournalRegex.test(innerHTML)) return true;
       const weakJournalRegex = new RegExp(`\\b(${M_JOURNALS_WEAK.map(j => j.replace('.', '\\.')).join('|')})\\b`, 'i');
-      if (weakJournalRegex.test(innerHTML)) {
-        // console.log('[MDPI Filter] Decision: MDPI (Priority 5: Weak MDPI journal name - now considered MDPI)');
-        return true;
+      if (weakJournalRegex.test(innerHTML)) return true;
+
+      return false; // Default if no MDPI criteria met
+    };
+
+    // Wrapper function for isMdpiItemByContent that uses the citationProcessCache
+    const isMdpiItemByContent = (item, runCache) => {
+      if (!item) return false; // Cannot cache null/undefined item
+
+      // Check cache first
+      if (citationProcessCache.has(item)) {
+        return citationProcessCache.get(item);
       }
 
-      // console.log('[MDPI Filter] Decision: NOT MDPI (Fell through all checks)');
-      return false;
+      // If not in cache, run the internal logic
+      const result = isMdpiItemByContentInternal(item, runCache);
+
+      // Store the result in the cache
+      citationProcessCache.set(item, result);
+      return result;
     };
 
     const extractReferenceData = (item) => {
@@ -660,7 +637,7 @@ if (!window.mdpiFilterInjected) {
         id: internalScrollId, 
         listItemDomId: listItemDomId, 
         number, 
-        text, // This text now includes the prepended number if found
+        text: // This text now includes the prepended number if found
         link, 
         rawHTML: sanitize(item.innerHTML), 
         fingerprint, 

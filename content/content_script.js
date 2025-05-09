@@ -411,12 +411,14 @@ if (!window.mdpiFilterInjected) {
     };
 
     const extractReferenceData = (item) => {
-      let refId = item.dataset.mdpiFilterRefId;
-      if (!refId) {
-        refId = `mdpi-ref-${refIdCounter++}`;
-        item.dataset.mdpiFilterRefId = refId;
+      let internalScrollId = item.dataset.mdpiFilterRefId; // Renamed from refId for clarity
+      if (!internalScrollId) {
+        internalScrollId = `mdpi-ref-${refIdCounter++}`;
+        item.dataset.mdpiFilterRefId = internalScrollId;
       }
       
+      const listItemDomId = item.id; // Capture the actual DOM ID of the list item, e.g., "CR35"
+
       let number = null;
       let text = '';
       let link = null;
@@ -432,20 +434,19 @@ if (!window.mdpiFilterInjected) {
         }
       }
 
-      // 2. Try to parse from ID
+      // 2. Try to parse from ID (listItemDomId or parent's ID)
       if (number === null) {
-        let idSourceElement = item; // Renamed for clarity
-        // Check if the item itself is a content div and its parent has an ID
+        let idSourceElement = item; 
         if (item.matches && item.matches('div.citation, div.citation-content') && item.parentElement && item.parentElement.id) {
             idSourceElement = item.parentElement;
-        } else if (!item.id && item.closest) { // If item has no ID, check closest ancestor
+        } else if (!item.id && item.closest) { 
             const closestWithRefId = item.closest('[id^="r"], [id^="ref-"], [id^="cite_note-"], [id^="CR"], [id^="B"]');
             if (closestWithRefId) {
                 idSourceElement = closestWithRefId;
             }
         }
-        // If idSourceElement is still the item, and it has no ID, this block won't run.
-        // If idSourceElement was updated or item itself has an ID, this will run.
+        
+        // Use idSourceElement.id, which could be listItemDomId if item has an ID, or an ancestor's ID
         if (idSourceElement && idSourceElement.id) {
             const idMatch = idSourceElement.id.match(/(?:CR|B|ref-|reference-|cite_note-|r)(\d+)/i);
             if (idMatch && idMatch[1]) {
@@ -614,8 +615,17 @@ if (!window.mdpiFilterInjected) {
       const normalizedTextForFingerprint = (text || '').replace(/\s+/g, ' ').trim().substring(0, 100);
       const fingerprint = `${normalizedTextForFingerprint}|${link || ''}`;
       
-      console.log(`%c[extractReferenceData - ${refId}] FP: ${fingerprint.substring(0,50)}... Num: ${number} (Source: ${numberSource}), Text: "${text.substring(0, 30)}..."`, 'color: green;');
-      return { id: refId, number, text, link, rawHTML: sanitize(item.innerHTML), fingerprint, numberSource };
+      console.log(`%c[extractReferenceData - ${internalScrollId}] DOM ID: ${listItemDomId || 'N/A'}, FP: ${fingerprint.substring(0,50)}... Num: ${number} (Source: ${numberSource}), Text: "${text.substring(0, 30)}..."`, 'color: green;');
+      return { 
+        id: internalScrollId, // Internal ID like "mdpi-ref-0"
+        listItemDomId: listItemDomId, // Actual DOM ID like "CR35"
+        number, 
+        text, 
+        link, 
+        rawHTML: sanitize(item.innerHTML), 
+        fingerprint, 
+        numberSource 
+      };
     };
 
     // This is the definition of processAllReferences that should be kept
@@ -814,65 +824,62 @@ if (!window.mdpiFilterInjected) {
     };
 
     function styleInlineFootnotes() {
-      // console.log('[MDPI Filter] Styling inline footnotes. Collected MDPI refs:', collectedMdpiReferences.length);
+      // console.log('[MDPI Filter CS] Styling inline footnotes. Collected MDPI refs:', collectedMdpiReferences.length);
       if (collectedMdpiReferences.length === 0) return;
 
       const styledInlineRefs = new Set(); // Prevent styling the same inline ref multiple times
 
       collectedMdpiReferences.forEach(refData => {
-        if (!refData || !refData.id) {
-          // console.warn("[MDPI Filter] Invalid refData or missing ID in styleInlineFootnotes:", refData);
+        // Use listItemDomId for matching against page elements' attributes like href, data-rid.
+        // This ID comes directly from the reference list item (e.g., "CR35").
+        if (!refData || !refData.listItemDomId || refData.listItemDomId.trim() === "") {
+          // console.warn("[MDPI Filter CS] Skipping inline style: Invalid refData or missing/empty listItemDomId.", refData);
           return;
         }
-        const refId = refData.id; // This is the ID from the reference list item (e.g., "CR28")
-        // console.log(`[MDPI Filter] Processing inline footnotes for MDPI ref ID: ${refId}`);
+        const idToMatch = refData.listItemDomId; // This is the actual DOM ID, e.g., "CR35"
+        // console.log(`[MDPI Filter CS] Processing inline footnotes for listItemDomId: ${idToMatch} (Internal scroll ID: ${refData.id})`);
 
         // Selectors for common inline citation patterns
-        // These usually link via href to an id in the reference list.
         const commonSelectors = [
-          `a[href="#${refId}"]`,                        // Standard anchor link
-          // Handling for Wikipedia: refId might be "Foo_Bar_2023" or "1"
-          // If refId is purely numeric, cite_note-X is common.
-          // If refId is complex, direct href match is more likely.
-          `a[href="#cite_note-${refId}"]`,
+          `a[href="#${idToMatch}"]`,                        // Standard anchor link
+          // Handling for Wikipedia: idToMatch might be "Foo_Bar_2023" or "1"
+          // If idToMatch is purely numeric, cite_note-X is common.
+          // If idToMatch is complex, direct href match is more likely.
+          `a[href="#cite_note-${idToMatch}"]`,
           // Try to get base part for wiki links, e.g. "Foo_Bar_2023" from "cite_note-Foo_Bar_2023-1"
           // or "1" from "cite_note-1"
-          `a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
-          `a[href="#ref-${refId}"]`,                   // Common ref prefix
-          `a[href="#reference-${refId}"]`,             // Common reference prefix
-          // Handle cases where refId might be "B1" and link is "#B1" or refId is "1" and link is "#B1"
-          `a[href="#B${refId.replace(/^B/i, '')}"]`,   // NCBI Bxx style
-          `a[href="#CR${refId.replace(/^CR/i, '')}"]`, // Springer style
+          `a[href="#cite_note-${idToMatch.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
+          `a[href="#ref-${idToMatch}"]`,                   // Common ref prefix
+          `a[href="#reference-${idToMatch}"]`,             // Common reference prefix
+          // Handle cases where idToMatch might be "B1" and link is "#B1" or idToMatch is "1" and link is "#B1"
+          `a[href="#B${idToMatch.replace(/^B/i, '')}"]`,   // NCBI Bxx style
+          `a[href="#CR${idToMatch.replace(/^CR/i, '')}"]`, // Springer style
           // ADDED FOR TANDFONLINE and similar sites using data-rid or data-bris-rid
-          `a[data-rid="${refId}"]`,
-          `a[data-bris-rid="${refId}"]`
+          `a[data-rid="${idToMatch}"]`, // For sites like tandfonline
+          `a[data-bris-rid="${idToMatch}"]` // Another variant for data-rid
         ];
 
-        const numericRefIdPart = refId.replace(/\D/g, ''); // e.g. "28" from "CR28"
+        const numericRefIdPart = idToMatch.replace(/\D/g, ''); // e.g., "35" from "CR35"
         if (numericRefIdPart) {
-            // Add selectors using only the numeric part, as some sites are inconsistent
             commonSelectors.push(`a[href="#cite_note-${numericRefIdPart}"]`);
             commonSelectors.push(`a[href="#ref-${numericRefIdPart}"]`);
             commonSelectors.push(`a[href="#reference-${numericRefIdPart}"]`);
             commonSelectors.push(`a[href="#B${numericRefIdPart}"]`);
             commonSelectors.push(`a[href="#CR${numericRefIdPart}"]`);
+            // Potentially add `a[data-rid="${numericRefIdPart}"]` if some sites use numeric data-rid
         }
 
-
-        // Selectors for <sup> elements containing links or specific IDs
         const supParentSelectors = [
-          `sup a[href="#${refId}"]`,
-          `sup a[href="#cite_note-${refId}"]`,
-          // Add variations for sup selectors as well
-          `sup a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
-          `sup a[href="#ref-${refId}"]`,
-          `sup a[href="#reference-${refId}"]`,
-          `sup a[href="#B${refId.replace(/^B/i, '')}"]`,
-          `sup a[href="#CR${refId.replace(/^CR/i, '')}"]`,
-          `sup[id="ref${refId}"]`, // sup itself has ID (less common for linking)
-          // Tandfonline: if the structure was sup > a[data-rid], it would be:
-          `sup a[data-rid="${refId}"]`,
-          `sup a[data-bris-rid="${refId}"]`
+          `sup a[href="#${idToMatch}"]`,
+          `sup a[href="#cite_note-${idToMatch}"]`,
+          `sup a[href="#cite_note-${idToMatch.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
+          `sup a[href="#ref-${idToMatch}"]`,
+          `sup a[href="#reference-${idToMatch}"]`,
+          `sup a[href="#B${idToMatch.replace(/^B/i, '')}"]`,
+          `sup a[href="#CR${idToMatch.replace(/^CR/i, '')}"]`,
+          `sup[id="ref${idToMatch}"]`,
+          `sup a[data-rid="${idToMatch}"]`,
+          `sup a[data-bris-rid="${idToMatch}"]`
         ];
          if (numericRefIdPart) {
             supParentSelectors.push(`sup a[href="#cite_note-${numericRefIdPart}"]`);
@@ -880,48 +887,40 @@ if (!window.mdpiFilterInjected) {
             supParentSelectors.push(`sup a[href="#reference-${numericRefIdPart}"]`);
             supParentSelectors.push(`sup a[href="#B${numericRefIdPart}"]`);
             supParentSelectors.push(`sup a[href="#CR${numericRefIdPart}"]`);
-            supParentSelectors.push(`sup[id="ref-${numericRefIdPart}"]`); // e.g. sup id="ref-1"
+            supParentSelectors.push(`sup[id="ref-${numericRefIdPart}"]`);
         }
 
-        // Combine and query, ensuring uniqueness
         const allSelectorsString = [...new Set([...commonSelectors, ...supParentSelectors])].join(', ');
-        // console.log(`[MDPI Filter CS] Querying inline for refId '${refId}' (num: '${numericRefIdPart}') with: ${allSelectorsString}`);
+        // console.log(`[MDPI Filter CS] Querying inline for listItemDomId '${idToMatch}' (numeric: '${numericRefIdPart}') with: ${allSelectorsString}`);
 
         try {
           document.querySelectorAll(allSelectorsString).forEach(el => {
-            let targetElementToStyle = el; // Default to the matched element
+            let targetElementToStyle = el; 
 
-            // Determine the most appropriate element to style (<sup> or <a>)
             if (el.tagName.toLowerCase() === 'sup') {
-              // If a <sup> itself was matched (e.g., by its ID), or it contains a matched <a>.
               targetElementToStyle = el;
             } else if (el.tagName.toLowerCase() === 'a') {
-              // If an <a> was matched.
-              // Prefer styling its parent <sup> if it exists and is a direct parent.
-              // Check parentElement and also closest('sup') to handle nested structures if necessary,
-              // but prioritize direct parent.
               const directSupParent = el.parentElement;
               if (directSupParent && directSupParent.tagName.toLowerCase() === 'sup') {
                 targetElementToStyle = directSupParent;
               } else {
-                // Otherwise, style the <a> itself. This covers tandfonline's a[data-rid].
-                targetElementToStyle = el;
+                // This handles cases like tandfonline's <span class="ref-lnk"><a data-rid="CR35">...</a></span>
+                // where the <a> itself (or its span container if preferred) should be styled.
+                // For now, styling the <a> directly.
+                targetElementToStyle = el; 
               }
             }
 
             if (targetElementToStyle && !styledInlineRefs.has(targetElementToStyle)) {
-              // console.log(`[MDPI Filter CS] Styling inline for ${refId}:`, targetElementToStyle);
-              styleSup(targetElementToStyle); // styleSup handles <sup> and <a>
+              // console.log(`[MDPI Filter CS] Styling inline for ${idToMatch}:`, targetElementToStyle);
+              styleSup(targetElementToStyle); 
               styledInlineRefs.add(targetElementToStyle);
-              // highlightElementTemporarily(targetElementToStyle); // Optional: for debugging
             } else if (targetElementToStyle && styledInlineRefs.has(targetElementToStyle)) {
-              // console.log(`[MDPI Filter CS] Already styled inline element for ref ${refId}:`, targetElementToStyle);
-            } else {
-              // console.log(`[MDPI Filter CS] No valid targetElementToStyle for ref ${refId} from element:`, el);
+              // console.log(`[MDPI Filter CS] Already styled inline element for ref ${idToMatch}:`, targetElementToStyle);
             }
           });
         } catch (error) {
-          // console.error(`[MDPI Filter CS] Error querying/styling inline footnotes for refId ${refId} ('${allSelectorsString}'):`, error);
+          // console.error(`[MDPI Filter CS] Error querying/styling inline footnotes for listItemDomId ${idToMatch} ('${allSelectorsString}'):`, error);
         }
       });
       // console.log('[MDPI Filter CS] Finished styling inline footnotes.');

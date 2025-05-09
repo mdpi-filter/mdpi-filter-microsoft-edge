@@ -1019,6 +1019,22 @@ if (!window.mdpiFilterInjected) {
             supParentSelectors.push(`sup[id="ref-${numericRefIdPart}"]`);
         }
 
+        // --- Wiley Specific Check Integration ---
+        // If the reference list item (identified by refId, which is its DOM ID)
+        // has a data-bib-id attribute, also look for inline links whose href fragment
+        // matches that data-bib-id value.
+        const listItemElement = document.getElementById(refId);
+        if (listItemElement) {
+            const wileyBibId = listItemElement.getAttribute('data-bib-id');
+            if (wileyBibId) {
+                // Escape special characters for CSS selector, though href fragments are usually simple.
+                const escapedWileyBibId = wileyBibId.replace(/["\\]/g, '\\$&');
+                commonSelectors.push(`a[href="#${escapedWileyBibId}"]`);
+                supParentSelectors.push(`sup a[href="#${escapedWileyBibId}"]`);
+            }
+        }
+        // --- End Wiley Specific Check Integration ---
+
         const allSelectorsString = [...new Set([...commonSelectors, ...supParentSelectors])].join(', ');
         // console.log(`[MDPI Filter CS] Querying inline for listItemDomId '${refId}' (numeric: '${numericRefIdPart}') with: ${allSelectorsString}`);
 

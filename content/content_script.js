@@ -28,6 +28,7 @@ if (!window.mdpiFilterInjected) {
   // --- Constants, Selectors, State ---
   const MDPI_DOMAIN = 'mdpi.com';
   const MDPI_DOI    = '10.3390';
+  const MDPI_DOI_REGEX = new RegExp(MDPI_DOI.replace(/\./g, '\\.') + "/[^\\s\"'<>&]+", "i");
   const domains     = window.MDPIFilterDomains || {};
   const sanitize    = window.sanitize || (html => html);
   const uniqueMdpiReferences = new Set();
@@ -60,6 +61,13 @@ if (!window.mdpiFilterInjected) {
     'li:has(hl-trusted-source a[href])' // Healthline citation list items
   ].join(',');
   // ---
+
+  // Helper function to determine if the current page is a search engine results page
+  const isSearchEnginePage = () => {
+    const hostname = window.location.hostname;
+    return domains && domains.searchEngineDomains && Array.isArray(domains.searchEngineDomains) &&
+           domains.searchEngineDomains.some(domain => hostname.includes(domain));
+  };
 
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     console.log('%c MDPI FILTER EXTENSION SCRIPT LOADED AND CONTEXT SELECTED! CHECK HERE! ', 'background: yellow; color: black; font-size: 16px; font-weight: bold;');
@@ -178,7 +186,9 @@ if (!window.mdpiFilterInjected) {
     };
 
     const styleDirectLink = (elementToStyle) => {
-      if (elementToStyle && elementToStyle.matches && elementToStyle.matches('li.ListArticleItem') && elementToStyle.closest('#section-cited-by')) {
+      if (!elementToStyle) return;
+
+      if (elementToStyle.matches && elementToStyle.matches('li.ListArticleItem') && elementToStyle.closest('#section-cited-by')) {
         // This is a "Cited by" LI item from ScienceDirect
         elementToStyle.style.borderLeft = '3px solid #E2211C';
         elementToStyle.style.paddingLeft = '5px';

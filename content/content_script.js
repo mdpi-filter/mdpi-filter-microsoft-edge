@@ -81,7 +81,8 @@ if (!window.mdpiFilterInjected) {
               // Decode the matched URL part
               return decodeURIComponent(url);
           } catch (e) {
-              // console.warn(`[MDPI Filter CS] Failed to decode URL part: ${url}`, e);
+              // This warning is active from the previous step.
+              console.warn(`[MDPI Filter CS] Failed to decode URL part in decodeUrlsInString: ${url}`, e); 
               return url; // Return original URL part if decoding fails
           }
       });
@@ -716,27 +717,23 @@ if (!window.mdpiFilterInjected) {
 
       // Transform references for the popup, ensuring URL is decoded and under the 'url' property
       const referencesForPopup = sortedReferences.map(ref => {
-        // Assuming ref contains: id, fingerprint, number, text, link, isMdpi
         const popupRef = {
           id: ref.id,
           fingerprint: ref.fingerprint,
           number: ref.number,
-          text: ref.text, // This is the text that will be displayed
-          isMdpi: ref.isMdpi, // This should be true for all items in sortedReferences
-          url: ref.link // Initialize url with the value from ref.link
+          text: ref.text, 
+          isMdpi: ref.isMdpi, 
+          url: ref.link 
         };
         
-        // Decode the 'url' property (which comes from ref.link)
         if (popupRef.url && typeof popupRef.url === 'string') {
             try {
                 popupRef.url = decodeURIComponent(popupRef.url);
             } catch (e) {
                 console.warn(`[MDPI Filter CS] Failed to decode URL for popupRef.url: ${popupRef.url}`, e);
-                // If decoding fails, popupRef.url will retain its original value
             }
         }
 
-        // Decode any URLs found within the 'text' property itself
         if (popupRef.text && typeof popupRef.text === 'string') {
             popupRef.text = decodeUrlsInString(popupRef.text);
         }
@@ -744,8 +741,18 @@ if (!window.mdpiFilterInjected) {
         return popupRef;
       });
 
-      console.log(`%c[MDPI Filter CS] Preparing to send mdpiUpdate. BadgeCount: ${badgeCount}, Processed References for Popup: ${referencesForPopup.length} (${referencesForPopup.filter(ref => ref.isMdpi).length})`, 'color: green; font-weight: bold;', referencesForPopup.slice(0, 5));
+      // Modified log to inspect the text property more closely
+      if (referencesForPopup.length > 0) {
+        console.log(`%c[MDPI Filter CS] updateBadgeAndReferences: Sending ${referencesForPopup.length} items. First item text after decodeUrlsInString: "${referencesForPopup[0].text}"`, 'color: blue; font-weight: bold;');
+        // Optionally log the full first object to see all its properties
+        // console.log('%c[MDPI Filter CS] First full reference object for popup:', 'color: blue;', referencesForPopup[0]);
+      } else {
+        console.log(`%c[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup.`, 'color: blue; font-weight: bold;');
+      }
       
+      // The original console.log for preparing to send the message can be kept or removed
+      // console.log(`%c[MDPI Filter CS] Preparing to send mdpiUpdate. BadgeCount: ${badgeCount}, Processed References for Popup: ${referencesForPopup.length} (${referencesForPopup.filter(ref => ref.isMdpi).length})`, 'color: green; font-weight: bold;', referencesForPopup.slice(0, 5));
+
       chrome.runtime.sendMessage({
           action: "mdpiUpdate",
           data: {

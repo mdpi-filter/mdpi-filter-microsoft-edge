@@ -704,12 +704,12 @@ if (!window.mdpiFilterInjected) {
         const newRef = { ...ref }; // Clone the reference object
         // IMPORTANT: Replace 'url' with the actual property name in your reference object that stores the URL string.
         // Common names could be 'url', 'link', 'href', 'fullUrl', etc.
-        if (newRef.url && typeof newRef.url === 'string') {
+        if (newRef.link && typeof newRef.link === 'string') { // Changed from newRef.url to newRef.link
             try {
-                newRef.url = decodeURIComponent(newRef.url);
+                newRef.link = decodeURIComponent(newRef.link); // Changed from newRef.url to newRef.link
             } catch (e) {
                 // Log an error if decoding fails, and keep the original URL
-                console.warn(`[MDPI Filter CS] Failed to decode URL: ${newRef.url}`, e);
+                console.warn(`[MDPI Filter CS] Failed to decode URL: ${newRef.link}`, e); // Changed from newRef.url to newRef.link
             }
         }
         return newRef;
@@ -816,8 +816,9 @@ if (!window.mdpiFilterInjected) {
         if (isMdpiItemByContent(item, runCache)) {
           const referenceData = extractReferenceData(item);
           if (referenceData) { // Ensure data was extracted
-            collectedMdpiReferences.push(referenceData); // Add to global list
-            styleRef(item, referenceData.id);
+            const mdpiReferenceData = { ...referenceData, isMdpi: true }; // Add isMdpi flag
+            collectedMdpiReferences.push(mdpiReferenceData); // Push augmented data
+            styleRef(item, mdpiReferenceData.id); // Use id from augmented data
             foundInLoop++;
             debouncedUpdateBadgeAndReferences(); // Progressive update
           }

@@ -161,9 +161,24 @@ if (!window.mdpiFilterInjected) {
     };
 
     const styleRef = (item, refId) => {
-      item.style.color = '#E2211C';
-      item.dataset.mdpiFilterRefId = refId;
+      item.dataset.mdpiFilterRefId = refId; // Assign refId for scrolling to the main item
 
+      let textStylingTarget = item; // Default to styling the item itself
+
+      // Special handling for Cambridge Core structure to style the inner content
+      // The 'item' here is div.circle-list__item[id^="r"]
+      if (item.matches && item.matches('div.circle-list__item[id^="r"]')) {
+        const contentElement = item.querySelector('div.circle-list__item__grouped__content');
+        if (contentElement) {
+          textStylingTarget = contentElement; // Target the inner div for text color
+        }
+      }
+      
+      // Apply color to the determined target for the reference text
+      textStylingTarget.style.color = '#E2211C';
+
+      // Existing logic to style a preceding reference number (e.g., a leading span)
+      // This part handles cases where the number is a sibling element before the main text.
       let currentSibling = item.previousElementSibling;
       // Regex to identify common reference number patterns like "1.", "[1]", "1)"
       const referenceStartRegex = /^\s*(?:\[\s*\d+\s*\]|\d+\s*[.)]?)/;

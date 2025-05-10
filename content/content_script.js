@@ -52,6 +52,10 @@ if (!window.mdpiFilterInjected) {
     missingDependencies.push("MDPIFilterLinkExtractor.extractPrimaryLink (from link_extractor.js)");
     dependenciesMet = false;
   }
+  if (typeof window.MDPIFilterCaches === 'undefined' || typeof window.MDPIFilterCaches.ncbiApiCache === 'undefined' || typeof window.MDPIFilterCaches.citationProcessCache === 'undefined') {
+    missingDependencies.push("MDPIFilterCaches (from cache_manager.js)");
+    dependenciesMet = false;
+  }
 
   if (!dependenciesMet) {
     console.error("[MDPI Filter CS] CRITICAL: Halting script. The following dependencies were not met:", missingDependencies.join(', '));
@@ -87,10 +91,8 @@ if (!window.mdpiFilterInjected) {
       console.log('%c MDPI FILTER EXTENSION SCRIPT LOADED AND CONTEXT SELECTED! CHECK HERE! ', 'background: yellow; color: black; font-size: 16px; font-weight: bold;');
       // console.log("[MDPI Filter] Mode:", mode);
 
-      // --- Global Persistent Cache for NCBI API responses ---
-      const ncbiApiCache = new Map(); // Stores ID (string) -> isMDPI (boolean)
-      // --- Cache for processed citation items to avoid re-evaluating their MDPI status ---
-      const citationProcessCache = new WeakMap(); // Stores Element -> isMDPI (boolean)
+      // --- Use Caches from Global Scope ---
+      const { ncbiApiCache, citationProcessCache } = window.MDPIFilterCaches;
       // ---
 
       // Helper function to decode URLs within a string

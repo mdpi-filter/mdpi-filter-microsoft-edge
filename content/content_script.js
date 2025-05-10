@@ -61,8 +61,6 @@ if (!window.mdpiFilterInjected) {
     'li:has(hl-trusted-source a[href])', // Healthline citation list items
     'div.circle-list__item[id^="r"]', // Cambridge Core
     'li:has(> div.cit.ref-cit)' // For BMJ-like structures
-
-
   ].join(',');
   // ---
 
@@ -227,6 +225,23 @@ if (!window.mdpiFilterInjected) {
             linkTextTarget.style.color = '#E2211C'; 
             // console.log(`[MDPI Filter] Styling 'Cited by' link text in H3:`, linkTextTarget);
           }
+        }
+      } else if (elementToStyle.matches && elementToStyle.matches('li.citedByEntry')) { // New block for general citedByEntry
+        elementToStyle.style.borderLeft = '3px solid #E2211C'; // MDPI Red
+        elementToStyle.style.paddingLeft = '5px';
+        elementToStyle.style.marginBottom = '2px'; // Optional: add some spacing
+
+        // Style the series title (journal name) if present
+        const seriesTitleSpan = elementToStyle.querySelector('span.seriesTitle');
+        if (seriesTitleSpan) {
+          seriesTitleSpan.style.color = '#E2211C';
+          seriesTitleSpan.style.fontWeight = 'bold';
+        }
+        // Optionally, style other parts like the DOI span
+        const doiSpan = elementToStyle.querySelector('span.doi');
+        if (doiSpan) {
+          // Example: make DOI text bold or a different shade if desired
+          // doiSpan.style.fontWeight = 'bold';
         }
       } else if (elementToStyle && elementToStyle.tagName === 'A') {
         // This is a general MDPI link (not a "Cited by" LI container)
@@ -1118,6 +1133,23 @@ if (!window.mdpiFilterInjected) {
       });
     }
 
+    function processCitedByEntries(runCache) {
+      // console.log("[MDPI Filter] Processing 'Cited By' entries.");
+      const citedByItems = document.querySelectorAll('li.citedByEntry');
+      // console.log(`[MDPI Filter] Found ${citedByItems.length} 'li.citedByEntry' items.`);
+
+      citedByItems.forEach(item => {
+        // Ensure the item is not already processed as part of a regular reference list
+        // and that it doesn't get added to collectedMdpiReferences.
+        if (!item.dataset.mdpiFilterRefId) { // Check if it's already marked as a main reference
+          if (isMdpiItemByContent(item, runCache)) {
+            // console.log("[MDPI Filter] 'Cited By' item identified as MDPI:", item);
+            styleDirectLink(item); // Apply styling
+          }
+        }
+      });
+    }
+
     const highlightElementTemporarily = (element) => {
       if (!element) return;
       element.style.outline = '3px solid #FFD700';
@@ -1160,12 +1192,13 @@ if (!window.mdpiFilterInjected) {
         console.log(`[MDPI Filter] runAll STARTING... Source: ${source}, Time: ${new Date().toISOString()}`);
 
         // Clear previous results and reset counter only for sources that imply a full page re-scan.
-        // For observer-triggered runs, we want to update the existing collections.
-        if (source === "initial load" || source === "hashchange" || source === "message") {
+        if (source === "initial load" || source === "hashchange" || source === "message" || source === "initial_force") {
             console.log("[MDPI Filter] Clearing all references and resetting counter for full re-scan due to source:", source);
             uniqueMdpiReferences.clear();
             collectedMdpiReferences = [];
             refIdCounter = 0; // Reset for full scans
+            // Clear existing highlights/modifications if doing a full rescan
+            clearPreviousHighlights(); // Assuming clearPreviousHighlights exists and works
         }
 
 
@@ -1307,7 +1340,7 @@ if (!window.mdpiFilterInjected) {
 
 
             if (isMdpi) {
-              const referenceData = extractReferenceData(item);
+              const referenceData = extractReferenceData(item); // This assigns mdpi-filter-ref-id
               if (referenceData.text && !uniqueMdpiReferences.has(referenceData.text.substring(0, 200))) { // Use a substring for uniqueness
                 uniqueMdpiReferences.add(referenceData.text.substring(0, 200));
                 collectedMdpiReferences.push(referenceData);
@@ -1324,6 +1357,8 @@ if (!window.mdpiFilterInjected) {
           styleInlineFootnotes(runCache); // Pass runCache here
           // Process direct MDPI links not in reference lists
           processDirectMdpiLinks(runCache); // Pass runCache here
+          // Process "Cited By" entries
+          processCitedByEntries(runCache); // Pass runCache here
         }
 
         updateBadgeAndReferences();

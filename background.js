@@ -56,7 +56,9 @@ async function injectModules(tabId, triggerSource = "unknown") {
   const modules = [
     'content/domains.js',
     'content/sanitizer.js',
-    'content/utils.js', // Add utils.js here
+    'content/utils.js',
+    'content/reference_selectors.js',     // Add this
+    'content/inline_footnote_styler.js',  // Add this
     'content/content_script.js'
   ];
   try {
@@ -123,7 +125,13 @@ chrome.webNavigation.onCompleted.addListener(
         files: [
           'content/domains.js',
           'content/sanitizer.js',
-          'content/utils.js', // Add utils.js here
+          'content/utils.js',
+          'content/reference_selectors.js',
+          'content/inline_footnote_selectors.js',
+          'content/inline_footnote_styler.js',
+          'content/cited_by_selectors.js',
+          'content/cited_by_styler.js',
+          'content/cited_by_processor.js',
           'content/content_script.js'
         ]
       }).catch(e => {

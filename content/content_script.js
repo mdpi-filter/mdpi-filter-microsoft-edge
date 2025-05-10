@@ -31,6 +31,8 @@ if (!window.mdpiFilterInjected) {
   const MDPI_DOI_REGEX = new RegExp(MDPI_DOI.replace(/\./g, '\\.') + "/[^\\s\"'<>&]+", "i");
   const domains     = window.MDPIFilterDomains || {};
   const sanitize    = window.sanitize || (html => html);
+  // Use the selectors from the new file
+  const referenceListSelectors = window.MDPIFilterReferenceSelectors; 
   const uniqueMdpiReferences = new Set();
   let collectedMdpiReferences = []; // Array to store detailed reference info
   let refIdCounter = 0; // Counter for unique reference IDs
@@ -38,30 +40,6 @@ if (!window.mdpiFilterInjected) {
   // Declare mainObserverInstance in a scope accessible by runAll and setupMainObserver
   let mainObserverInstance = null;
 
-  const referenceListSelectors = [
-    'li.c-article-references__item',
-    'div.References p.ReferencesCopy1',
-    'li.html-x',
-    'li.html-xx',
-    'div.citation',
-    'div.reference',
-    'li.separated-list-item',
-    'li[id^="CR"]', // Springer
-    'li[id^="cit"]', // TandF and similar (e.g., id="cit0008")
-    'li[id^="ref-"]', // Generic
-    'li[id^="reference-"]', // Generic
-    'li[id^="B"]', // NCBI/PMC specific Bxx-journal-id format
-    'li:has(> span > a[id^="ref-id-"])', // Some other format
-    'li:has(a[name^="bbib"])', // Another format
-    'li[data-bib-id]', // Wiley
-    'span[aria-owns^="pdfjs_internal_id_"]', // PDF.js rendered spans
-    'li[id^="cite_note-"]', // Wikipedia reference list items
-    'div.refbegin li', // Wikipedia "Sources" or "Further reading" list items
-    'li.scroll-mt-28', // Examine.com reference list items
-    'li:has(hl-trusted-source a[href])', // Healthline citation list items
-    'div.circle-list__item[id^="r"]', // Cambridge Core
-    'li:has(> div.cit.ref-cit)' // For BMJ-like structures
-  ].join(',');
   // ---
 
   // Helper function to determine if the current page is a search engine results page
@@ -110,56 +88,6 @@ if (!window.mdpiFilterInjected) {
       }
     };
 
-    const styleSup = supOrA => {
-      if (!supOrA) return;
-
-      // Style the main element (sup or a)
-      supOrA.style.color      = '#E2211C'; // MDPI Red
-      supOrA.style.fontWeight = 'bold';
-
-      // If supOrA is a sup element, specifically style any anchor tag and its content within it
-      if (supOrA.tagName.toLowerCase() === 'sup') {
-        const anchorElement = supOrA.querySelector('a');
-        if (anchorElement) {
-          anchorElement.style.color      = '#E2211C';
-          anchorElement.style.fontWeight = 'bold';
-          // Also style text nodes directly inside the anchor, if any, or its children
-          Array.from(anchorElement.childNodes).forEach(child => {
-            if (child.nodeType === Node.ELEMENT_NODE) {
-              child.style.color      = '#E2211C';
-              child.style.fontWeight = 'bold';
-            }
-          });
-
-          // Wikipedia uses spans for brackets, ensure they are also red
-          const bracketSpans = anchorElement.querySelectorAll('span.cite-bracket');
-          bracketSpans.forEach(span => {
-            span.style.color = '#E2211C';
-            // fontWeight will be inherited from the anchor or sup
-          });
-        }
-      }
-      // If supOrA is an anchor itself that contains a sup
-      else if (supOrA.tagName.toLowerCase() === 'a') {
-        const supInsideAnchor = supOrA.querySelector('sup');
-        if (supInsideAnchor) {
-          supInsideAnchor.style.color      = '#E2211C';
-          supInsideAnchor.style.fontWeight = 'bold';
-
-          // Check for Wikipedia brackets if the anchor itself is the primary target
-          // and contains a sup with an anchor that has brackets.
-          // This case might be less common if styleInlineFootnotes correctly identifies the sup first.
-          const anchorInsideSup = supInsideAnchor.querySelector('a');
-          if (anchorInsideSup) {
-            const bracketSpans = anchorInsideSup.querySelectorAll('span.cite-bracket');
-            bracketSpans.forEach(span => {
-                span.style.color = '#E2211C';
-            });
-          }
-        }
-      }
-    };
-
     const styleRef = (item, refId) => {
       item.dataset.mdpiFilterRefId = refId; // Assign refId for scrolling to the main item
 
@@ -205,45 +133,7 @@ if (!window.mdpiFilterInjected) {
     const styleDirectLink = (elementToStyle) => {
       if (!elementToStyle) return;
 
-      if (elementToStyle.matches && elementToStyle.matches('li.ListArticleItem') && elementToStyle.closest('#section-cited-by')) {
-        // This is a "Cited by" LI item from ScienceDirect
-        elementToStyle.style.borderLeft = '3px solid #E2211C';
-        elementToStyle.style.paddingLeft = '5px';
-        // console.log(`[MDPI Filter] Styling 'Cited by' LI:`, elementToStyle);
-
-        const titleH3 = elementToStyle.querySelector('h3.u-font-serif');
-        if (titleH3) {
-          titleH3.style.color = '#E2211C';
-          // console.log(`[MDPI Filter] Styling 'Cited by' H3:`, titleH3);
-          
-          // Also color the link text within H3
-          const linkInH3 = titleH3.querySelector('a.anchor-primary');
-          if (linkInH3) {
-            // Prefer styling the specific .anchor-text span if it exists
-            const anchorTextSpan = linkInH3.querySelector('.anchor-text');
-            const linkTextTarget = anchorTextSpan || linkInH3;
-            linkTextTarget.style.color = '#E2211C'; 
-            // console.log(`[MDPI Filter] Styling 'Cited by' link text in H3:`, linkTextTarget);
-          }
-        }
-      } else if (elementToStyle.matches && elementToStyle.matches('li.citedByEntry')) { // New block for general citedByEntry
-        elementToStyle.style.borderLeft = '3px solid #E2211C'; // MDPI Red
-        elementToStyle.style.paddingLeft = '5px';
-        elementToStyle.style.marginBottom = '2px'; // Optional: add some spacing
-
-        // Style the series title (journal name) if present
-        const seriesTitleSpan = elementToStyle.querySelector('span.seriesTitle');
-        if (seriesTitleSpan) {
-          seriesTitleSpan.style.color = '#E2211C';
-          seriesTitleSpan.style.fontWeight = 'bold';
-        }
-        // Optionally, style other parts like the DOI span
-        const doiSpan = elementToStyle.querySelector('span.doi');
-        if (doiSpan) {
-          // Example: make DOI text bold or a different shade if desired
-          // doiSpan.style.fontWeight = 'bold';
-        }
-      } else if (elementToStyle && elementToStyle.tagName === 'A') {
+      if (elementToStyle && elementToStyle.tagName === 'A') {
         // This is a general MDPI link (not a "Cited by" LI container)
         let textDisplayElement = elementToStyle; 
         let borderTargetElement = elementToStyle; 
@@ -387,27 +277,6 @@ if (!window.mdpiFilterInjected) {
 
     // Internal function containing the original logic of isMdpiItemByContent
     const isMdpiItemByContentInternal = (item, runCache) => {
-      // This is the full original logic of your isMdpiItemByContent function
-      // from the provided content_script.js-1 file.
-      // For brevity, I'm not repeating the entire function here, but assume it's
-      // the version from your 'content_script.js-1' attachment.
-      // Ensure all return paths within this function correctly return true or false.
-      // Example structure:
-      // if (!item) return false;
-      // const textContent = item.textContent || '';
-      // const innerHTML = item.innerHTML || '';
-      // ... (all your DOI checks, text checks, domain checks, NCBI ID checks, journal checks) ...
-      // if (conditionForMdpi) return true;
-      // ...
-      // if (conditionForNonMdpi) return false;
-      // ...
-      // return false; // Default if no MDPI criteria met
-
-      // --- PASTE THE FULL LOGIC OF isMdpiItemByContent from content_script.js-1 HERE ---
-      // --- Make sure it uses the 'item' and 'runCache' parameters correctly ---
-      // --- and that all its return statements are simple 'return true;' or 'return false;' ---
-
-      // Placeholder for the actual logic from your file:
       if (!item) return false;
       const textContent = item.textContent || '';
       const innerHTML = item.innerHTML || '';
@@ -931,8 +800,20 @@ if (!window.mdpiFilterInjected) {
         // --- Step 3: Process direct MDPI links on the page ---
         processDirectMdpiLinks();
 
+        // --- Step 3.5 (New): Process "Cited By" Entries ---
+        // These are styled but NOT added to collectedMdpiReferences for the popup.
+        if (window.MDPIFilterCitedBy && window.MDPIFilterCitedBy.Processor && window.MDPIFilterCitedBy.Processor.processEntries) {
+          // console.log('[MDPI Filter CS] Calling CitedBy.Processor.processEntries...');
+          window.MDPIFilterCitedBy.Processor.processEntries(isMdpiItemByContent, runCache);
+        } else {
+          // console.warn('[MDPI Filter CS] MDPIFilterCitedBy.Processor.processEntries function is not available.');
+        }
+
         // --- Step 4: Style inline footnotes ---
-        styleInlineFootnotes(collectedMdpiReferences); // Pass collected references
+        // Call the function from MDPIFilterUtils and pass collectedMdpiReferences
+        if (window.MDPIFilterUtils && window.MDPIFilterUtils.styleInlineFootnotes) {
+          window.MDPIFilterUtils.styleInlineFootnotes(collectedMdpiReferences);
+        }
 
         // --- Step 5: Final update to badge and references ---
         // This ensures that even if processAllReferences found nothing (so debounced didn't fire),
@@ -947,433 +828,6 @@ if (!window.mdpiFilterInjected) {
         const duration = (endTime - startTime) / 1000;
         // The 'unique' here refers to a different set, let's clarify or remove if not used for badge
         console.log(`[MDPI Filter] runAll FINISHED. Source: ${source}, collected (raw): ${collectedMdpiReferences.length}, Time: ${endTime.toISOString()}, Duration: ${duration.toFixed(2)}s`);
-      }
-    }
-
-    function processAllReferences(runCache) {
-      // console.log("[MDPI Filter] processAllReferences STARTING");
-      const items = document.querySelectorAll(referenceListSelectors);
-      // console.log(`[MDPI Filter] Found ${items.length} potential reference items using selectors: ${referenceListSelectors}`);
-      let foundInLoop = 0;
-      items.forEach(item => {
-        if (item.id === 'utcdate' || item.closest('#utcdate') || item.id === 'pt-utcdate' || item.closest('#pt-utcdate')) {
-          return;
-        }
-        if (isMdpiItemByContent(item, runCache)) {
-          const referenceData = extractReferenceData(item);
-          if (referenceData) { // Ensure data was extracted
-            const mdpiReferenceData = { ...referenceData, isMdpi: true }; // Add isMdpi flag
-            collectedMdpiReferences.push(mdpiReferenceData); // Push augmented data
-            styleRef(item, mdpiReferenceData.id); // Use id from augmented data
-            foundInLoop++;
-            debouncedUpdateBadgeAndReferences(); // Progressive update
-          }
-        }
-      });
-      // console.log(`[MDPI Filter] processAllReferences FINISHED. Found and styled ${foundInLoop} items in this pass.`);
-    }
-
-    const updateBadgeAndReferencesOld = () => {
-      const sortedReferences = [...collectedMdpiReferences].sort((a, b) => {
-        if (a.number !== null && b.number === null) return -1;
-        if (a.number === null && b.number !== null) return 1;
-        if (a.number !== null && b.number !== null) {
-          if (a.number !== b.number) {
-            return a.number - b.number;
-          }
-        }
-        // Fallback sort by original discovery order (refId) if numbers are same or both null
-        const numA = parseInt(a.id.split('-').pop(), 10);
-        const numB = parseInt(b.id.split('-').pop(), 10);
-        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-        return a.id.localeCompare(b.id); // Absolute fallback
-      });
-
-      console.log(`%c[updateBadgeAndReferences] Sending to popup. Count: ${uniqueMdpiReferences.size}, Refs length: ${sortedReferences.length}`, 'color: purple; font-weight: bold;');
-      if (sortedReferences.length > 0) {
-        console.log('%cReferences being sent to popup:', 'color: purple;');
-        sortedReferences.forEach(r => {
-          console.log(`%c  - FP: ${r.fingerprint.substring(0,50)}... Num: ${r.number} (Source: ${r.numberSource || 'N/A'}), Text: "${r.text.substring(0,30)}..." ID: ${r.id}`, 'color: purple;');
-        });
-      }
-      
-      chrome.runtime.sendMessage({
-        type: 'mdpiUpdate',
-        count: uniqueMdpiReferences.size, 
-        references: sortedReferences     
-      });
-    };
-
-    function styleInlineFootnotes() {
-      // console.log('[MDPI Filter CS] Styling inline footnotes. Collected MDPI refs:', collectedMdpiReferences.length);
-      if (collectedMdpiReferences.length === 0) return;
-
-      const styledInlineRefs = new Set(); // Prevent styling the same inline ref multiple times
-
-      collectedMdpiReferences.forEach(refData => {
-        // Use listItemDomId for matching against page elements' attributes like href, data-rid.
-        // This ID comes directly from the reference list item (e.g., "CR35" or a data-bib-id).
-        if (!refData || !refData.listItemDomId || refData.listItemDomId.trim() === "") {
-          // console.warn("[MDPI Filter CS] Skipping inline style: Invalid refData or missing/empty listItemDomId.", refData);
-          return;
-        }
-        const refId = refData.listItemDomId; // This can now be item.id or item.dataset.bibId
-        // console.log(`[MDPI Filter CS] Processing inline footnotes for listItemDomId: ${refId} (Internal scroll ID: ${refData.id})`);
-
-        // Selectors for common inline citation patterns
-        const commonSelectors = [
-          `a[href="#${refId}"]`,                        // Standard anchor link
-          // Handling for Wikipedia: refId might be "Foo_Bar_2023" or "1"
-          // If refId is purely numeric, cite_note-X is common.
-          // If refId is complex, direct href match is more likely.
-          `a[href="#cite_note-${refId}"]`,
-          // Try to get base part for wiki links, e.g. "Foo_Bar_2023" from "cite_note-Foo_Bar_2023-1"
-          // or "1" from "cite_note-1"
-          `a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
-          `a[href="#ref-${refId}"]`,                   // Common ref prefix
-          `a[href="#reference-${refId}"]`,             // Common reference prefix
-          // Handle cases where refId might be "B1" and link is "#B1" or refId is "1" and link is "#B1"
-          `a[href="#B${refId.replace(/^B/i, '')}"]`,   // NCBI Bxx style
-          `a[href="#CR${refId.replace(/^CR/i, '')}"]`, // Springer style
-          // ADDED FOR TANDFONLINE and similar sites using data-rid or data-bris-rid
-          `a[data-rid="${refId}"]`,
-          `a[data-bris-rid="${refId}"]`
-        ];
-
-        const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35"
-        if (numericRefIdPart) {
-            commonSelectors.push(`a[href="#cite_note-${numericRefIdPart}"]`);
-            commonSelectors.push(`a[href="#ref-${numericRefIdPart}"]`);
-            commonSelectors.push(`a[href="#reference-${numericRefIdPart}"]`);
-            commonSelectors.push(`a[href="#B${numericRefIdPart}"]`);
-            commonSelectors.push(`a[href="#CR${numericRefIdPart}"]`);
-            // Potentially add `a[data-rid="${numericRefIdPart}"]` if some sites use numeric data-rid
-        }
-
-        const supParentSelectors = [
-          `sup a[href="#${refId}"]`,
-          `sup a[href="#cite_note-${refId}"]`,
-          `sup a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
-          `sup a[href="#ref-${refId}"]`,
-          `sup a[href="#reference-${refId}"]`,
-          `sup a[href="#B${refId.replace(/^B/i, '')}"]`,
-          `sup a[href="#CR${refId.replace(/^CR/i, '')}"]`,
-          `sup[id="ref${refId}"]`,
-          `sup a[data-rid="${refId}"]`,
-          `sup a[data-bris-rid="${refId}"]`
-        ];
-         if (numericRefIdPart) {
-            supParentSelectors.push(`sup a[href="#cite_note-${numericRefIdPart}"]`);
-            supParentSelectors.push(`sup a[href="#ref-${numericRefIdPart}"]`);
-            supParentSelectors.push(`sup a[href="#reference-${numericRefIdPart}"]`);
-            supParentSelectors.push(`sup a[href="#B${numericRefIdPart}"]`);
-            supParentSelectors.push(`sup a[href="#CR${numericRefIdPart}"]`);
-            supParentSelectors.push(`sup[id="ref-${numericRefIdPart}"]`);
-        }
-
-        // --- Wiley Specific Check Integration ---
-        // If the reference list item was identified by its actual DOM ID (refId = item.id),
-        // and it also has a 'data-bib-id' attribute, check if inline links use that 'data-bib-id'.
-        const listItemElement = document.getElementById(refId); // This looks for an element with ID equal to refId.
-        if (listItemElement) { // This block will only execute if refId was a valid DOM ID of an element.
-            const wileyBibId = listItemElement.getAttribute('data-bib-id');
-            if (wileyBibId) {
-                // Escape special characters for CSS selector.
-                const escapedWileyBibId = wileyBibId.replace(/["\\]/g, '\\$&');
-                // Add selectors for this wileyBibId only if it's different from refId itself,
-                // to avoid redundancy if refId is already the data-bib-id (because item.id was missing).
-                if (escapedWileyBibId !== refId) {
-                    commonSelectors.push(`a[href="#${escapedWileyBibId}"]`);
-                    supParentSelectors.push(`sup a[href="#${escapedWileyBibId}"]`);
-                }
-            }
-        }
-        // --- End Wiley Specific Check Integration ---
-
-        const allSelectorsString = [...new Set([...commonSelectors, ...supParentSelectors])].join(', ');
-        // console.log(`[MDPI Filter CS] Querying inline for listItemDomId '${refId}' (numeric: '${numericRefIdPart}') with: ${allSelectorsString}`);
-
-        try {
-          document.querySelectorAll(allSelectorsString).forEach(el => {
-            let targetElementToStyle = el; 
-
-            if (el.tagName.toLowerCase() === 'sup') {
-              targetElementToStyle = el;
-            } else if (el.tagName.toLowerCase() === 'a') {
-              const directSupParent = el.parentElement;
-              if (directSupParent && directSupParent.tagName.toLowerCase() === 'sup') {
-                targetElementToStyle = directSupParent;
-              } else {
-                targetElementToStyle = el; 
-              }
-            }
-
-            if (targetElementToStyle && !styledInlineRefs.has(targetElementToStyle)) {
-              // console.log(`[MDPI Filter CS] Styling inline for ${refId}:`, targetElementToStyle);
-              styleSup(targetElementToStyle); 
-              styledInlineRefs.add(targetElementToStyle);
-            } else if (targetElementToStyle && styledInlineRefs.has(targetElementToStyle)) {
-              // console.log(`[MDPI Filter CS] Already styled inline element for ref ${refId}:`, targetElementToStyle);
-            }
-          });
-        } catch (error) {
-          // console.error(`[MDPI Filter CS] Error querying/styling inline footnotes for listItemDomId ${refId} ('${allSelectorsString}'):`, error);
-        }
-      });
-      // console.log('[MDPI Filter CS] Finished styling inline footnotes.');
-    }
-
-    function processDirectMdpiLinks() {
-      const mdpiArticleRegex = /^https?:\/\/www\.mdpi\.com\/\d{4}-\d{4}\/\d+\/\d+\/\d+(\/.*)?$/;
-      document.querySelectorAll(`a[href^="https://www.mdpi.com/"]`).forEach(a => {
-        const href = a.getAttribute('href');
-        if (href && mdpiArticleRegex.test(href) && !a.closest(referenceListSelectors.split(',').map(s => s.trim() + '[data-mdpi-filter-ref-id]').join(','))) {
-          styleDirectLink(a);
-        }
-      });
-    }
-
-    function processCitedByEntries(runCache) {
-      // console.log("[MDPI Filter] Processing 'Cited By' entries.");
-      const citedByItems = document.querySelectorAll('li.citedByEntry');
-      // console.log(`[MDPI Filter] Found ${citedByItems.length} 'li.citedByEntry' items.`);
-
-      citedByItems.forEach(item => {
-        // Ensure the item is not already processed as part of a regular reference list
-        // and that it doesn't get added to collectedMdpiReferences.
-        if (!item.dataset.mdpiFilterRefId) { // Check if it's already marked as a main reference
-          if (isMdpiItemByContent(item, runCache)) {
-            // console.log("[MDPI Filter] 'Cited By' item identified as MDPI:", item);
-            styleDirectLink(item); // Apply styling
-          }
-        }
-      });
-    }
-
-    const highlightElementTemporarily = (element) => {
-      if (!element) return;
-      element.style.outline = '3px solid #FFD700';
-      element.style.transition = 'outline 0.1s ease-in-out';
-
-      const refId = element.dataset.mdpiFilterRefId;
-      if (refId) {
-        document.querySelectorAll(`[data-mdpi-filter-ref-id="${refId}"]`).forEach(el => {
-          el.style.outline = '3px solid #FFD700';
-          el.style.transition = 'outline 0.1s ease-in-out';
-        });
-      }
-
-      setTimeout(() => {
-        element.style.outline = '';
-        if (refId) {
-          document.querySelectorAll(`[data-mdpi-filter-ref-id="${refId}"]`).forEach(el => {
-            el.style.outline = '';
-          });
-        }
-      }, 2000);
-    };
-
-    async function runAll(source = "initial") {
-      // Clear 'processed in this run' flags from all elements that might have it from a previous run.
-      // This ensures that processAllReferences correctly re-evaluates items in the current run.
-      try {
-        document.querySelectorAll('[data-mdpi-processed-in-this-run="true"]').forEach(el => {
-          delete el.dataset.mdpiProcessedInThisRun;
-        });
-      } catch (e) {
-        console.warn("[MDPI Filter] Error clearing 'data-mdpi-processed-in-this-run' attributes:", e);
-      }
-
-      if (mainObserverInstance) {
-        mainObserverInstance.disconnect();
-        // console.log('[MDPI Filter] Main observer disconnected for runAll.');
-      }
-      try {
-        console.log(`[MDPI Filter] runAll STARTING... Source: ${source}, Time: ${new Date().toISOString()}`);
-
-        // Clear previous results and reset counter only for sources that imply a full page re-scan.
-        if (source === "initial load" || source === "hashchange" || source === "message" || source === "initial_force") {
-            console.log("[MDPI Filter] Clearing all references and resetting counter for full re-scan due to source:", source);
-            uniqueMdpiReferences.clear();
-            collectedMdpiReferences = [];
-            refIdCounter = 0; // Reset for full scans
-            // Clear existing highlights/modifications if doing a full rescan
-            clearPreviousHighlights(); // Assuming clearPreviousHighlights exists and works
-        }
-
-
-        // Determine if we are on a known search site
-        const currentDomainConfig = (() => {
-          const host = window.location.hostname;
-          const path = window.location.pathname;
-          for (const key in domains) {
-            const domainInfo = domains[key];
-            if (domainInfo.host && host === domainInfo.host) {
-              if (domainInfo.path) {
-                if (domainInfo.path.test(path)) return domainInfo;
-              } else {
-                return domainInfo; // No path specified, host match is enough
-              }
-            } else if (domainInfo.hostRegex && domainInfo.hostRegex.test(host)) {
-               // For hostRegex, path check is also important if specified
-              if (domainInfo.path) {
-                if (domainInfo.path.test(path)) return domainInfo;
-              } else {
-                return domainInfo; // No path specified, hostRegex match is enough
-              }
-            }
-          }
-          return null;
-        })();
-
-        // Create a cache for this run of NCBI API results to avoid redundant checks for the same ID
-        const runCache = new Map(); // Stores pmid/pmcid -> isMdpi (boolean)
-
-        // --- Step 1: Pre-fetch all NCBI IDs if on PubMed or similar ---
-        // This is a global pre-fetch for IDs found on the page, to populate runCache
-        // This step is now more generalized.
-        const allPotentialItemsForNcbiScan = document.querySelectorAll(referenceListSelectors);
-        let allPmcidsToFetch = new Set();
-        let allPmidsToFetch = new Set();
-
-        allPotentialItemsForNcbiScan.forEach(item => {
-            const textContent = item.textContent || '';
-            // const innerHTML = item.innerHTML || ''; // innerHTML not directly used for ID extraction here
-
-            // --- Extract PMIDs and PMCIDs from links (more robust, prioritized) ---
-            item.querySelectorAll('a[href]').forEach(link => {
-                const href = link.href;
-
-                // PubMed links for PMIDs
-                const pmidLinkMatch = href.match(/pubmed\/(\d{7,8})/);
-                if (pmidLinkMatch && pmidLinkMatch[1]) {
-                    const numericId = parseInt(pmidLinkMatch[1], 10);
-                    if (!isNaN(numericId) && numericId > 0) {
-                        allPmidsToFetch.add(numericId.toString()); // Add normalized ID
-                    }
-                }
-
-                // PMC links for PMCIDs
-                const pmcLinkMatch = href.match(/pmc\/articles\/PMC(\d{7,})/i); // Added 'i' for case-insensitivity
-                if (pmcLinkMatch && pmcLinkMatch[1]) {
-                    const pmcIdOnly = pmcLinkMatch[1];
-                    if (/^\d+$/.test(pmcIdOnly)) { // Basic validation (digits only)
-                        allPmcidsToFetch.add(pmcIdOnly); // PMC IDs are typically stored as is after "PMC"
-                    }
-                }
-            });
-
-            // --- Extract PMIDs and PMCIDs from text content (fallback/complementary) ---
-
-            // PMCIDs from text (e.g., "PMC1234567")
-            const pmcMatchesText = textContent.match(/PMC\d{7,}/gi); // Added 'i' for case-insensitivity
-            if (pmcMatchesText) {
-                pmcMatchesText.forEach(pmcString => {
-                    const pmcIdOnly = pmcString.substring(3);
-                    if (/^\d+$/.test(pmcIdOnly)) {
-                        allPmcidsToFetch.add(pmcIdOnly);
-                    }
-                });
-            }
-
-            // PMIDs from text (with improved regex and normalization)
-            // Looks for 7 or 8 digit numbers not immediately part of a DOI-like structure or other numbers.
-            const pmidTextRegex = /(?<![\d./-])\b(\d{7,8})\b(?![\d.-])/g;
-            let pmidTextMatch;
-            while ((pmidTextMatch = pmidTextRegex.exec(textContent)) !== null) {
-                const capturedId = pmidTextMatch[1];
-                const numericId = parseInt(capturedId, 10);
-                if (!isNaN(numericId) && numericId > 0) {
-                    // Avoid adding if it's likely part of a DOI found in text,
-                    // though the regex itself should largely prevent this.
-                    // For simplicity, we'll rely on the regex and normalization for now.
-                    allPmidsToFetch.add(numericId.toString());
-                }
-            }
-        });
-        // console.log("[MDPI Filter] NCBI Pre-scan - PMIDs to fetch:", Array.from(allPmidsToFetch));
-        // console.log("[MDPI Filter] NCBI Pre-scan - PMCIDs to fetch:", Array.from(allPmcidsToFetch));
-
-        if (allPmidsToFetch.size > 0) {
-            await checkNcbiIdsForMdpi(Array.from(allPmidsToFetch), 'pmid', runCache);
-        }
-        if (allPmcidsToFetch.size > 0) {
-            await checkNcbiIdsForMdpi(Array.from(allPmcidsToFetch), 'pmcid', runCache);
-        }
-        // console.log("[MDPI Filter] NCBI Pre-scan - runCache populated:", runCache);
-        // --- End Step 1 ---
-
-
-        if (currentDomainConfig) {
-          // console.log("[MDPI Filter] Operating on known search site:", currentDomainConfig);
-          const { container, linkSelector, itemSelector, doiPattern, htmlContains } = currentDomainConfig;
-          let itemsToProcess = [];
-
-          if (itemSelector) {
-            itemsToProcess = Array.from(document.querySelectorAll(itemSelector));
-          } else if (container) { // Fallback to container if itemSelector is not specific enough
-            itemsToProcess = Array.from(document.querySelectorAll(container));
-          }
-          // console.log(`[MDPI Filter] Found ${itemsToProcess.length} items/containers to process on search site.`);
-
-          itemsToProcess.forEach(item => {
-            let isMdpi = false;
-            if (linkSelector) {
-              if (item.matches(linkSelector) || item.querySelector(linkSelector)) {
-                isMdpi = true;
-              }
-            }
-            if (!isMdpi && doiPattern) {
-              if ((item.textContent || '').includes(doiPattern)) {
-                isMdpi = true;
-              }
-            }
-            if (!isMdpi && htmlContains) {
-              if ((item.innerHTML || '').includes(htmlContains)) {
-                isMdpi = true;
-              }
-            }
-            // Additional check using isMdpiItemByContent for search results if needed
-            if (!isMdpi && isMdpiItemByContent(item, runCache)) {
-                isMdpi = true;
-            }
-
-
-            if (isMdpi) {
-              const referenceData = extractReferenceData(item); // This assigns mdpi-filter-ref-id
-              if (referenceData.text && !uniqueMdpiReferences.has(referenceData.text.substring(0, 200))) { // Use a substring for uniqueness
-                uniqueMdpiReferences.add(referenceData.text.substring(0, 200));
-                collectedMdpiReferences.push(referenceData);
-                styleSearch(item); // Apply styling/hiding
-                // console.log("[MDPI Filter] Search result identified as MDPI and styled/hidden:", item);
-              }
-            }
-          });
-        } else {
-          // console.log("[MDPI Filter] Not a known search site or no specific config. Processing general references and links.");
-          // Process general references if not on a specific search site or if config allows
-          processAllReferences(runCache); // Pass runCache here
-          // Process inline footnotes/citations
-          styleInlineFootnotes(runCache); // Pass runCache here
-          // Process direct MDPI links not in reference lists
-          processDirectMdpiLinks(runCache); // Pass runCache here
-          // Process "Cited By" entries
-          processCitedByEntries(runCache); // Pass runCache here
-        }
-
-        updateBadgeAndReferences();
-        console.log(`[MDPI Filter] runAll FINISHED. Source: ${source}, unique: ${uniqueMdpiReferences.size}, collected: ${collectedMdpiReferences.length}, Time: ${new Date().toISOString()}`);
-
-      } catch (error) {
-        console.error("[MDPI Filter] Error in runAll:", error);
-      } finally {
-        if (mainObserverInstance) {
-          mainObserverInstance.observe(document.documentElement, {
-            childList: true,
-            subtree: true
-          });
-          // console.log('[MDPI Filter] Main observer reconnected after runAll.');
-        }
       }
     }
 
@@ -1396,35 +850,11 @@ if (!window.mdpiFilterInjected) {
       // console.log("[MDPI Filter] Main MutationObserver set up.");
     }
 
-    function setupCitedByObserver() {
-      const targetNode = document.getElementById('cited-by__content');
-      if (!targetNode) {
-        // console.log("[MDPI Filter] Cited By observer target '#cited-by__content' not found.");
-        return;
-      }
-
-      // console.log("[MDPI Filter] Setting up Cited By observer for:", targetNode);
-
-      const observerConfig = {
-        childList: true,
-        subtree: true
-      };
-
-      const observer = new MutationObserver((mutationsList, observer) => {
-        // console.log("[MDPI Filter] Cited By observer detected mutations.");
-        // debouncedProcessCitedByEntries(); // Temporarily commented out as processCitedByEntries is not defined
-      });
-
-      observer.observe(targetNode, observerConfig);
-      // console.log("[MDPI Filter] Cited By observer started.");
-    }
-
     if (window.MDPIFilterDomains && window.sanitize) {
       // console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll and setting up observers.");
       requestAnimationFrame(async () => { // Make callback async
         // console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
         await runAll("initial load"); // Await runAll
-        // setupCitedByObserver(); // Temporarily commented out as its utility is not fully defined
         setupMainObserver();
       });
     } else {

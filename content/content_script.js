@@ -494,7 +494,9 @@ if (!window.mdpiFilterInjected) {
         item.dataset.mdpiFilterRefId = internalScrollId;
       }
       
-      const listItemDomId = item.id; // Capture the actual DOM ID of the list item, e.g., "CR35"
+      // Capture the actual DOM ID of the list item, or use data-bib-id as a fallback for linking,
+      // particularly for Wiley sites where inline links use href="#[data-bib-id value]".
+      const listItemDomId = item.id || item.dataset.bibId; 
 
       let number = null;
       let text = '';
@@ -960,12 +962,12 @@ if (!window.mdpiFilterInjected) {
 
       collectedMdpiReferences.forEach(refData => {
         // Use listItemDomId for matching against page elements' attributes like href, data-rid.
-        // This ID comes directly from the reference list item (e.g., "CR35").
+        // This ID comes directly from the reference list item (e.g., "CR35" or a data-bib-id).
         if (!refData || !refData.listItemDomId || refData.listItemDomId.trim() === "") {
           // console.warn("[MDPI Filter CS] Skipping inline style: Invalid refData or missing/empty listItemDomId.", refData);
           return;
         }
-        const refId = refData.listItemDomId; // Changed from idToMatch to refId
+        const refId = refData.listItemDomId; // This can now be item.id or item.dataset.bibId
         // console.log(`[MDPI Filter CS] Processing inline footnotes for listItemDomId: ${refId} (Internal scroll ID: ${refData.id})`);
 
         // Selectors for common inline citation patterns
@@ -1020,17 +1022,20 @@ if (!window.mdpiFilterInjected) {
         }
 
         // --- Wiley Specific Check Integration ---
-        // If the reference list item (identified by refId, which is its DOM ID)
-        // has a data-bib-id attribute, also look for inline links whose href fragment
-        // matches that data-bib-id value.
-        const listItemElement = document.getElementById(refId);
-        if (listItemElement) {
+        // If the reference list item was identified by its actual DOM ID (refId = item.id),
+        // and it also has a 'data-bib-id' attribute, check if inline links use that 'data-bib-id'.
+        const listItemElement = document.getElementById(refId); // This looks for an element with ID equal to refId.
+        if (listItemElement) { // This block will only execute if refId was a valid DOM ID of an element.
             const wileyBibId = listItemElement.getAttribute('data-bib-id');
             if (wileyBibId) {
-                // Escape special characters for CSS selector, though href fragments are usually simple.
+                // Escape special characters for CSS selector.
                 const escapedWileyBibId = wileyBibId.replace(/["\\]/g, '\\$&');
-                commonSelectors.push(`a[href="#${escapedWileyBibId}"]`);
-                supParentSelectors.push(`sup a[href="#${escapedWileyBibId}"]`);
+                // Add selectors for this wileyBibId only if it's different from refId itself,
+                // to avoid redundancy if refId is already the data-bib-id (because item.id was missing).
+                if (escapedWileyBibId !== refId) {
+                    commonSelectors.push(`a[href="#${escapedWileyBibId}"]`);
+                    supParentSelectors.push(`sup a[href="#${escapedWileyBibId}"]`);
+                }
             }
         }
         // --- End Wiley Specific Check Integration ---

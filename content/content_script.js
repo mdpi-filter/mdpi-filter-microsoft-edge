@@ -716,26 +716,42 @@ if (!window.mdpiFilterInjected) {
 
     // This is the definition of processAllReferences that should be kept
     function processAllReferences(runCache) {
-      // console.log("[MDPI Filter] processAllReferences STARTING");
+      console.log("[MDPI Filter] processAllReferences STARTING. Selectors:", referenceListSelectors);
       const items = document.querySelectorAll(referenceListSelectors);
-      // console.log(`[MDPI Filter] Found ${items.length} potential reference items.`);
+      console.log(`[MDPI Filter] Found ${items.length} potential reference items using current selectors.`);
 
-      items.forEach(item => {
+      items.forEach((item, index) => {
         // Prevent processing known dynamic elements like MediaWiki's UTCLiveClock
         // Common IDs for UTCLiveClock are 'utcdate' or 'pt-utcdate' (often within an <li>)
         if (item.id === 'utcdate' || item.closest('#utcdate') || item.id === 'pt-utcdate' || item.closest('#pt-utcdate')) {
           // console.log("[MDPI Filter] Skipping UTCLiveClock-related element to prevent interference:", item);
-          return; // Skip this item
+          return;        }
+
+        const hasWileyAttribute = item.hasAttribute('data-bib-id');
+        if (hasWileyAttribute) {
+          console.log(`[MDPI Filter] Item ${index} has 'data-bib-id':`, item.getAttribute('data-bib-id'), item);
+        } else {
+          // console.log(`[MDPI Filter] Item ${index} (no data-bib-id):`, item);
         }
 
-        if (isMdpiItemByContent(item, runCache)) {
-          const refId = `mdpi-ref-${refIdCounter++}`;
-          collectedMdpiReferences.push(extractReferenceData(item)); // Store data before styling
-          styleRef(item, refId); // Style the reference item itself
-          // No need to call styleSearch here as it's for search result pages, not reference lists.
+        const isMdpi = isMdpiItemByContent(item, runCache);
+        if (hasWileyAttribute) {
+            console.log(`[MDPI Filter] Wiley item (data-bib-id: ${item.getAttribute('data-bib-id')}) 'isMdpiItemByContent' result: ${isMdpi}`);
+        }
+
+
+        if (isMdpi) {
+          console.log(`[MDPI Filter] Item ${index} IS MDPI. Extracting data...`, item);
+          const refId = `mdpi-ref-${refIdCounter++}`; // Ensure refIdCounter is properly managed
+          const referenceData = extractReferenceData(item);
+          console.log(`[MDPI Filter] Item ${index} extracted data:`, referenceData);
+          collectedMdpiReferences.push(referenceData);          styleRef(item, refId);          // No need to call styleSearch here as it's for search result pages, not reference lists.
+          console.log(`[MDPI Filter] Item ${index} (MDPI) styled and added. Ref ID: ${refId}`);
+        } else {
+          // console.log(`[MDPI Filter] Item ${index} is NOT MDPI.`, item);
         }
       });
-      // console.log("[MDPI Filter] processAllReferences FINISHED");
+      console.log("[MDPI Filter] processAllReferences FINISHED. Collected MDPI references count:", collectedMdpiReferences.length);
     }
 
     const updateBadgeAndReferences = () => {

@@ -119,7 +119,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.webNavigation.onCompleted.addListener(
   details => {
     if (details.frameId === 0) {
-      console.log(`[MDPI Filter BG] Injecting scripts into main frame of tab ${details.tabId}`);
+      console.log(`[MDPI Filter BG] webNavigation.onCompleted: Attempting to inject scripts into main frame of tab ${details.tabId}`);
       chrome.scripting.executeScript({
         target: { tabId: details.tabId, allFrames: false }, // Inject only into the main frame
         files: [
@@ -132,6 +132,8 @@ chrome.webNavigation.onCompleted.addListener(
           'content/cited_by_selectors.js',
           'content/cited_by_styler.js',
           'content/cited_by_processor.js',
+          'content/link_extraction_selectors.js',
+          'content/link_extractor.js',
           'content/content_script.js'
         ]
       }).catch(e => {

@@ -1072,7 +1072,7 @@ if (!window.mdpiFilterInjected) {
       const mdpiArticleRegex = /^https?:\/\/www\.mdpi\.com\/\d{4}-\d{4}\/\d+\/\d+\/\d+(\/.*)?$/;
       document.querySelectorAll(`a[href^="https://www.mdpi.com/"]`).forEach(a => {
         const href = a.getAttribute('href');
-        if (href && mdpiArticleRegex.test(href) && !a.closest(referenceListSelectors.split(',').map(s => s.trim() + '[style*="border"]').join(','))) {
+        if (href && mdpiArticleRegex.test(href) && !a.closest(referenceListSelectors.split(',').map(s => s.trim() + '[data-mdpi-filter-ref-id]').join(','))) {
           styleDirectLink(a);
         }
       });

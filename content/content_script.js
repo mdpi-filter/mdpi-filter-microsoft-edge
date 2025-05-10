@@ -59,7 +59,9 @@ if (!window.mdpiFilterInjected) {
     'div.refbegin li', // Wikipedia "Sources" or "Further reading" list items
     'li.scroll-mt-28', // Examine.com reference list items
     'li:has(hl-trusted-source a[href])', // Healthline citation list items
-    'div.circle-list__item[id^="r"]' // Cambridge Core
+    'div.circle-list__item[id^="r"]', // Cambridge Core
+    'li:has(> div.cit.ref-cit)' // For BMJ-like structures
+
 
   ].join(',');
   // ---

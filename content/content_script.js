@@ -100,6 +100,8 @@ if (!window.mdpiFilterInjected) {
       const { ncbiApiCache, citationProcessCache } = window.MDPIFilterCaches;
       // ---
 
+      let isProcessing = false; // Declare isProcessing here, inside the callback
+
       // Helper function to decode URLs within a string
       function decodeUrlsInString(str) {
         if (!str || typeof str !== 'string') return str;
@@ -671,8 +673,7 @@ if (!window.mdpiFilterInjected) {
         if (source === "initial load" || source === "main observer" || source === "initial_force") {
           // console.log(`[MDPI Filter] Clearing all references and resetting counter for full re-scan due to source: ${source}`);
           collectedMdpiReferences = [];
-          mdpiRefCounter = 0; // Reset the global counter for mdpi-ref-X IDs
-          // Clear existing highlights/modifications if doing a full rescan
+          refIdCounter = 0;          // Clear existing highlights/modifications if doing a full rescan // Changed mdpiRefCounter to refIdCounter
           clearPreviousHighlights();
         }
         
@@ -762,8 +763,7 @@ if (!window.mdpiFilterInjected) {
         // console.log("[MDPI Filter] Dependencies loaded. Requesting initial runAll and setting up observers.");
         requestAnimationFrame(async () => { // Make callback async
           // console.log("[MDPI Filter] Running initial runAll via requestAnimationFrame.");
-          await runAll("initial load"); // Await runAll
-          setupMainObserver();
+          await runAll("initial load");          setupMainObserver();
         });
       } else {
         console.error("[MDPI Filter] Initial run/observer setup skipped: Dependencies not loaded.");

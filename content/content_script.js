@@ -56,6 +56,11 @@ if (!window.mdpiFilterInjected) {
     missingDependencies.push("MDPIFilterCaches (from cache_manager.js)");
     dependenciesMet = false;
   }
+  // Add dependency check for the new item content checker
+  if (typeof window.MDPIFilterItemContentChecker === 'undefined' || typeof window.MDPIFilterItemContentChecker.checkItemContent !== 'function') {
+    missingDependencies.push("MDPIFilterItemContentChecker (from item_content_checker.js)");
+    dependenciesMet = false;
+  }
 
   if (!dependenciesMet) {
     console.error("[MDPI Filter CS] CRITICAL: Halting script. The following dependencies were not met:", missingDependencies.join(', '));
@@ -311,104 +316,6 @@ if (!window.mdpiFilterInjected) {
         return ids.some(id => runCache.get(id) === true);
       }
 
-      // Internal function containing the original logic of isMdpiItemByContent
-      const isMdpiItemByContentInternal = (item, runCache) => {
-        if (!item) return false;
-        const textContent = item.textContent || '';
-        const innerHTML = item.innerHTML || '';
-        const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
-
-        const isMdpiDoi = (doi) => doi && doi.startsWith(MDPI_DOI);
-        const extractDoiFromLink = (hrefAttribute) => {
-          if (!hrefAttribute) return null;
-          let targetUrl = hrefAttribute;
-          try {
-            const base = hrefAttribute.startsWith('/') ? window.location.origin : undefined;
-            const urlObj = new URL(hrefAttribute, base);
-            if (urlObj.searchParams.has('url')) {
-              targetUrl = decodeURIComponent(urlObj.searchParams.get('url'));
-            } else if (urlObj.searchParams.has('doi')) {
-              const doiParam = decodeURIComponent(urlObj.searchParams.get('doi'));
-              if (!doiParam.toLowerCase().startsWith('http') && doiParam.includes('/')) {
-                targetUrl = `https://doi.org/${doiParam}`;
-              } else {
-                targetUrl = doiParam;
-              }
-            }
-          } catch (e) { /* console.warn('[MDPI Filter] Error parsing URL in extractDoiFromLink:', hrefAttribute, e); */ }
-          const doiMatch = targetUrl.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
-          return doiMatch ? doiMatch[1] : null;
-        };
-
-        // Priority 1: DOI Check (from links)
-        let hasNonMdpiDoiLink = false;
-        let hasMdpiDoiLink = false;
-        for (const link of allLinksInItem) {
-          const doiInLink = extractDoiFromLink(link.href);
-          if (doiInLink) {
-            if (isMdpiDoi(doiInLink)) {
-              hasMdpiDoiLink = true;
-              break;
-            } else {
-              hasNonMdpiDoiLink = true;
-            }
-          }
-        }
-
-        // Priority 2: MDPI DOI String in Text Content
-        if (hasMdpiDoiLink) return true;
-        if (hasNonMdpiDoiLink) return false;
-
-        const mdpiDoiTextPattern = new RegExp(MDPI_DOI.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
-        if (mdpiDoiTextPattern.test(textContent)) return true;
-
-        for (const link of allLinksInItem) {
-          if (link.href && link.href.includes(MDPI_DOMAIN)) return true;
-        }
-
-        // Priority 4: PMID/PMCID to DOI Conversion Check (via runCache)
-        let pmcIdStrings = new Set();
-        let pmidStrings = new Set();
-        for (const link of allLinksInItem) {
-          if (link.href) {
-            const pmcMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+(\.\d+)?)/i);
-            if (pmcMatch && pmcMatch[1]) {
-              pmcIdStrings.add(pmcMatch[1].replace(/\.\d+$/, ''));
-            } else {
-              const pmidMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
-              if (pmidMatch && pmidMatch[1]) {
-                pmidStrings.add(pmidMatch[1]);
-              }
-            }
-          }
-        }
-
-        const allItemNcbiIds = [...pmidStrings, ...pmcIdStrings];
-        let itemHasNcbiIds = allItemNcbiIds.length > 0;
-        let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = true; // Assume true until an ID is not 'false' or not in cache
-
-        if (itemHasNcbiIds) {
-          for (const id of allItemNcbiIds) {
-            if (runCache.has(id)) {
-              if (runCache.get(id) === true) return true; // API indicated MDPI
-              // If runCache.get(id) is false, it's non-MDPI, continue checking others.
-            } else {
-              allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false; // An ID wasn't in cache, so cannot be sure all are non-MDPI
-            }
-          }
-          if (allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) return false; // All NCBI IDs present were resolved to non-MDPI
-        }
-
-        const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS'];
-        const M_JOURNALS_WEAK = ['Nutrients', 'Molecules'];
-        const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.map(j => j.replace('.', '\\.')).join('|')})\\b`, 'i');
-        if (strongJournalRegex.test(innerHTML)) return true;
-        const weakJournalRegex = new RegExp(`\\b(${M_JOURNALS_WEAK.map(j => j.replace('.', '\\.')).join('|')})\\b`, 'i');
-        if (weakJournalRegex.test(innerHTML)) return true;
-
-        return false; // Default if no MDPI criteria met
-      };
-
       // Wrapper function for isMdpiItemByContent that uses the citationProcessCache
       const isMdpiItemByContent = (item, runCache) => {
         if (!item) return false; // Cannot cache null/undefined item
@@ -418,8 +325,9 @@ if (!window.mdpiFilterInjected) {
           return citationProcessCache.get(item);
         }
 
-        // If not in cache, run the internal logic
-        const result = isMdpiItemByContentInternal(item, runCache);
+        // If not in cache, run the logic from the new module
+        // MDPI_DOI and MDPI_DOMAIN are available in this scope from the outer content_script.js definitions
+        const result = window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, MDPI_DOI, MDPI_DOMAIN);
 
         // Store the result in the cache
         citationProcessCache.set(item, result);

@@ -926,8 +926,12 @@ if (!window.mdpiFilterInjected) {
             console.log(`[MDPI Filter CS] Found target element for ${msg.refId}:`, targetElement);
 
             // Check for Wiley-specific accordion structure
-            if (window.location.hostname.includes('onlinelibrary.wiley.com')) {
-              console.log("[MDPI Filter CS] Wiley site detected, checking accordion.");
+            const currentHostname = window.location.hostname;
+            const isDirectWileySite = currentHostname.includes('onlinelibrary.wiley.com');
+            const isProxiedWileySite = currentHostname.includes('onlinelibrary-wiley-com');
+
+            if (isDirectWileySite || isProxiedWileySite) {
+              console.log("[MDPI Filter CS] Wiley site (direct or proxied) detected, checking accordion.");
               const accordionContent = targetElement.closest('div.accordion__content');
 
               if (accordionContent && accordionContent.id) {

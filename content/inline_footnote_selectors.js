@@ -34,6 +34,8 @@
 
     const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35" or "ref-CR35"
     if (numericRefIdPart) {
+        commonSelectors.push(`a[href="#${numericRefIdPart}"]`);
+        commonSelectors.push(`a[href$="#${numericRefIdPart}"]`);
         commonSelectors.push(`a[href="#cite_note-${numericRefIdPart}"]`);
         commonSelectors.push(`a[href="#ref-${numericRefIdPart}"]`);
         commonSelectors.push(`a[href="#reference-${numericRefIdPart}"]`);
@@ -56,11 +58,11 @@
       `sup a[data-bris-rid="${refId}"]`
     ];
      if (numericRefIdPart) {
+        supParentSelectors.push(`sup a[href="#${numericRefIdPart}"]`);
+        supParentSelectors.push(`sup a[href$="#${numericRefIdPart}"]`);
         supParentSelectors.push(`sup a[href="#cite_note-${numericRefIdPart}"]`);
         supParentSelectors.push(`sup a[href="#ref-${numericRefIdPart}"]`);
         supParentSelectors.push(`sup a[href="#reference-${numericRefIdPart}"]`);
-        supParentSelectors.push(`sup a[href="#B${numericRefIdPart}"]`);
-        supParentSelectors.push(`sup a[href="#CR${numericRefIdPart}"]`);
         supParentSelectors.push(`sup[id="ref-${numericRefIdPart}"]`); // More specific for numeric parts
     }
 

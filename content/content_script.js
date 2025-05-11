@@ -131,7 +131,9 @@ if (!window.mdpiFilterInjected) {
           if (el.style.color === mdpiColor || el.style.color === 'rgb(226, 33, 28)') {
             el.style.removeProperty('color');
           }
-          el.removeAttribute('data-mdpi-filter-ref-id');
+          // DO NOT REMOVE THE 'data-mdpi-filter-ref-id' ATTRIBUTE HERE.
+          // It's essential for linking popup items to DOM elements across re-scans.
+          // el.removeAttribute('data-mdpi-filter-ref-id'); // <--- REMOVE OR COMMENT OUT THIS LINE
         });
 
         // 2. Clear styles from search results (styled by styleSearch)
@@ -911,13 +913,13 @@ if (!window.mdpiFilterInjected) {
       chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.type === 'getSettings') {
           sendResponse({ mode: mode }); // Send current mode back
+          return false; // Synchronous response, channel can be closed.
         } else if (msg.action === "updateSettings" && msg.settings && typeof msg.settings.mode !== 'undefined') {
             // console.log("[MDPI Filter CS] Received updateSettings, new mode:", msg.settings.mode);
-            mode = msg.settings.mode; // Update local mode variable
+            mode = msg.settings.mode;
             // Potentially re-run or clear/re-apply styles based on the new mode
-            // For now, just acknowledge. A full re-run might be too disruptive without user action.
-            // Consider if a full runAll("settings_changed") is needed or just specific re-styling.
             sendResponse({ success: true, message: "Settings acknowledged by content script." });
+            return false; // Synchronous response, channel can be closed.
         } else if (msg.type === 'scrollToRefOnPage' && msg.refId) {
           console.log(`[MDPI Filter CS] Received scrollToRefOnPage for ID: ${msg.refId}`);
           const elementToScrollTo = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
@@ -935,9 +937,12 @@ if (!window.mdpiFilterInjected) {
             console.error(`[MDPI Filter CS] Element with ID ${msg.refId} not found for scrolling.`);
             sendResponse({ status: 'error', message: `Element with ID ${msg.refId} not found.` });
           }
-          return true; // Indicate asynchronous response if needed, good practice.
+          // Return true because sendResponse is called (even if synchronously within this block,
+          // it's the standard practice for message listeners that intend to send a response).
+          return true; 
         }
-        return true; // Keep the message channel open for asynchronous sendResponse
+        // If the message type is not handled above, do not return true.
+        // Implicitly returns undefined, allowing the message channel to close if no response is intended.
       });
     });
   } // End of else (dependenciesMet)

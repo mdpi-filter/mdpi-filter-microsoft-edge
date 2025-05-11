@@ -658,16 +658,11 @@ if (!window.mdpiFilterInjected) {
         // Call the dedicated link extraction function from link_extractor.js
         link = window.MDPIFilterLinkExtractor.extractPrimaryLink(item, linkSelectorsToUse);
 
-        const textForFingerprint = text; // Use the cleaned text before prepending the number for the fingerprint
-
-        if (number !== null) {
-          text = number + ". " + text; // Prepend the number to the text that will be displayed
-        }
-
+        const textForFingerprint = text;
         const normalizedTextForFingerprint = (textForFingerprint || '').replace(/\s+/g, ' ').trim().substring(0, 100);
         const fingerprint = `${normalizedTextForFingerprint}|${link || ''}`;
         
-        console.log(`%c[extractReferenceData - ${internalScrollId}] DOM ID: ${listItemDomId || 'N/A'}, FP: ${fingerprint.substring(0,50)}... Num: ${number} (Source: ${numberSource}), Text (for popup): "${text.substring(0, 30)}..."`, 'color: green;');
+        console.log(`%c[extractReferenceData - ${internalScrollId}] DOM ID: ${listItemDomId || 'N/A'}, Link: ${link || 'N/A'}, FP: ${fingerprint.substring(0,50)}... Num: ${number} (Source: ${numberSource}), Text (for popup): "${text.substring(0, 30)}..."`, 'color: green;');
         return { 
           id: internalScrollId, 
           listItemDomId: listItemDomId, 

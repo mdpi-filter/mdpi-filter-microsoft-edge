@@ -1,6 +1,6 @@
 if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
   window.MDPIFilterItemContentChecker = (() => {
-    const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS'];
+    const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS', 'International Journal of Molecular Sciences'];
     const M_JOURNALS_WEAK = ['Nutrients', 'Molecules']; // This array includes the "WEAK" selection context
 
     const extractDoiFromLinkInternal = (hrefAttribute) => {
@@ -39,33 +39,41 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
       const isMdpiDoi = (doi) => doi && doi.startsWith(currentMdpiDoi);
 
-      // Priority 1: DOI Check (from links)
+      // Priority 1: MDPI DOI Check (from links)
       let hasNonMdpiDoiLink = false;
-      let hasMdpiDoiLink = false;
       for (const link of allLinksInItem) {
         const doiInLink = extractDoiFromLinkInternal(link.href);
         if (doiInLink) {
           if (isMdpiDoi(doiInLink)) {
-            hasMdpiDoiLink = true;
-            break; // Found an MDPI DOI link, no need to check further links for this priority
+            // console.log(`[MDPI Filter ItemChecker] Priority 1: Found MDPI DOI link: ${doiInLink} in item:`, item.textContent.substring(0,100));
+            return true; // Found an MDPI DOI link, this item is MDPI.
           } else {
-            hasNonMdpiDoiLink = true;
+            hasNonMdpiDoiLink = true; // A non-MDPI DOI link is present.
           }
         }
       }
-
-      if (hasMdpiDoiLink) return true;
-      // If a non-MDPI DOI link was found and no MDPI DOI link, consider it non-MDPI to avoid ambiguity.
-      if (hasNonMdpiDoiLink) return false;
+      // Note: hasMdpiDoiLink flag is effectively handled by the immediate return true above.
 
       // Priority 2: MDPI DOI String in Text Content
-      // Escape dots in MDPI_DOI for regex and look for the pattern
       const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
-      if (mdpiDoiTextPattern.test(textContent)) return true;
+      if (mdpiDoiTextPattern.test(textContent)) {
+        // console.log(`[MDPI Filter ItemChecker] Priority 2: Found MDPI DOI in text in item:`, item.textContent.substring(0,100));
+        return true;
+      }
 
       // Priority 3: Link to MDPI Domain (general check)
       for (const link of allLinksInItem) {
-        if (link.href && typeof link.href === 'string' && link.href.includes(currentMdpiDomain)) return true;
+        if (link.href && typeof link.href === 'string') {
+            try {
+                const linkHostname = new URL(link.href).hostname;
+                if (linkHostname.endsWith(currentMdpiDomain)) {
+                    // console.log(`[MDPI Filter ItemChecker] Priority 3: Found link to MDPI domain: ${link.href} in item:`, item.textContent.substring(0,100));
+                    return true;
+                }
+            } catch (e) {
+                // Invalid URL, ignore
+            }
+        }
       }
 
       // Priority 4: PMID/PMCID to DOI Conversion Check (via runCache)
@@ -74,10 +82,9 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       let pmidStrings = new Set();
       for (const link of allLinksInItem) {
         if (link.href) {
-          // Extract PMCID if link matches NCBI PMC article pattern
-          const pmcMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+(\.\d+)?)/i);
+          const pmcMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i); // Simpler PMC match
           if (pmcMatch && pmcMatch[1]) {
-            pmcIdStrings.add(pmcMatch[1].replace(/\.\d+$/, '')); // Remove version part if present
+            pmcIdStrings.add(pmcMatch[1].toUpperCase()); // Normalize
           } else {
             // Extract PMID if link matches PubMed abstract pattern
             const pmidMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
@@ -90,31 +97,58 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
       const allItemNcbiIds = [...pmidStrings, ...pmcIdStrings];
       let itemHasNcbiIds = allItemNcbiIds.length > 0;
-      // Assume all NCBI IDs found were cached and definitively non-MDPI, until proven otherwise
-      let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = true;
+      let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = itemHasNcbiIds; // Assume true if IDs exist, falsify if not all are non-MDPI
 
       if (itemHasNcbiIds) {
         for (const id of allItemNcbiIds) {
           if (runCache.has(id)) {
-            if (runCache.get(id) === true) return true; // API lookup indicated MDPI
-            // If runCache.get(id) is false, it's non-MDPI, continue checking.
+            const cacheEntry = runCache.get(id);
+            if ((typeof cacheEntry === 'object' && cacheEntry.isMdpi === true) || cacheEntry === true) {
+              // console.log(`[MDPI Filter ItemChecker] Priority 4: Found MDPI via NCBI ID ${id} from cache in item:`, item.textContent.substring(0,100));
+              return true;
+            }
+            if (!((typeof cacheEntry === 'object' && cacheEntry.isMdpi === false) || cacheEntry === false)) {
+              // If cache entry is not explicitly false (e.g. undefined, or an object without isMdpi:false)
+              allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
+            }
           } else {
-            // If an ID isn't in the cache, we can't be sure all are non-MDPI.
-            allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
+            allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false; // Not in cache, cannot confirm non-MDPI status for all
           }
         }
-        // If all NCBI IDs present were resolved from cache as non-MDPI, then this item is non-MDPI.
-        if (allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) return false;
+      } else {
+        allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false; // No NCBI IDs, so this check is not applicable for determining non-MDPI
       }
 
       // Priority 5: Journal Name Check (using internal M_JOURNALS lists)
+      // Use innerHTML for these checks as journal names might be part of markup not reflected in textContent (e.g. <em>Int J Mol Sci</em>)
       const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
-      if (strongJournalRegex.test(innerHTML)) return true;
+      if (strongJournalRegex.test(innerHTML)) {
+        // console.log(`[MDPI Filter ItemChecker] Priority 5: Found strong MDPI journal name in item:`, item.textContent.substring(0,100));
+        return true;
+      }
 
       const weakJournalRegex = new RegExp(`\\b(${M_JOURNALS_WEAK.map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
-      if (weakJournalRegex.test(innerHTML)) return true;
+      if (weakJournalRegex.test(innerHTML)) {
+        // console.log(`[MDPI Filter ItemChecker] Priority 5: Found weak MDPI journal name in item:`, item.textContent.substring(0,100));
+        return true;
+      }
 
-      return false; // Default: No MDPI criteria met
+      // FINAL DECISION POINT:
+      // If we've reached here, no definitive MDPI indicator was found by priorities 1-5.
+      // Now, consider if a non-MDPI DOI link was present (from Priority 1).
+      if (hasNonMdpiDoiLink) {
+        // console.log(`[MDPI Filter ItemChecker] Final: Non-MDPI due to hasNonMdpiDoiLink for item:`, item.textContent.substring(0,100));
+        return false;
+      }
+      
+      // Or, if all NCBI IDs found were cached and confirmed non-MDPI.
+      if (itemHasNcbiIds && allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) {
+        // console.log(`[MDPI Filter ItemChecker] Final: Non-MDPI due to all NCBI IDs cached as non-MDPI for item:`, item.textContent.substring(0,100));
+        return false;
+      }
+
+      // console.log(`[MDPI Filter ItemChecker] Final: Default non-MDPI for item:`, item.textContent.substring(0,100));
+      return false; // Default: No MDPI criteria met, and no specific non-MDPI DOI link found.
     }
 
     return {

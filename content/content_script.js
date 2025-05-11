@@ -121,6 +121,105 @@ if (!window.mdpiFilterInjected) {
 
       // --- Styling Functions ---
       const highlightStyle = '2px solid red';
+      const mdpiColor = '#E2211C'; // Define MDPI red for consistent use
+
+      function clearPreviousHighlights() {
+        // console.log("[MDPI Filter CS] Clearing previous highlights...");
+
+        // 1. Clear styles from reference items and their numbers (styled by styleRef)
+        document.querySelectorAll('[data-mdpi-filter-ref-id]').forEach(el => {
+          if (el.style.color === mdpiColor || el.style.color === 'rgb(226, 33, 28)') {
+            el.style.removeProperty('color');
+          }
+          el.removeAttribute('data-mdpi-filter-ref-id');
+        });
+
+        // 2. Clear styles from search results (styled by styleSearch)
+        const searchResultSelectors = [];
+        if (domains.googleWeb && domains.googleWeb.container) searchResultSelectors.push(domains.googleWeb.container);
+        if (domains.scholar && domains.scholar.container) searchResultSelectors.push(domains.scholar.container);
+        if (domains.pubmed && domains.pubmed.itemSelector) searchResultSelectors.push(domains.pubmed.itemSelector);
+        if (domains.europepmc && domains.europepmc.itemSelector) searchResultSelectors.push(domains.europepmc.itemSelector);
+        // Add other selectors from processSearchEngineResults if necessary
+
+        if (searchResultSelectors.length > 0) {
+          try {
+            document.querySelectorAll(searchResultSelectors.join(', ')).forEach(el => {
+              if (el.style.border === highlightStyle) {
+                el.style.removeProperty('border');
+              }
+              if (el.style.padding === '5px') {
+                el.style.removeProperty('padding');
+              }
+              if (el.style.display === 'none') {
+                el.style.removeProperty('display');
+              }
+            });
+          } catch (e) {
+            // console.warn("[MDPI Filter CS] Error clearing search result highlights:", e);
+          }
+        }
+
+        // 3. Clear styles from direct MDPI links and general styled links
+        document.querySelectorAll('a').forEach(link => {
+          let wasStyledByExtension = false;
+          if (link.style.color === mdpiColor || link.style.color === 'rgb(226, 33, 28)') {
+            link.style.removeProperty('color');
+            wasStyledByExtension = true;
+          }
+          if (link.style.borderBottom === `1px dotted ${mdpiColor}` || link.style.borderBottom === '1px dotted rgb(226, 33, 28)') {
+            link.style.removeProperty('border-bottom');
+            wasStyledByExtension = true;
+          }
+          // Only remove text-decoration if we likely set it to 'none'
+          if (link.style.textDecoration === 'none' && wasStyledByExtension) {
+            link.style.removeProperty('text-decoration');
+          }
+          // Avoid broadly resetting display for all links as it can break page layout.
+          // If specific display changes were made (e.g., 'inline' to 'inline-block'),
+          // a more targeted removal or class-based styling would be better.
+
+          const h3Ancestor = link.closest('h3');
+          if (h3Ancestor && (h3Ancestor.style.color === mdpiColor || h3Ancestor.style.color === 'rgb(226, 33, 28)')) {
+            h3Ancestor.style.removeProperty('color');
+          }
+        });
+
+        // 4. Clear styles from inline footnotes
+        // Ideally, inline_footnote_styler.js would provide an "unstyle" function.
+        // Fallback:
+        document.querySelectorAll('sup, a').forEach(marker => {
+            if (marker.style.color === mdpiColor || marker.style.color === 'rgb(226, 33, 28)') {
+                if (marker.style.fontWeight === 'bold') {
+                    marker.style.removeProperty('font-weight');
+                }
+                marker.style.removeProperty('color');
+            }
+            if (marker.tagName.toLowerCase() === 'sup') {
+                const innerA = marker.querySelector('a');
+                if (innerA && (innerA.style.color === mdpiColor || innerA.style.color === 'rgb(226, 33, 28)')) {
+                    if (innerA.style.fontWeight === 'bold') innerA.style.removeProperty('font-weight');
+                    innerA.style.removeProperty('color');
+                }
+            }
+        });
+
+
+        // 5. Clear styles from "Cited By" items
+        // Ideally, cited_by_styler.js would provide an "unstyle" function.
+        // Fallback:
+        const citedByBorderStylePattern = /3px solid (rgb\(226, 33, 28\)|#E2211C)/;
+        document.querySelectorAll('*').forEach(item => {
+            if (item.style.borderLeft && citedByBorderStylePattern.test(item.style.borderLeft)) {
+                item.style.removeProperty('border-left');
+                item.style.removeProperty('padding-left');
+                item.style.removeProperty('margin-left');
+                item.style.removeProperty('margin-bottom');
+                // Potentially reset text color if known to be set by cited_by_styler.js
+            }
+        });
+        // console.log("[MDPI Filter CS] Finished clearing previous highlights.");
+      }
 
       const styleSearch = el => {
         if (!el) return;
@@ -672,9 +771,9 @@ if (!window.mdpiFilterInjected) {
 
         if (source === "initial load" || source === "main observer" || source === "initial_force") {
           // console.log(`[MDPI Filter] Clearing all references and resetting counter for full re-scan due to source: ${source}`);
+          clearPreviousHighlights(); // Call the new function here
           collectedMdpiReferences = [];
-          refIdCounter = 0;          // Clear existing highlights/modifications if doing a full rescan // Changed mdpiRefCounter to refIdCounter
-          clearPreviousHighlights();
+          refIdCounter = 0;          
         }
         
         const runCache = new Map();

@@ -915,29 +915,74 @@ if (!window.mdpiFilterInjected) {
             // Potentially re-run or clear/re-apply styles based on the new mode
             sendResponse({ success: true, message: "Settings acknowledged by content script." });
             return false; // Synchronous response, channel can be closed.
-        } else if (msg.type === 'scrollToRefOnPage' && msg.refId) {
-          console.log(`[MDPI Filter CS] Received scrollToRefOnPage for ID: ${msg.refId}`);
-          const elementToScrollTo = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
-          if (elementToScrollTo) {
-            console.log(`[MDPI Filter CS] Element found for ID ${msg.refId}:`, elementToScrollTo);
-            elementToScrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Optional: Add a temporary visual cue
-            const originalOutline = elementToScrollTo.style.outline;
-            elementToScrollTo.style.outline = '3px dashed orange';
+        } else if (msg.type === 'scrollToRef' && msg.refId) {
+          console.log(`[MDPI Filter CS] Received scrollToRef for ID: ${msg.refId}`);
+          const targetElement = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+
+          const performScroll = (elementToScroll, refIdForResponse) => {
+            elementToScroll.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Optional: Add a visual cue to the scrolled element
+            elementToScroll.style.outline = `3px dashed ${mdpiColor}`; // Use defined mdpiColor
             setTimeout(() => {
-              elementToScrollTo.style.outline = originalOutline;
+              if (elementToScroll) elementToScroll.style.outline = '';
             }, 2500);
-            sendResponse({ status: 'success', message: `Scrolled to ${msg.refId}` });
+            console.log(`[MDPI Filter CS] Scrolled to ${refIdForResponse}`);
+            sendResponse({ success: true, refId: refIdForResponse });
+          };
+
+          if (targetElement) {
+            console.log(`[MDPI Filter CS] Found target element for ${msg.refId}:`, targetElement);
+
+            // Check for Wiley-specific accordion structure
+            if (window.location.hostname.includes('onlinelibrary.wiley.com')) {
+              console.log("[MDPI Filter CS] Wiley site detected, checking accordion.");
+              const accordionContent = targetElement.closest('div.accordion__content');
+
+              if (accordionContent && accordionContent.id) {
+                console.log("[MDPI Filter CS] Found accordion content:", accordionContent);
+                const controlIdQuery = "id" + accordionContent.id; // Wiley's aria-controls often prefixes content id with "id"
+                const accordionControl = document.querySelector(`div.accordion__control[aria-controls="${controlIdQuery}"]`);
+
+                if (accordionControl) {
+                  console.log("[MDPI Filter CS] Found accordion control:", accordionControl);
+                  const isExpanded = accordionControl.getAttribute('aria-expanded') === 'true';
+                  const isDisplayed = window.getComputedStyle(accordionContent).display !== 'none';
+
+                  if (!isExpanded || !isDisplayed) {
+                    console.log("[MDPI Filter CS] Accordion is closed. Clicking control to open.");
+                    accordionControl.click(); // Simulate click to open
+
+                    setTimeout(() => {
+                      console.log("[MDPI Filter CS] Accordion likely opened, attempting scroll.");
+                      performScroll(targetElement, msg.refId);
+                    }, 500); // Adjust timeout if needed
+                    // sendResponse is called in performScroll, which is inside setTimeout
+                  } else {
+                    console.log("[MDPI Filter CS] Accordion already open.");
+                    performScroll(targetElement, msg.refId);
+                  }
+                } else {
+                  console.warn(`[MDPI Filter CS] Wiley accordion control not found for content ID: ${accordionContent.id} (expected aria-controls="${controlIdQuery}")`);
+                  performScroll(targetElement, msg.refId); // Attempt scroll anyway
+                }
+              } else {
+                console.log("[MDPI Filter CS] Not within a recognized Wiley accordion content, or accordion structure not found/missing ID.");
+                performScroll(targetElement, msg.refId); // Standard scroll
+              }
+            } else {
+              // Not Wiley, or no special handling needed
+              console.log("[MDPI Filter CS] Not a Wiley site or no special accordion handling needed.");
+              performScroll(targetElement, msg.refId);
+            }
           } else {
-            console.error(`[MDPI Filter CS] Element with ID ${msg.refId} not found for scrolling.`);
-            sendResponse({ status: 'error', message: `Element with ID ${msg.refId} not found.` });
+            console.warn(`[MDPI Filter CS] scrollToRef: Element with ID ${msg.refId} not found.`);
+            sendResponse({ success: false, error: 'Element not found', refId: msg.refId });
           }
-          // Return true because sendResponse is called (even if synchronously within this block,
-          // it's the standard practice for message listeners that intend to send a response).
-          return true; 
+          return true; // Crucial: Indicates that sendResponse will be called asynchronously
         }
-        // If the message type is not handled above, do not return true.
-        // Implicitly returns undefined, allowing the message channel to close if no response is intended.
+        // Add other 'else if' for other message types if necessary.
+        // If no other message types are async, or if they handle their own 'return true',
+        // then no further changes are needed here for them.
       });
     });
   } // End of else (dependenciesMet)

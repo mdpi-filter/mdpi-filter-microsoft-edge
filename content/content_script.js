@@ -935,6 +935,24 @@ if (!window.mdpiFilterInjected) {
             // For now, just acknowledge. A full re-run might be too disruptive without user action.
             // Consider if a full runAll("settings_changed") is needed or just specific re-styling.
             sendResponse({ success: true, message: "Settings acknowledged by content script." });
+        } else if (msg.type === 'scrollToRefOnPage' && msg.refId) {
+          console.log(`[MDPI Filter CS] Received scrollToRefOnPage for ID: ${msg.refId}`);
+          const elementToScrollTo = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+          if (elementToScrollTo) {
+            console.log(`[MDPI Filter CS] Element found for ID ${msg.refId}:`, elementToScrollTo);
+            elementToScrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Optional: Add a temporary visual cue
+            const originalOutline = elementToScrollTo.style.outline;
+            elementToScrollTo.style.outline = '3px dashed orange';
+            setTimeout(() => {
+              elementToScrollTo.style.outline = originalOutline;
+            }, 2500);
+            sendResponse({ status: 'success', message: `Scrolled to ${msg.refId}` });
+          } else {
+            console.error(`[MDPI Filter CS] Element with ID ${msg.refId} not found for scrolling.`);
+            sendResponse({ status: 'error', message: `Element with ID ${msg.refId} not found.` });
+          }
+          return true; // Indicate asynchronous response if needed, good practice.
         }
         return true; // Keep the message channel open for asynchronous sendResponse
       });

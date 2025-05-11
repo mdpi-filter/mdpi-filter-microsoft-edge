@@ -462,11 +462,11 @@ if (!window.mdpiFilterInjected) {
       const extractReferenceData = (item) => {
         // Ensure MDPIFilterReferenceIdExtractor is available, e.g., through dependency check or script load order
         if (!window.MDPIFilterReferenceIdExtractor) {
-            console.error("[MDPI Filter CS] CRITICAL: MDPIFilterReferenceIdExtractor not found. Halting id extraction for item:", item);
-            const tempFallbackId = `mdpi-ref-error-${Date.now()}`;
+            // Fallback or early return if critical dependency is missing
+            const tempFallbackId = `mdpi-ref-err-${refIdCounter++}`;
             return {
                 id: tempFallbackId,
-                listItemDomId: item.id || item.dataset.bibId,
+                listItemDomId: item.id || item.dataset.bibId || `unknown-id-${tempFallbackId}`, // Provide some form of ID
                 number: null,
                 text: "Error: ID Extractor Missing",
                 link: null,
@@ -481,7 +481,23 @@ if (!window.mdpiFilterInjected) {
         
         // Capture the actual DOM ID of the list item, or use data-bib-id as a fallback for linking,
         // particularly for Wiley sites where inline links use href="#[data-bib-id value]".
-        const listItemDomId = item.id || item.dataset.bibId; 
+        // MODIFIED LOGIC FOR listItemDomId:
+        let determinedListItemDomId = item.id || item.dataset.bibId;
+
+        if (!determinedListItemDomId) {
+          // If the item itself doesn't have an ID, check for common child elements that might hold the linkable ID.
+          // Example: Nature/Springer often have <p id="ref-CRXX"> or <span id="ref-CRXX"> within the <li>.
+          // Also check for common ID patterns like Bxx (NCBI) or citxxx (T&F).
+          const childWithId = item.querySelector(
+            'p[id^="ref-CR"], p[id^="B"], p[id^="cit"], ' +
+            'div[id^="ref-CR"], div[id^="B"], div[id^="cit"], ' +
+            'span[id^="ref-CR"], span[id^="B"], span[id^="cit"]'
+          );
+          if (childWithId && childWithId.id) {
+            determinedListItemDomId = childWithId.id;
+          }
+        }
+        const listItemDomId = determinedListItemDomId; // This ID is used for generating inline footnote selectors
 
         let number = null;
         let text = '';

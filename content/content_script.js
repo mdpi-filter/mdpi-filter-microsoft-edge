@@ -800,6 +800,13 @@ if (!window.mdpiFilterInjected) {
 
 
       async function runAll(source = "initial") {
+        // Check for valid extension context at the very beginning
+        if (!(chrome.runtime && chrome.runtime.id)) {
+          console.warn(`[MDPI Filter] runAll (${source}) aborted: Extension context invalidated.`);
+          isProcessing = false; // Ensure isProcessing is reset if we abort early
+          return;
+        }
+
         const startTime = new Date();
         // ... (rest of runAll initialization) ...
         // console.log(`[MDPI Filter] runAll STARTING... Source: ${source}, Time: ${startTime.toISOString()}`);

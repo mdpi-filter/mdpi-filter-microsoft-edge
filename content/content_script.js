@@ -908,8 +908,14 @@ if (!window.mdpiFilterInjected) {
             mainObserverInstance.disconnect(); // Disconnect previous if any
           }
           mainObserverInstance = new MutationObserver((mutationsList, observer) => {
+            // Check for valid extension context before debouncing runAll
+            if (!(chrome.runtime && chrome.runtime.id)) {
+              console.warn('[MDPI Filter] Main observer: Extension context invalidated. Skipping debouncedRunAll.');
+              // Optionally, disconnect the observer if the context is gone and unlikely to return for this frame.
+              // if (observer) observer.disconnect(); // 'observer' is the mainObserverInstance itself
+              return;
+            }
             // console.log('[MDPI Filter] Main observer detected DOM change.');
-            // No need to iterate mutationsList if we're just debouncing a full run
             debouncedRunAll("main observer");
           });
 

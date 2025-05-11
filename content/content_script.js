@@ -104,7 +104,7 @@ if (!window.mdpiFilterInjected) {
 
       // Helper function to decode URLs within a string
       function decodeUrlsInString(str) {
-        if (!str || typeof str !== 'string') return str;
+        if (!str || typeof str !== 'string') return str; // Added return str for non-string input
         // Regex to find URLs
         const urlRegex = /(https?:\/\/[^\s"'>]+)/g;
         return str.replace(urlRegex, (url) => {
@@ -887,29 +887,43 @@ if (!window.mdpiFilterInjected) {
           await runAll("initial load");          setupMainObserver();
         });
       } else {
-        console.error("[MDPI Filter] Initial run/observer setup skipped: Dependencies not loaded.");
+        console.error("[MDPI Filter CS] Halting script: MDPIFilterDomains or sanitize not found.");
       }
 
       window.addEventListener('hashchange', () => {
-        // console.log("[MDPI Filter] hashchange detected. Requesting runAll.");
-        requestAnimationFrame(async () => { // Make callback async
-          // console.log("[MDPI Filter] Running runAll via requestAnimationFrame after hashchange.");
-          await runAll("hashchange"); // Await runAll
-        });
+        // console.log('[MDPI Filter CS] Hash changed, potentially re-running for new content.');
+        debouncedRunAll("hashchange");
       });
 
       chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-        if (msg.type === 'scrollToRef' && msg.refId) {
-          // console.log(`[MDPI Filter] Received scrollToRef request for ID: ${msg.refId}`);
-          const targetElement = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
-          if (targetElement) {
-            // console.log(`[MDPI Filter] Scrolling to reference ID: ${msg.refId}`);
-            targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            highlightElementTemporarily(targetElement);
+        if (msg.type === 'getSettings') {
+          sendResponse({ mode: mode }); // Send current mode back
+        } else if (msg.type === 'scrollToRef' && msg.refId) { // Changed 'requestScrollToRef' to 'scrollToRef'
+          // console.log(`[MDPI Filter CS] Received scrollToRef for ID: ${msg.refId}`);
+          const elementToScrollTo = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+          if (elementToScrollTo) {
+            // console.log("[MDPI Filter CS] Element found, scrolling:", elementToScrollTo);
+            elementToScrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Optional: Add a temporary highlight to the scrolled item
+            elementToScrollTo.style.transition = 'outline 0.1s ease-in-out';
+            elementToScrollTo.style.outline = '3px solid #FFD700'; // Gold outline
+            setTimeout(() => {
+              elementToScrollTo.style.outline = '';
+            }, 2000); // Remove outline after 2 seconds
+            sendResponse({ success: true, message: `Scrolled to ${msg.refId}` });
           } else {
-            console.warn(`[MDPI Filter] Target element for scrollToRef ID: ${msg.refId} not found.`);
+            // console.warn(`[MDPI Filter CS] Element with refId ${msg.refId} not found for scrolling.`);
+            sendResponse({ success: false, message: `Element with refId ${msg.refId} not found.` });
           }
-        } else if (msg.type === 'mdpiRunNow') {}
+        } else if (msg.action === "updateSettings" && msg.settings && typeof msg.settings.mode !== 'undefined') {
+            // console.log("[MDPI Filter CS] Received updateSettings, new mode:", msg.settings.mode);
+            mode = msg.settings.mode; // Update local mode variable
+            // Potentially re-run or clear/re-apply styles based on the new mode
+            // For now, just acknowledge. A full re-run might be too disruptive without user action.
+            // Consider if a full runAll("settings_changed") is needed or just specific re-styling.
+            sendResponse({ success: true, message: "Settings acknowledged by content script." });
+        }
+        return true; // Keep the message channel open for asynchronous sendResponse
       });
     });
   } // End of else (dependenciesMet)

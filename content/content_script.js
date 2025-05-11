@@ -949,16 +949,31 @@ if (!window.mdpiFilterInjected) {
                   const isDisplayed = window.getComputedStyle(accordionContent).display !== 'none';
 
                   if (!isExpanded || !isDisplayed) {
-                    console.log("[MDPI Filter CS] Accordion is closed. Clicking control to open.");
+                    console.log("[MDPI Filter CS] Wiley accordion is closed. Clicking control to open.");
                     accordionControl.click(); // Simulate click to open
 
-                    setTimeout(() => {
-                      console.log("[MDPI Filter CS] Accordion likely opened, attempting scroll.");
-                      performScroll(targetElement, msg.refId);
-                    }, 500); // Adjust timeout if needed
-                    // sendResponse is called in performScroll, which is inside setTimeout
+                    const startTime = Date.now();
+                    const maxWaitTime = 2000; // Max wait 2 seconds
+
+                    function checkAndScrollAfterAccordionOpen() {
+                      const currentAccordionStyle = window.getComputedStyle(accordionContent);
+                      const isAccordionNowDisplayed = currentAccordionStyle.display !== 'none' && currentAccordionStyle.visibility !== 'hidden';
+                      const isTargetRendered = targetElement.offsetHeight > 0;
+
+                      if (isAccordionNowDisplayed && isTargetRendered) {
+                        console.log("[MDPI Filter CS] Wiley accordion open and target rendered, attempting scroll.");
+                        performScroll(targetElement, msg.refId);
+                      } else if (Date.now() - startTime < maxWaitTime) {
+                        // console.log("[MDPI Filter CS] Wiley accordion not ready, retrying...");
+                        requestAnimationFrame(checkAndScrollAfterAccordionOpen);
+                      } else {
+                        console.warn(`[MDPI Filter CS] Wiley accordion did not open or target not rendered within ${maxWaitTime}ms. Accordion display: ${currentAccordionStyle.display}, visibility: ${currentAccordionStyle.visibility}. Target offsetHeight: ${targetElement.offsetHeight}. Attempting scroll anyway.`);
+                        performScroll(targetElement, msg.refId); // Fallback: attempt scroll
+                      }
+                    }
+                    requestAnimationFrame(checkAndScrollAfterAccordionOpen); // Start the check loop
                   } else {
-                    console.log("[MDPI Filter CS] Accordion already open.");
+                    console.log("[MDPI Filter CS] Wiley accordion already open.");
                     performScroll(targetElement, msg.refId);
                   }
                 } else {

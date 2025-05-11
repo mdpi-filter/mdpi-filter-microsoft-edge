@@ -19,7 +19,8 @@ window.MDPIFilterReferenceSelectors = [
   'li[id^="cite_note-"]', // Wikipedia reference list items
   'div.refbegin li', // Wikipedia "Sources" or "Further reading" list items
   'li.scroll-mt-28', // Examine.com reference list items
-  'li:has(hl-trusted-source a[href])', // Healthline citation list items
+  'hl-trusted-source:has(a[href])', // Healthline: standalone trusted source elements with a link
+  'li.css-1ti7iub:has(cite a[href])', // Healthline: list items in "Sources" section with a citation link
   'div.circle-list__item[id^="r"]', // Cambridge Core
   'li:has(> div.cit.ref-cit)' // For BMJ-like structures
 ].join(',');

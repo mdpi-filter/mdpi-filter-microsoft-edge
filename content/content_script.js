@@ -315,9 +315,31 @@ if (!window.mdpiFilterInjected) {
           link.style.display = 'inline-block';
         }
       };
-      // ---
 
       // --- Core Logic Functions ---
+
+      function processDirectMdpiLinks() {
+        // console.log("[MDPI Filter CS] Processing direct MDPI links...");
+        const allLinks = document.querySelectorAll('a[href]');
+        allLinks.forEach(link => {
+          // Skip if the link is part of an already processed reference item or "Cited By" item
+          if (link.closest('[data-mdpi-filter-ref-id]') || link.closest('[data-mdpi-filter-cited-by-styled="true"]')) {
+            return;
+          }
+
+          const href = link.href;
+          if (href) {
+            const isMdpiDomainLink = href.includes(MDPI_DOMAIN);
+            const isMdpiDoiLink = MDPI_DOI_REGEX.test(href);
+
+            if (isMdpiDomainLink || isMdpiDoiLink) {
+              // console.log("[MDPI Filter CS] Found direct MDPI link:", link);
+              styleDirectLink(link); // Use the existing styleDirectLink function
+            }
+          }
+        });
+        // console.log("[MDPI Filter CS] Finished processing direct MDPI links.");
+      }
 
       async function checkNcbiIdsForMdpi(ids, idType, runCache) { // ids is an array
         if (!ids || ids.length === 0) {

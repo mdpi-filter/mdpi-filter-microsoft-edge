@@ -805,10 +805,10 @@ if (!window.mdpiFilterInjected) {
         isProcessing = true;
 
         if (source === "initial load" || source === "main observer" || source === "initial_force") {
-          // console.log(`[MDPI Filter] Clearing all references and resetting counter for full re-scan due to source: ${source}`);
-          clearPreviousHighlights(); // Call the new function here
+          // console.log(`[MDPI Filter] Clearing all references for full re-scan due to source: ${source}`);
+          clearPreviousHighlights();
           collectedMdpiReferences = [];
-          refIdCounter = 0;          
+          // refIdCounter = 0; // DO NOT RESET HERE TO MAINTAIN ID UNIQUENESS ACROSS RUNS
         }
         
         const runCache = new Map();
@@ -911,23 +911,6 @@ if (!window.mdpiFilterInjected) {
       chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.type === 'getSettings') {
           sendResponse({ mode: mode }); // Send current mode back
-        } else if (msg.type === 'scrollToRef' && msg.refId) { // Changed 'requestScrollToRef' to 'scrollToRef'
-          // console.log(`[MDPI Filter CS] Received scrollToRef for ID: ${msg.refId}`);
-          const elementToScrollTo = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
-          if (elementToScrollTo) {
-            // console.log("[MDPI Filter CS] Element found, scrolling:", elementToScrollTo);
-            elementToScrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Optional: Add a temporary highlight to the scrolled item
-            elementToScrollTo.style.transition = 'outline 0.1s ease-in-out';
-            elementToScrollTo.style.outline = '3px solid #FFD700'; // Gold outline
-            setTimeout(() => {
-              elementToScrollTo.style.outline = '';
-            }, 2000); // Remove outline after 2 seconds
-            sendResponse({ success: true, message: `Scrolled to ${msg.refId}` });
-          } else {
-            // console.warn(`[MDPI Filter CS] Element with refId ${msg.refId} not found for scrolling.`);
-            sendResponse({ success: false, message: `Element with refId ${msg.refId} not found.` });
-          }
         } else if (msg.action === "updateSettings" && msg.settings && typeof msg.settings.mode !== 'undefined') {
             // console.log("[MDPI Filter CS] Received updateSettings, new mode:", msg.settings.mode);
             mode = msg.settings.mode; // Update local mode variable

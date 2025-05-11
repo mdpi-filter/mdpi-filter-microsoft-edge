@@ -774,20 +774,25 @@ if (!window.mdpiFilterInjected) {
           console.log(`%c[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup.`, 'color: blue; font-weight: bold;');
         }
         
-        chrome.runtime.sendMessage({
-            action: "mdpiUpdate",
-            data: {
-                badgeCount: badgeCount,
-                references: referencesForPopup // Send the transformed array
-            }
-        }, response => {
-            if (chrome.runtime.lastError) {
-                // Use console.error for better visibility of errors
-                console.error(`[MDPI Filter CS] sendMessage failed for mdpiUpdate: ${chrome.runtime.lastError.message}`);
-            } else {
-                // console.log("[MDPI Filter CS] mdpiUpdate message sent successfully, response:", response);
-            }
-        });
+        // Add a check for chrome.runtime and chrome.runtime.id before sending the message
+        if (chrome.runtime && chrome.runtime.id) {
+          chrome.runtime.sendMessage({
+              action: "mdpiUpdate",
+              data: {
+                  badgeCount: badgeCount,
+                  references: referencesForPopup // Send the transformed array
+              }
+          }, response => {
+              if (chrome.runtime.lastError) {
+                  // Use console.error for better visibility of errors
+                  console.error(`[MDPI Filter CS] sendMessage failed for mdpiUpdate: ${chrome.runtime.lastError.message}`);
+              } else {
+                  // console.log("[MDPI Filter CS] mdpiUpdate message sent successfully, response:", response);
+              }
+          });
+        } else {
+          console.warn("[MDPI Filter CS] Skipping sendMessage for mdpiUpdate: Extension context likely invalidated.");
+        }
       };
 
       // Debounced version for progressive updates

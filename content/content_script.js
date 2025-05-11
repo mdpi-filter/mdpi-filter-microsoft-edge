@@ -497,11 +497,12 @@ if (!window.mdpiFilterInjected) {
             determinedListItemDomId = childWithId.id;
           }
         }
-        const listItemDomId = determinedListItemDomId; // This ID is used for generating inline footnote selectors
+        // Ensure listItemDomId is always a string, using internalScrollId as a fallback base.
+        // internalScrollId is expected to be defined from idExtractionResult.extractedId before this block.
+        const listItemDomId = determinedListItemDomId || `mdpi-filter-unknown-item-id-${internalScrollId}`; // This ID is used for generating inline footnote selectors
 
         let number = null;
         let text = '';
-        let link = null;
         const localSanitize = window.sanitize || (htmlInput => htmlInput.replace(/<[^>]+>/g, ''));
         let numberSource = "none"; // To track where the number came from
 

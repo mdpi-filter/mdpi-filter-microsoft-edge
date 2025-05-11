@@ -5,6 +5,13 @@
     'a[data-doi]', // Specific data-doi attribute
     'a[href*="doi.org"]', // Links containing doi.org
     'a[href*="/10."]', // Links that look like DOIs, e.g. /10.xxxx/yyyy
+    
+    // --- START Healthline Specific Selectors ---
+    // These should be relatively early as they are quite specific.
+    'hl-trusted-source > a.content-link[href]', // For <hl-trusted-source> elements
+    'li.css-1ti7iub cite a[href]',             // For <li class="css-1ti7iub"> elements in "Sources"
+    // --- END Healthline Specific Selectors ---
+    
     'a.c-bibliographic-information__link[href*="springer.com"]', // Springer article links
     'a.article-link', // Common class for article links
     'a[data-track-action="article reference"]', // Tracking attributes

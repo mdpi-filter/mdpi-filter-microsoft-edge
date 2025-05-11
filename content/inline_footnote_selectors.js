@@ -20,12 +20,10 @@
     const commonSelectors = [
       `a[href="#${refId}"]`,
       `a[href$="#${refId}"]`, // Ends with
-      `a[href="#cite_note-${refId}"]`,
-      `a[href$="#cite_note-${refId}"]`, // Ends with
       // Handle cases where refId might be "cite_note-B1" and link is "#cite_note-B1" or "B1"
-      `a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
-      `a[href="#ref-${refId}"]`,                   // Common ref prefix
-      `a[href="#reference-${refId}"]`,             // Common reference prefix
+      `a[href="#cite_note-${refId.replace(/^cite_note-/i, '')}"]`,
+      `a[href="#ref-${refId.replace(/^ref-/i, '')}"]`,                   // Common ref prefix
+      `a[href="#reference-${refId.replace(/^reference-/i, '')}"]`,             // Common reference prefix
       // Handle cases where refId might be "B1" and link is "#B1" or refId is "1" and link is "#B1"
       `a[href="#B${refId.replace(/^B/i, '')}"]`,   // NCBI Bxx style
       `a[href="#CR${refId.replace(/^CR/i, '')}"]`, // Springer style
@@ -47,10 +45,9 @@
     const supParentSelectors = [
       `sup a[href="#${refId}"]`,
       `sup a[href$="#${refId}"]`, // Ends with
-      `sup a[href="#cite_note-${refId}"]`,
-      `sup a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
-      `sup a[href="#ref-${refId}"]`,
-      `sup a[href="#reference-${refId}"]`,
+      `sup a[href="#cite_note-${refId.replace(/^cite_note-/i, '')}"]`,
+      `sup a[href="#ref-${refId.replace(/^ref-/i, '')}"]`,
+      `sup a[href="#reference-${refId.replace(/^reference-/i, '')}"]`,
       `sup a[href="#B${refId.replace(/^B/i, '')}"]`,
       `sup a[href="#CR${refId.replace(/^CR/i, '')}"]`,
       `sup[id="ref${refId}"]`, // Note: This selector might be too broad if refId is purely numeric.

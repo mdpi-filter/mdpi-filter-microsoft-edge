@@ -57,16 +57,17 @@ async function injectModules(tabId, triggerSource = "unknown") {
     'content/domains.js',
     'content/sanitizer.js',
     'content/utils.js',
-    'content/cache_manager.js', // Added
+    'content/cache_manager.js',
     'content/reference_selectors.js',
-    'content/inline_footnote_selectors.js', // Added from webNavigation
+    'content/inline_footnote_selectors.js',
     'content/inline_footnote_styler.js',
-    'content/cited_by_selectors.js', // Added from webNavigation
-    'content/cited_by_styler.js', // Added from webNavigation
-    'content/cited_by_processor.js', // Added from webNavigation
-    'content/link_extraction_selectors.js', // Added from webNavigation
-    'content/link_extractor.js', // Added from webNavigation
-    'content/item_content_checker.js', // Added
+    'content/cited_by_selectors.js',
+    'content/cited_by_styler.js',
+    'content/cited_by_processor.js',
+    'content/link_extraction_selectors.js',
+    'content/link_extractor.js',
+    'content/item_content_checker.js',
+    'content/reference_id_extractor.js', // Added: ensure this path is correct
     'content/content_script.js'
   ];
   try {
@@ -134,16 +135,17 @@ chrome.webNavigation.onCompleted.addListener(
           'content/domains.js',
           'content/sanitizer.js',
           'content/utils.js',
-          'content/cache_manager.js', // Added
+          'content/cache_manager.js',
           'content/reference_selectors.js',
-          'content/inline_footnote_selectors.js', // Added
+          'content/inline_footnote_selectors.js',
           'content/inline_footnote_styler.js',
-          'content/cited_by_selectors.js', // Added
-          'content/cited_by_styler.js', // Added
-          'content/cited_by_processor.js', // Added
-          'content/link_extraction_selectors.js', // Added
-          'content/link_extractor.js', // Added
-          'content/item_content_checker.js', // Added
+          'content/cited_by_selectors.js',
+          'content/cited_by_styler.js',
+          'content/cited_by_processor.js',
+          'content/link_extraction_selectors.js',
+          'content/link_extractor.js',
+          'content/item_content_checker.js',
+          'content/reference_id_extractor.js', // Added: ensure this path is correct
           'content/content_script.js'
         ]
       }).catch(e => {

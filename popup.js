@@ -84,7 +84,7 @@ ${currentTabUrl}
   function displayReferences(references) {
     referencesList.innerHTML = ''; // Clear existing list
     const count = references ? references.length : 0;
-    referencesCountSpan.textContent = `[${count}]`; // Update the count
+    referencesCountSpan.textContent = count; // Update the count
 
     if (count === 0) {
       const li = document.createElement('li');

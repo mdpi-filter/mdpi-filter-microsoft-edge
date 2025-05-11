@@ -458,11 +458,24 @@ if (!window.mdpiFilterInjected) {
       };
 
       const extractReferenceData = (item) => {
-        let internalScrollId = item.dataset.mdpiFilterRefId; // Renamed from refId for clarity
-        if (!internalScrollId) {
-          internalScrollId = `mdpi-ref-${refIdCounter++}`;
-          item.dataset.mdpiFilterRefId = internalScrollId;
+        // Ensure MDPIFilterReferenceIdExtractor is available, e.g., through dependency check or script load order
+        if (!window.MDPIFilterReferenceIdExtractor) {
+            console.error("[MDPI Filter CS] CRITICAL: MDPIFilterReferenceIdExtractor not found. Halting id extraction for item:", item);
+            const tempFallbackId = `mdpi-ref-error-${Date.now()}`;
+            return {
+                id: tempFallbackId,
+                listItemDomId: item.id || item.dataset.bibId,
+                number: null,
+                text: "Error: ID Extractor Missing",
+                link: null,
+                rawHTML: sanitize(item.innerHTML),
+                fingerprint: `error-${tempFallbackId}`,
+                numberSource: "error"
+            };
         }
+        const idExtractionResult = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(item, refIdCounter);
+        const internalScrollId = idExtractionResult.extractedId;
+        refIdCounter = idExtractionResult.updatedRefIdCounter; // Update the refIdCounter in the outer scope
         
         // Capture the actual DOM ID of the list item, or use data-bib-id as a fallback for linking,
         // particularly for Wiley sites where inline links use href="#[data-bib-id value]".

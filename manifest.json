@@ -48,6 +48,7 @@
         "content/cited_by_styler.js",
         "content/item_content_checker.js",
         "content/cited_by_processor.js",
+        "js/reference_id_extractor.js",
         "content/content_script.js"
       ],
       "run_at": "document_idle"

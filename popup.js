@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const reportBtn = document.getElementById('reportIssue');
   const referencesList = document.getElementById('referencesList'); // Get the UL element
   const referencesPlaceholder = document.getElementById('referencesPlaceholder'); // Get the placeholder LI
+  const referencesCountSpan = document.getElementById('referencesCount'); // Get the span for the count
 
   // --- Load Mode Setting ---
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
@@ -82,8 +83,10 @@ ${currentTabUrl}
   // --- Load and Display References ---
   function displayReferences(references) {
     referencesList.innerHTML = ''; // Clear existing list
+    const count = references ? references.length : 0;
+    referencesCountSpan.textContent = `[${count}]`; // Update the count
 
-    if (!references || references.length === 0) {
+    if (count === 0) {
       const li = document.createElement('li');
       li.textContent = 'No MDPI references detected on this page.';
       li.className = 'placeholder'; // Style as placeholder

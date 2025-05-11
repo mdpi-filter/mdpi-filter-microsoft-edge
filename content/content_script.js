@@ -748,14 +748,6 @@ if (!window.mdpiFilterInjected) {
               console.log(`%c[MDPI Filter CS] updateBadgeAndReferences (map): First item's popupRef.text BEFORE decodeUrlsInString: "${popupRef.text}"`, 'color: orange; font-weight: bold;');
           }
 
-          if (popupRef.url && typeof popupRef.url === 'string') {
-              try {
-                  popupRef.url = decodeURIComponent(popupRef.url);
-              } catch (e) {
-                  console.warn(`[MDPI Filter CS] Failed to decode URL for popupRef.url: ${popupRef.url}`, e);
-              }
-          }
-
           if (popupRef.text && typeof popupRef.text === 'string') {
               popupRef.text = decodeUrlsInString(popupRef.text);
           }

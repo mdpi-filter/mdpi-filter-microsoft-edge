@@ -927,8 +927,14 @@ if (!window.mdpiFilterInjected) {
 
             // Check for Wiley-specific accordion structure
             const currentHostname = window.location.hostname;
+            const currentHref = window.location.href; // Get the full URL
+
             const isDirectWileySite = currentHostname.includes('onlinelibrary.wiley.com');
-            const isProxiedWileySite = currentHostname.includes('onlinelibrary-wiley-com');
+            // Make proxied check wider:
+            // 1. Hostname contains 'onlinelibrary-wiley-com' (e.g., for OCLC proxy)
+            // 2. Full href contains 'onlinelibrary.wiley.com/' (for some path-based proxies or if domain is in query params)
+            const isProxiedWileySite = currentHostname.includes('onlinelibrary-wiley-com') || 
+                                       currentHref.includes('onlinelibrary.wiley.com/');
 
             if (isDirectWileySite || isProxiedWileySite) {
               console.log("[MDPI Filter CS] Wiley site (direct or proxied) detected, checking accordion.");

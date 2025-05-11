@@ -19,7 +19,9 @@
 
     const commonSelectors = [
       `a[href="#${refId}"]`,
+      `a[href$="#${refId}"]`, // Ends with
       `a[href="#cite_note-${refId}"]`,
+      `a[href$="#cite_note-${refId}"]`, // Ends with
       // Handle cases where refId might be "cite_note-B1" and link is "#cite_note-B1" or "B1"
       `a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
       `a[href="#ref-${refId}"]`,                   // Common ref prefix
@@ -32,7 +34,7 @@
       `a[data-bris-rid="${refId}"]`
     ];
 
-    const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35"
+    const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35" or "ref-CR35"
     if (numericRefIdPart) {
         commonSelectors.push(`a[href="#cite_note-${numericRefIdPart}"]`);
         commonSelectors.push(`a[href="#ref-${numericRefIdPart}"]`);
@@ -44,6 +46,7 @@
 
     const supParentSelectors = [
       `sup a[href="#${refId}"]`,
+      `sup a[href$="#${refId}"]`, // Ends with
       `sup a[href="#cite_note-${refId}"]`,
       `sup a[href="#cite_note-${refId.replace(/^cite_note-/i, '').split(/[^a-zA-Z0-9_.:-]+/)[0]}"]`,
       `sup a[href="#ref-${refId}"]`,

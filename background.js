@@ -183,9 +183,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     try {
         chrome.action.setBadgeText({ text, tabId });
         if (count > 0) {
-          chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId }); // Example: Red for MDPI
+            chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId }); // MDPI Red
         } else {
-          chrome.action.setBadgeBackgroundColor({ color: '#6c757d', tabId }); // Example: Grey for no MDPI
+            chrome.action.setBadgeBackgroundColor({ color: '#6c757d', tabId }); // Grey
         }
         // console.log(`[MDPI Filter BG] Badge text set to "${text}" for tab ${tabId}`);
     } catch (e) {
@@ -204,9 +204,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0 && tabs[0].id) {
         const tabId = tabs[0].id;
-        const data = tabReferenceData[tabId] || [];
-        // console.log(`[MDPI Filter BG] Sending ${data.length} references to popup for tab ${tabId}.`);
-        sendResponse({ references: data });
+        const refsForTab = tabReferenceData[tabId] || [];
+        // console.log(`[MDPI Filter BG] Popup requested references for tab ${tabId}. Found: ${refsForTab.length}`);
+        sendResponse({ references: refsForTab });
       } else {
         console.warn("[MDPI Filter BG] getMdpiReferences: No active tab found or tab has no ID.");
         sendResponse({ references: [] });
@@ -218,22 +218,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // --- New: Message from Popup Script to Scroll to Reference ---
   if (msg.type === 'scrollToRef' && msg.refId) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs.length > 0) {
-            const activeTabId = tabs[0].id;
-            console.log(`[MDPI Filter BG] Forwarding scrollToRef request for ID ${msg.refId} to tab ${activeTabId}`);
-            // Forward the message to the content script of the active tab
-            chrome.tabs.sendMessage(activeTabId, { type: 'scrollToRef', refId: msg.refId }, (response) => {
+        if (tabs.length > 0 && tabs[0].id) {
+            const tabId = tabs[0].id;
+            console.log(`[MDPI Filter BG] Forwarding scrollToRefOnPage to tab ${tabId} for refId: ${msg.refId}`);
+            chrome.tabs.sendMessage(tabId, { type: 'scrollToRefOnPage', refId: msg.refId }, (response) => {
                 if (chrome.runtime.lastError) {
-                    console.warn("[MDPI Filter BG] Error forwarding scrollToRef:", chrome.runtime.lastError.message);
-                    sendResponse({ status: "error", message: chrome.runtime.lastError.message });
+                    console.error(`[MDPI Filter BG] Error sending scrollToRefOnPage to tab ${tabId}:`, chrome.runtime.lastError.message);
+                    sendResponse({ status: 'error_sending_to_content', message: chrome.runtime.lastError.message });
                 } else {
-                    console.log("[MDPI Filter BG] Forwarded scrollToRef, response from content script:", response);
-                    sendResponse(response); // Send content script's response back to popup
+                    console.log(`[MDPI Filter BG] Response from content script for scrollToRefOnPage:`, response);
+                    sendResponse(response); // Forward content script's response to popup
                 }
             });
         } else {
-             console.warn("[MDPI Filter BG] Could not find active tab to forward scrollToRef.");
-             sendResponse({ status: "error", message: "No active tab found" });
+            console.warn("[MDPI Filter BG] scrollToRef: No active tab found or tab has no ID.");
+            sendResponse({ status: 'error_no_active_tab', message: 'No active tab found to send scroll message.' });
         }
     });
     return true; // Indicate asynchronous response

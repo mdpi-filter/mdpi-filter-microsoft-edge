@@ -915,8 +915,8 @@ if (!window.mdpiFilterInjected) {
             // Potentially re-run or clear/re-apply styles based on the new mode
             sendResponse({ success: true, message: "Settings acknowledged by content script." });
             return false; // Synchronous response, channel can be closed.
-        } else if (msg.type === 'scrollToRef' && msg.refId) {
-          console.log(`[MDPI Filter CS] Received scrollToRef for ID: ${msg.refId}`);
+        } else if (msg.type === 'scrollToRefOnPage' && msg.refId) { // Changed 'scrollToRef' to 'scrollToRefOnPage'
+          console.log(`[MDPI Filter CS] Received scrollToRefOnPage for ID: ${msg.refId}`);
           const targetElement = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
 
           const performScroll = (elementToScroll, refIdForResponse) => {
@@ -975,7 +975,7 @@ if (!window.mdpiFilterInjected) {
               performScroll(targetElement, msg.refId);
             }
           } else {
-            console.warn(`[MDPI Filter CS] scrollToRef: Element with ID ${msg.refId} not found.`);
+            console.warn(`[MDPI Filter CS] scrollToRefOnPage: Element with ID ${msg.refId} not found.`);
             sendResponse({ success: false, error: 'Element not found', refId: msg.refId });
           }
           return true; // Crucial: Indicates that sendResponse will be called asynchronously

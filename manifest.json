@@ -49,6 +49,7 @@
         "content/item_content_checker.js",
         "content/cited_by_processor.js",
         "content/reference_id_extractor.js",
+        "content/ncbi_api_handler.js",
         "content/content_script.js"
       ],
       "run_at": "document_idle"

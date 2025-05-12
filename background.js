@@ -67,7 +67,8 @@ async function injectModules(tabId, triggerSource = "unknown") {
     'content/link_extraction_selectors.js',
     'content/link_extractor.js',
     'content/item_content_checker.js',
-    'content/reference_id_extractor.js', // Added: ensure this path is correct
+    'content/reference_id_extractor.js',
+    'content/ncbi_api_handler.js', // Added new module
     'content/content_script.js'
   ];
   try {
@@ -145,7 +146,8 @@ chrome.webNavigation.onCompleted.addListener(
           'content/link_extraction_selectors.js',
           'content/link_extractor.js',
           'content/item_content_checker.js',
-          'content/reference_id_extractor.js', // Added: ensure this path is correct
+          'content/reference_id_extractor.js',
+          'content/ncbi_api_handler.js', // Added new module
           'content/content_script.js'
         ]
       }).catch(e => {

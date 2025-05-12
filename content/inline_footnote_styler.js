@@ -2,28 +2,30 @@
 (function() {
   // Helper function to style sup/a elements for inline citations.
   // This function was originally styleSup in content_script.js.
-  const styleInlineMarker = supOrA => {
+  const styleInlineMarker = (supOrA, color) => {
     if (!supOrA) return;
 
+    const markerColor = color || '#E2211C'; // Default to MDPI Red if no color is provided
+
     // Style the main element (sup or a)
-    supOrA.style.color      = '#E2211C'; // MDPI Red
+    supOrA.style.color      = markerColor;
     supOrA.style.fontWeight = 'bold';
 
     // If supOrA is a sup element, specifically style any anchor tag and its content within it
     if (supOrA.tagName.toLowerCase() === 'sup') {
       const anchorElement = supOrA.querySelector('a');
       if (anchorElement) {
-        anchorElement.style.color      = '#E2211C';
+        anchorElement.style.color      = markerColor;
         anchorElement.style.fontWeight = 'bold';
         Array.from(anchorElement.childNodes).forEach(child => {
           if (child.nodeType === Node.ELEMENT_NODE) {
-            child.style.color      = '#E2211C';
+            child.style.color      = markerColor;
             child.style.fontWeight = 'bold';
           }
         });
         const bracketSpans = anchorElement.querySelectorAll('span.cite-bracket');
         bracketSpans.forEach(span => {
-          span.style.color = '#E2211C';
+          span.style.color = markerColor;
         });
       }
     }
@@ -31,13 +33,13 @@
     else if (supOrA.tagName.toLowerCase() === 'a') {
       const supInsideAnchor = supOrA.querySelector('sup');
       if (supInsideAnchor) {
-        supInsideAnchor.style.color      = '#E2211C';
+        supInsideAnchor.style.color      = markerColor;
         supInsideAnchor.style.fontWeight = 'bold';
         const anchorInsideSup = supInsideAnchor.querySelector('a');
         if (anchorInsideSup) {
           const bracketSpans = anchorInsideSup.querySelectorAll('span.cite-bracket');
           bracketSpans.forEach(span => {
-              span.style.color = '#E2211C';
+              span.style.color = markerColor;
           });
         }
       }
@@ -46,9 +48,13 @@
 
   // Styles inline footnotes based on collected MDPI references.
   // This function was originally styleInlineFootnotes in content_script.js.
-  // It now takes collectedMdpiReferences as an argument.
-  const styleInlineFootnotes = (collectedMdpiReferences) => {
-    if (!collectedMdpiReferences || collectedMdpiReferences.length === 0) return;
+  // It now takes collectedMdpiReferences and mdpiColor as arguments.
+  const styleInlineFootnotes = (collectedMdpiReferences, mdpiColor) => {
+    // Stronger guard: check if it's an array and if it's empty.
+    if (!Array.isArray(collectedMdpiReferences) || collectedMdpiReferences.length === 0) {
+      // console.log("[MDPI Filter] styleInlineFootnotes: collectedMdpiReferences is not a valid non-empty array.", collectedMdpiReferences);
+      return;
+    }
     if (!window.MDPIFilterUtils || !window.MDPIFilterUtils.generateInlineFootnoteSelectors) {
       // console.error("[MDPI Filter] generateInlineFootnoteSelectors function is not available.");
       return;
@@ -59,8 +65,8 @@
     collectedMdpiReferences.forEach(refData => {
       // refData.listItemDomId is the ID of the reference list item (e.g., from item.id or item.dataset.bibId)
       // This ID is used to generate selectors for corresponding inline citations.
-      if (!refData || !refData.listItemDomId || refData.listItemDomId.trim() === "") {
-        // console.warn("[MDPI Filter] Skipping inline styling for refData with missing listItemDomId:", refData);
+      if (!refData || !refData.listItemDomId || typeof refData.listItemDomId !== 'string' || refData.listItemDomId.trim() === "") {
+        // console.warn("[MDPI Filter] Skipping inline styling for refData with missing or invalid listItemDomId:", refData);
         return;
       }
       const currentListItemDomId = refData.listItemDomId;
@@ -87,7 +93,7 @@
             }
           }
           if (targetElementToStyle && !styledInlineRefs.has(targetElementToStyle)) {
-            styleInlineMarker(targetElementToStyle);
+            styleInlineMarker(targetElementToStyle, mdpiColor); // Pass mdpiColor here
             styledInlineRefs.add(targetElementToStyle);
           }
         });

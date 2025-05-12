@@ -97,13 +97,6 @@ if (!window.mdpiFilterInjected) {
 
     // ---
 
-    // Helper function to determine if the current page is a search engine results page
-    const isSearchEnginePage = () => {
-      const hostname = window.location.hostname;
-      return domains && domains.searchEngineDomains && Array.isArray(domains.searchEngineDomains) &&
-             domains.searchEngineDomains.some(domain => hostname.includes(domain));
-    };
-
     // Check if the runtime and its ID are available before trying to access storage
     if (chrome.runtime && chrome.runtime.id) {
       chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
@@ -129,6 +122,47 @@ if (!window.mdpiFilterInjected) {
         const mdpiColor = '#E2211C'; // Default MDPI Red, can be adjusted based on mode if needed
 
         let isProcessing = false; // Declare isProcessing here, inside the callback
+
+        const isSearchEnginePage = () => {
+          const currentHostname = window.location.hostname;
+          console.log(`[MDPI Filter CS] isSearchEnginePage: Checking hostname: "${currentHostname}"`);
+
+          const domainsConfig = window.MDPIFilterDomains;
+
+          if (!domainsConfig) {
+            console.warn('[MDPI Filter CS] isSearchEnginePage: window.MDPIFilterDomains is undefined or null.');
+            return false;
+          }
+          if (!domainsConfig.searchEngineDomains) {
+            console.warn('[MDPI Filter CS] isSearchEnginePage: window.MDPIFilterDomains.searchEngineDomains is undefined.');
+            return false;
+          }
+          if (!Array.isArray(domainsConfig.searchEngineDomains)) {
+            console.warn('[MDPI Filter CS] isSearchEnginePage: window.MDPIFilterDomains.searchEngineDomains is not an array. Value:', domainsConfig.searchEngineDomains);
+            return false;
+          }
+          if (domainsConfig.searchEngineDomains.length === 0) {
+            console.warn('[MDPI Filter CS] isSearchEnginePage: window.MDPIFilterDomains.searchEngineDomains is empty.');
+            return false;
+          }
+
+          console.log(`[MDPI Filter CS] isSearchEnginePage: Checking against domains:`, JSON.parse(JSON.stringify(domainsConfig.searchEngineDomains)));
+
+          const isMatch = domainsConfig.searchEngineDomains.some(domainString => {
+            if (typeof domainString !== 'string') {
+              console.warn(`[MDPI Filter CS] isSearchEnginePage: Non-string entry in searchEngineDomains:`, domainString);
+              return false;
+            }
+            const matchFound = currentHostname.includes(domainString);
+            if (matchFound) {
+              console.log(`[MDPI Filter CS] isSearchEnginePage: Match found: "${currentHostname}" includes "${domainString}"`);
+            }
+            return matchFound;
+          });
+
+          console.log(`[MDPI Filter CS] isSearchEnginePage: Final result for "${currentHostname}": ${isMatch}`);
+          return isMatch;
+        };
 
         function clearPreviousHighlights() {
           document.querySelectorAll('.mdpi-highlighted-reference, .mdpi-hidden-reference, .mdpi-search-result-highlight, .mdpi-search-result-hidden').forEach(el => {
@@ -163,24 +197,45 @@ if (!window.mdpiFilterInjected) {
           });
         }
 
-        function styleRef(item, refId) {
-          if (!item || typeof item.setAttribute !== 'function') {
-            console.warn('[MDPI Filter CS] styleRef: Invalid item provided.', item);
+        async function runAll() {
+          console.log("%c[MDPI Filter CS] >>> runAll function entered.", "color: blue; font-weight: bold;");
+          if (!chrome.runtime?.id) {
+            console.warn('[MDPI Filter] runAll: Extension context invalidated. Aborting.');
             return;
           }
-          item.setAttribute('data-mdpi-filter-ref-id', refId);
-          if (mode === 'hide') {
-            item.classList.add('mdpi-hidden-reference');
-            item.style.display = 'none';
+
+          const isSearchPage = isSearchEnginePage(); // Call it once and store result
+
+          if (isSearchPage) {
+            console.log("%c[MDPI Filter CS] runAll: Detected SEARCH ENGINE page. Running processSearchEngineResults.", "color: green; font-weight: bold;");
+            processSearchEngineResults();
+            // Badge update is handled within processSearchEngineResults for search pages
           } else {
-            item.classList.add('mdpi-highlighted-reference');
-            item.style.backgroundColor = 'rgba(255, 224, 224, 0.7)';
-            item.style.border = `1px solid ${mdpiColor}`;
-            item.style.padding = '2px';
+            console.log("%c[MDPI Filter CS] runAll: Detected REGULAR page. Running processAllReferences.", "color: orange; font-weight: bold;");
+            if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
+              console.error("[MDPI Filter CS] runAll (REGULAR): CRITICAL - referenceListSelectors is not defined or is empty. Aborting runAll.");
+              collectedMdpiReferences = []; 
+              uniqueMdpiReferences.clear();
+              updateBadgeAndReferences(); 
+              return;
+            }
+            refIdCounter = 0; 
+            const runCache = new Map();
+            await processAllReferences(runCache);
+            
+            // Process inline footnotes only on regular pages
+            if (window.MDPIFilterUtils && window.MDPIFilterUtils.styleInlineFootnotes) {
+              window.MDPIFilterUtils.styleInlineFootnotes(collectedMdpiReferences, mdpiColor);
+            }
+            updateBadgeAndReferences();
           }
         }
-        
-        function processSearchEngineResults() {
+
+        const debouncedRunAll = window.debounce(() => {
+          runAll();
+        }, 250);
+
+        async function processSearchEngineResults() {
           console.log("[MDPI Filter CS] >>> processSearchEngineResults function entered.");
           clearPreviousHighlights(); // Clear previous styling
 
@@ -244,54 +299,6 @@ if (!window.mdpiFilterInjected) {
             }).catch(e => console.warn("[MDPI Filter CS] Error sending search result badge update:", e.message));
           }
         }
-
-
-        function isMdpiItemByContent(item, runCache) {
-          if (!item) return false;
-          return window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, MDPI_DOI, MDPI_DOMAIN);
-        }
-        
-        function updateBadgeAndReferences() {
-          const badgeCount = collectedMdpiReferences.length;
-          const text = badgeCount > 0 ? String(badgeCount) : '';
-        
-          if (chrome.runtime && chrome.runtime.id) {
-            chrome.runtime.sendMessage({
-              action: 'mdpiUpdate',
-              data: {
-                badgeCount: badgeCount,
-                references: collectedMdpiReferences
-              }
-            }).catch(error => {
-              if (error.message.includes("Receiving end does not exist")) {
-                // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Could not send message to background, context likely invalidated.");
-              } else {
-                // console.error("[MDPI Filter CS] updateBadgeAndReferences: Error sending message:", error);
-              }
-            });
-          } else {
-            // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Extension context invalidated, cannot send message.");
-          }
-          if (collectedMdpiReferences.length === 0 && !isSearchEnginePage()) { // Only log "no references" for non-search pages
-            // console.log("[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup for this page.");
-          }
-        }
-
-
-        const extractReferenceData = (item) => {
-          const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(item, refIdCounter);
-          refIdCounter = updatedRefIdCounter; 
-
-          const textContent = item.textContent || '';
-          const primaryLink = window.MDPIFilterLinkExtractor.extractPrimaryLink(item, window.MDPIFilterLinkExtractionSelectors);
-
-          return {
-            id: extractedId, 
-            text: sanitize(textContent.substring(0, 250) + (textContent.length > 250 ? '...' : '')),
-            fullText: textContent, 
-            link: primaryLink,
-          };
-        };
 
         async function processAllReferences(runCache) { 
           console.log("[MDPI Filter CS] >>> processAllReferences function entered."); 
@@ -387,39 +394,37 @@ if (!window.mdpiFilterInjected) {
           updateBadgeAndReferences();
         }
 
-        const debouncedRunAll = window.debounce(() => {
-          runAll();
-        }, 250);
-
-        async function runAll() {
-          if (!chrome.runtime?.id) {
-            console.warn('[MDPI Filter] runAll: Extension context invalidated. Aborting.');
-            return;
-          }
-
-          if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
-            updateBadgeAndReferences(); 
-            return;
-          }
-          refIdCounter = 0; 
-
-          const runCache = new Map();
-          await processAllReferences(runCache);
-          updateBadgeAndReferences();
-        }
-
         function initializeOrReRun() {
           if (!chrome.runtime?.id) {
             console.warn('[MDPI Filter CS] initializeOrReRun: Extension context invalidated. Aborting.');
             return;
           }
 
-          if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
-            updateBadgeAndReferences(); 
-            return;
+          const isSearchPage = isSearchEnginePage(); // Call it once and store result
+
+          if (isSearchPage) {
+            console.log("%c[MDPI Filter CS] initializeOrReRun: Detected SEARCH ENGINE page. Running processSearchEngineResults.", "color: green; font-weight: bold;");
+            processSearchEngineResults();
+          } else {
+            console.log("%c[MDPI Filter CS] initializeOrReRun: Detected REGULAR page. Running processAllReferences.", "color: orange; font-weight: bold;");
+            if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
+              console.error("[MDPI Filter CS] initializeOrReRun (REGULAR): CRITICAL - referenceListSelectors is not defined or is empty. Aborting initializeOrReRun.");
+              collectedMdpiReferences = []; 
+              uniqueMdpiReferences.clear();
+              updateBadgeAndReferences(); 
+              return;
+            }
+            refIdCounter = 0; 
+            const runCache = new Map();
+            processAllReferences(runCache);
+            
+            // Process inline footnotes only on regular pages
+            if (window.MDPIFilterUtils && window.MDPIFilterUtils.styleInlineFootnotes) {
+              window.MDPIFilterUtils.styleInlineFootnotes(collectedMdpiReferences, mdpiColor);
+            }
+            updateBadgeAndReferences();
           }
 
-          runAll(); 
           if (mainObserverInstance) {
             mainObserverInstance.disconnect(); 
           }
@@ -441,20 +446,12 @@ if (!window.mdpiFilterInjected) {
             if (!chrome.runtime?.id) {
               return;
             }
-            if (typeof referenceListSelectors !== 'undefined' && referenceListSelectors !== null && referenceListSelectors.trim() !== '') {
-              initializeOrReRun();
-            } else {
-              updateBadgeAndReferences();
-            }
+            initializeOrReRun();
           });
         } else {
           if (!chrome.runtime?.id) {
           } else {
-            if (typeof referenceListSelectors !== 'undefined' && referenceListSelectors !== null && referenceListSelectors.trim() !== '') {
-              initializeOrReRun();
-            } else {
-              updateBadgeAndReferences();
-            }
+            initializeOrReRun();
           }
         }
       });
@@ -462,4 +459,4 @@ if (!window.mdpiFilterInjected) {
       console.warn("[MDPI Filter CS] Extension context invalidated before storage access. Main script logic will not execute for this frame.");
     }
   } 
-} 
+}

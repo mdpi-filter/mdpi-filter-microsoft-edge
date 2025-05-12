@@ -126,7 +126,101 @@ if (!window.mdpiFilterInjected) {
         const { ncbiApiCache, citationProcessCache } = window.MDPIFilterCaches;
         // ---
 
+        const mdpiColor = '#E2211C'; // Default MDPI Red, can be adjusted based on mode if needed
+
         let isProcessing = false; // Declare isProcessing here, inside the callback
+
+        function clearPreviousHighlights() {
+          document.querySelectorAll('.mdpi-highlighted-reference, .mdpi-hidden-reference').forEach(el => {
+            el.classList.remove('mdpi-highlighted-reference', 'mdpi-hidden-reference');
+            // Potentially remove other styles if they were directly applied
+            el.style.backgroundColor = '';
+            el.style.border = '';
+            el.style.padding = '';
+            el.style.display = ''; // Reset display for hidden items
+          });
+          // Clear styles from inline markers as well
+          document.querySelectorAll('[data-mdpi-filter-inline-styled]').forEach(el => {
+            el.style.color = '';
+            el.style.fontWeight = '';
+            el.removeAttribute('data-mdpi-filter-inline-styled');
+            if (el.tagName.toLowerCase() === 'sup') {
+              const anchorElement = el.querySelector('a');
+              if (anchorElement) {
+                anchorElement.style.color = '';
+                anchorElement.style.fontWeight = '';
+                Array.from(anchorElement.childNodes).forEach(child => {
+                  if (child.nodeType === Node.ELEMENT_NODE) {
+                    child.style.color = '';
+                    child.style.fontWeight = '';
+                  }
+                });
+                const bracketSpans = anchorElement.querySelectorAll('span.cite-bracket');
+                bracketSpans.forEach(span => {
+                  span.style.color = '';
+                });
+              }
+            }
+          });
+        }
+
+        function styleRef(item, refId) {
+          // Ensure item is a valid DOM element
+          if (!item || typeof item.setAttribute !== 'function') {
+            console.warn('[MDPI Filter CS] styleRef: Invalid item provided.', item);
+            return;
+          }
+        
+          // Set the data attribute for scrolling. This ID should match what's in collectedMdpiReferences.
+          item.setAttribute('data-mdpi-filter-ref-id', refId);
+        
+          if (mode === 'hide') {
+            item.classList.add('mdpi-hidden-reference');
+            item.style.display = 'none';
+          } else { // Default to 'highlight'
+            item.classList.add('mdpi-highlighted-reference');
+            item.style.backgroundColor = 'rgba(255, 224, 224, 0.7)'; // Light red background
+            item.style.border = `1px solid ${mdpiColor}`;
+            item.style.padding = '2px';
+          }
+        }
+
+        function isMdpiItemByContent(item, runCache) {
+          if (!item) return false;
+          // Use the globally available checker
+          return window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, MDPI_DOI, MDPI_DOMAIN);
+        }
+        
+        function updateBadgeAndReferences() {
+          const badgeCount = collectedMdpiReferences.length;
+          const text = badgeCount > 0 ? String(badgeCount) : '';
+        
+          // Ensure chrome.runtime and chrome.runtime.id are valid before sending a message
+          if (chrome.runtime && chrome.runtime.id) {
+            chrome.runtime.sendMessage({
+              action: 'mdpiUpdate', // Ensure this matches what background.js expects
+              data: {
+                badgeCount: badgeCount,
+                references: collectedMdpiReferences
+              }
+            }).catch(error => {
+              // Catch errors if the receiving end doesn't exist (e.g., context invalidated)
+              if (error.message.includes("Receiving end does not exist")) {
+                // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Could not send message to background, context likely invalidated.");
+              } else {
+                // console.error("[MDPI Filter CS] updateBadgeAndReferences: Error sending message:", error);
+              }
+            });
+          } else {
+            // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Extension context invalidated, cannot send message.");
+          }
+        
+          // console.log(`[MDPI Filter CS] updateBadgeAndReferences: Badge text set to '${text}', sent ${collectedMdpiReferences.length} references to popup.`);
+          if (collectedMdpiReferences.length === 0) {
+            // console.log("[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup.");
+          }
+        }
+
 
         const extractReferenceData = (item) => {
           // Ensure refIdCounter is correctly accessed and updated if it's meant to be global to this scope
@@ -134,7 +228,15 @@ if (!window.mdpiFilterInjected) {
           refIdCounter = updatedRefIdCounter; // Update the counter in the outer scope
 
           const textContent = item.textContent || '';
-          // ... rest of extractReferenceData
+          const primaryLink = window.MDPIFilterLinkExtractor.extractPrimaryLink(item, window.MDPIFilterLinkExtractionSelectors);
+
+          return {
+            id: extractedId, // This is the crucial ID for scrolling, generated by extractInternalScrollId
+            text: sanitize(textContent.substring(0, 250) + (textContent.length > 250 ? '...' : '')),
+            fullText: textContent, // Keep full text if needed for other purposes
+            link: primaryLink,
+            // Add any other data you want to show in the popup
+          };
         };
 
         async function processAllReferences(runCache) { // runCache is a Map, typically new for each full run
@@ -246,6 +348,14 @@ if (!window.mdpiFilterInjected) {
           });
           console.log("[MDPI Filter] processAllReferences FINISHED. Collected MDPI references count:", collectedMdpiReferences.length);
           isProcessing = false;
+
+          // Process inline footnotes
+          if (window.MDPIFilterUtils && window.MDPIFilterUtils.styleInlineFootnotes) {
+            // The first argument to styleInlineFootnotes should be the collectedMdpiReferences array
+            // The second argument is the color
+            window.MDPIFilterUtils.styleInlineFootnotes(collectedMdpiReferences, mdpiColor);
+          }
+          updateBadgeAndReferences();
         }
 
         const debouncedRunAll = window.debounce(() => {
@@ -268,11 +378,6 @@ if (!window.mdpiFilterInjected) {
 
           const runCache = new Map();
           await processAllReferences(runCache);
-          // Process inline footnotes
-          if (window.MDPIFilterUtils && window.MDPIFilterUtils.styleInlineFootnotes) {
-            const inlineFootnoteSelectors = window.MDPIFilterUtils.generateInlineFootnoteSelectors(MDPI_DOMAIN, MDPI_DOI_REGEX.source.replace(/\\/g, ''));
-            window.MDPIFilterUtils.styleInlineFootnotes(inlineFootnoteSelectors, mdpiColor);
-          }
           updateBadgeAndReferences();
         }
 

@@ -542,6 +542,35 @@ if (!window.mdpiFilterInjected) {
           });
         }
 
+        // --- Message Listener for Scrolling ---
+        if (chrome.runtime && chrome.runtime.onMessage) {
+          chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+            if (msg.type === 'scrollToRefOnPage' && msg.refId) {
+              console.log(`[MDPI Filter CS] Received scrollToRefOnPage for refId: ${msg.refId}`);
+              const selector = `[data-mdpi-filter-ref-id="${msg.refId}"]`;
+              const elementToScrollTo = document.querySelector(selector);
+
+              if (elementToScrollTo) {
+                elementToScrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Optional: Add a temporary visual cue
+                elementToScrollTo.style.outline = `2px dashed ${mdpiColor}`;
+                setTimeout(() => {
+                  elementToScrollTo.style.outline = '';
+                }, 2000);
+                console.log(`[MDPI Filter CS] Scrolled to element with ${selector}`);
+                sendResponse({ status: 'success', message: `Scrolled to ${msg.refId}` });
+              } else {
+                console.warn(`[MDPI Filter CS] Element with ${selector} not found.`);
+                sendResponse({ status: 'error', message: `Element with refId ${msg.refId} not found.` });
+              }
+              return true; 
+            }
+            return false; 
+          });
+        } else {
+            console.warn("[MDPI Filter CS] chrome.runtime.onMessage not available. Scrolling from popup will not work.");
+        }
+
         // --- Initial Execution ---
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', () => {

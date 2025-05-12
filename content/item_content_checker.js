@@ -80,29 +80,37 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       // This relies on runCache being populated by prior NCBI API calls
       let pmcIdStrings = new Set();
       let pmidStrings = new Set();
+      console.log("[MDPI Filter ItemChecker] PRIO 4: Starting NCBI ID extraction for item. Text (first 100):", item.textContent.substring(0, 100)); // Added log
       for (const link of allLinksInItem) {
         if (link.href) {
+          console.log("[MDPI Filter ItemChecker] PRIO 4: Checking link for NCBI ID:", link.href); // Added log
           const pmcMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i); // Simpler PMC match
           if (pmcMatch && pmcMatch[1]) {
+            console.log("[MDPI Filter ItemChecker] PRIO 4: Found PMCID:", pmcMatch[1], "in link:", link.href); // Added log
             pmcIdStrings.add(pmcMatch[1].toUpperCase()); // Normalize
           } else {
             // Extract PMID if link matches PubMed abstract pattern
             const pmidMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
             if (pmidMatch && pmidMatch[1]) {
+              console.log("[MDPI Filter ItemChecker] PRIO 4: Found PMID:", pmidMatch[1], "in link:", link.href); // Added log
               pmidStrings.add(pmidMatch[1]);
             }
           }
         }
       }
+      console.log("[MDPI Filter ItemChecker] PRIO 4: Extracted PMIDs for item:", Array.from(pmidStrings)); // Added log
+      console.log("[MDPI Filter ItemChecker] PRIO 4: Extracted PMCIDs for item:", Array.from(pmcIdStrings)); // Added log
 
       const allItemNcbiIds = [...pmidStrings, ...pmcIdStrings];
       let itemHasNcbiIds = allItemNcbiIds.length > 0;
       let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = itemHasNcbiIds; // Assume true if IDs exist, falsify if not all are non-MDPI
 
       if (itemHasNcbiIds) {
+        console.log("[MDPI Filter ItemChecker] PRIO 4: Item has NCBI IDs, checking runCache for:", allItemNcbiIds); // Added log
         for (const id of allItemNcbiIds) {
           if (runCache.has(id)) {
             const cacheEntry = runCache.get(id);
+            console.log("[MDPI Filter ItemChecker] PRIO 4: runCache HIT for ID:", id, "Value:", cacheEntry); // Added log
             if ((typeof cacheEntry === 'object' && cacheEntry.isMdpi === true) || cacheEntry === true) {
               // console.log(`[MDPI Filter ItemChecker] Priority 4: Found MDPI via NCBI ID ${id} from cache in item:`, item.textContent.substring(0,100));
               return true;
@@ -112,6 +120,7 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
               allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
             }
           } else {
+            console.log("[MDPI Filter ItemChecker] PRIO 4: runCache MISS for ID:", id); // Added log
             allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false; // Not in cache, cannot confirm non-MDPI status for all
           }
         }

@@ -7,6 +7,7 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
   const MDPI_DOI_PREFIX = '10.3390'; // For identifying MDPI DOIs
 
   async function checkNcbiIdsForMdpi(ids, idType, runCache, ncbiApiCache) { // ids is an array
+    console.log("[MDPI Filter NCBI API] >>> checkNcbiIdsForMdpi FUNCTION ENTRY POINT. Type: " + idType); // Added log
     console.log(`[MDPI Filter NCBI API] checkNcbiIdsForMdpi called with ${ids.length} IDs. Type: ${idType}, IDs:`, ids);
 
     if (!ids || ids.length === 0) {
@@ -19,7 +20,7 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
     ids.forEach(id => {
       if (ncbiApiCache.has(id)) {
         runCache.set(id, ncbiApiCache.get(id)); // Populate current runCache from persistent cache
-        // console.log(`[MDPI Filter NCBI API] ID ${id} found in ncbiApiCache. Value: ${ncbiApiCache.get(id)}`);
+        console.log(`[MDPI Filter NCBI API] ID ${id} found in ncbiApiCache. Value: ${ncbiApiCache.get(id)}`); // Changed to console.log
       } else {
         idsToQueryApi.push(id); // This ID needs to be fetched
       }

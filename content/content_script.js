@@ -131,15 +131,14 @@ if (!window.mdpiFilterInjected) {
         let isProcessing = false; // Declare isProcessing here, inside the callback
 
         function clearPreviousHighlights() {
-          document.querySelectorAll('.mdpi-highlighted-reference, .mdpi-hidden-reference').forEach(el => {
-            el.classList.remove('mdpi-highlighted-reference', 'mdpi-hidden-reference');
-            // Potentially remove other styles if they were directly applied
+          document.querySelectorAll('.mdpi-highlighted-reference, .mdpi-hidden-reference, .mdpi-search-result-highlight, .mdpi-search-result-hidden').forEach(el => {
+            el.classList.remove('mdpi-highlighted-reference', 'mdpi-hidden-reference', 'mdpi-search-result-highlight', 'mdpi-search-result-hidden');
             el.style.backgroundColor = '';
             el.style.border = '';
             el.style.padding = '';
-            el.style.display = ''; // Reset display for hidden items
+            el.style.display = '';
+            el.style.outline = ''; // Also clear outline if used
           });
-          // Clear styles from inline markers as well
           document.querySelectorAll('[data-mdpi-filter-inline-styled]').forEach(el => {
             el.style.color = '';
             el.style.fontWeight = '';
@@ -165,29 +164,90 @@ if (!window.mdpiFilterInjected) {
         }
 
         function styleRef(item, refId) {
-          // Ensure item is a valid DOM element
           if (!item || typeof item.setAttribute !== 'function') {
             console.warn('[MDPI Filter CS] styleRef: Invalid item provided.', item);
             return;
           }
-        
-          // Set the data attribute for scrolling. This ID should match what's in collectedMdpiReferences.
           item.setAttribute('data-mdpi-filter-ref-id', refId);
-        
           if (mode === 'hide') {
             item.classList.add('mdpi-hidden-reference');
             item.style.display = 'none';
-          } else { // Default to 'highlight'
+          } else {
             item.classList.add('mdpi-highlighted-reference');
-            item.style.backgroundColor = 'rgba(255, 224, 224, 0.7)'; // Light red background
+            item.style.backgroundColor = 'rgba(255, 224, 224, 0.7)';
             item.style.border = `1px solid ${mdpiColor}`;
             item.style.padding = '2px';
           }
         }
+        
+        function processSearchEngineResults() {
+          console.log("[MDPI Filter CS] >>> processSearchEngineResults function entered.");
+          clearPreviousHighlights(); // Clear previous styling
+
+          const hostname = window.location.hostname;
+          const path = window.location.pathname;
+          let config = null;
+          let foundMdpiResultsCount = 0;
+
+          if (domains.googleWeb && hostname.includes(domains.googleWeb.host) && domains.googleWeb.path.test(path)) {
+            config = domains.googleWeb;
+          } else if (domains.scholar && hostname.includes(domains.scholar.host)) {
+            config = domains.scholar;
+          } else if (domains.pubmed && hostname.includes(domains.pubmed.host)) {
+            config = domains.pubmed;
+          } else if (domains.europepmc && domains.europepmc.hostRegex && domains.europepmc.hostRegex.test(hostname)) {
+            config = domains.europepmc;
+          }
+
+          if (!config) {
+            console.log("[MDPI Filter CS] No specific search engine config found for:", hostname + path);
+            return;
+          }
+          console.log("[MDPI Filter CS] Using config for:", config.host || config.hostRegex);
+
+          const items = document.querySelectorAll(config.itemSelector || config.container); // Prefer itemSelector
+          console.log(`[MDPI Filter CS] Found ${items.length} items using selector: ${config.itemSelector || config.container}`);
+
+          items.forEach(item => {
+            let isMdpiResult = false;
+            if (config.linkSelector && item.querySelector(config.linkSelector)) {
+              isMdpiResult = true;
+            } else if (config.doiPattern && item.textContent && item.textContent.includes(config.doiPattern)) {
+              isMdpiResult = true;
+            } else if (config.htmlContains && item.innerHTML && item.innerHTML.includes(config.htmlContains)) {
+              isMdpiResult = true;
+            }
+
+            if (isMdpiResult) {
+              foundMdpiResultsCount++;
+              if (mode === 'hide') {
+                item.classList.add('mdpi-search-result-hidden');
+                item.style.display = 'none';
+              } else { // 'highlight'
+                item.classList.add('mdpi-search-result-highlight');
+                item.style.border = `2px dotted ${mdpiColor}`; // Dotted border for search results
+                item.style.padding = '3px';
+                item.style.backgroundColor = 'rgba(255, 230, 230, 0.5)'; // Slightly different highlight
+              }
+            }
+          });
+          console.log(`[MDPI Filter CS] Processed search results. Found and styled ${foundMdpiResultsCount} MDPI results.`);
+          // For search pages, we typically don't populate collectedMdpiReferences for the popup.
+          // The badge can reflect the count of styled search results if desired.
+          if (chrome.runtime && chrome.runtime.id) {
+            chrome.runtime.sendMessage({
+              action: 'mdpiUpdate',
+              data: {
+                badgeCount: foundMdpiResultsCount, // Send count of found search results
+                references: [] // No detailed references for popup from search pages
+              }
+            }).catch(e => console.warn("[MDPI Filter CS] Error sending search result badge update:", e.message));
+          }
+        }
+
 
         function isMdpiItemByContent(item, runCache) {
           if (!item) return false;
-          // Use the globally available checker
           return window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, MDPI_DOI, MDPI_DOMAIN);
         }
         
@@ -195,16 +255,14 @@ if (!window.mdpiFilterInjected) {
           const badgeCount = collectedMdpiReferences.length;
           const text = badgeCount > 0 ? String(badgeCount) : '';
         
-          // Ensure chrome.runtime and chrome.runtime.id are valid before sending a message
           if (chrome.runtime && chrome.runtime.id) {
             chrome.runtime.sendMessage({
-              action: 'mdpiUpdate', // Ensure this matches what background.js expects
+              action: 'mdpiUpdate',
               data: {
                 badgeCount: badgeCount,
                 references: collectedMdpiReferences
               }
             }).catch(error => {
-              // Catch errors if the receiving end doesn't exist (e.g., context invalidated)
               if (error.message.includes("Receiving end does not exist")) {
                 // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Could not send message to background, context likely invalidated.");
               } else {
@@ -214,36 +272,31 @@ if (!window.mdpiFilterInjected) {
           } else {
             // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Extension context invalidated, cannot send message.");
           }
-        
-          // console.log(`[MDPI Filter CS] updateBadgeAndReferences: Badge text set to '${text}', sent ${collectedMdpiReferences.length} references to popup.`);
-          if (collectedMdpiReferences.length === 0) {
-            // console.log("[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup.");
+          if (collectedMdpiReferences.length === 0 && !isSearchEnginePage()) { // Only log "no references" for non-search pages
+            // console.log("[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup for this page.");
           }
         }
 
 
         const extractReferenceData = (item) => {
-          // Ensure refIdCounter is correctly accessed and updated if it's meant to be global to this scope
           const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(item, refIdCounter);
-          refIdCounter = updatedRefIdCounter; // Update the counter in the outer scope
+          refIdCounter = updatedRefIdCounter; 
 
           const textContent = item.textContent || '';
           const primaryLink = window.MDPIFilterLinkExtractor.extractPrimaryLink(item, window.MDPIFilterLinkExtractionSelectors);
 
           return {
-            id: extractedId, // This is the crucial ID for scrolling, generated by extractInternalScrollId
+            id: extractedId, 
             text: sanitize(textContent.substring(0, 250) + (textContent.length > 250 ? '...' : '')),
-            fullText: textContent, // Keep full text if needed for other purposes
+            fullText: textContent, 
             link: primaryLink,
-            // Add any other data you want to show in the popup
           };
         };
 
-        async function processAllReferences(runCache) { // runCache is a Map, typically new for each full run
-          console.log("[MDPI Filter CS] >>> processAllReferences function entered."); // New log
+        async function processAllReferences(runCache) { 
+          console.log("[MDPI Filter CS] >>> processAllReferences function entered."); 
 
           if (isProcessing) {
-            // console.log("[MDPI Filter] processAllReferences skipped, already processing.");
             return;
           }
           isProcessing = true;
@@ -252,8 +305,7 @@ if (!window.mdpiFilterInjected) {
           clearPreviousHighlights();
           uniqueMdpiReferences.clear();
           collectedMdpiReferences = [];
-          // refIdCounter = 0; // Reset counter for each full processing run - This is already done in runAll or initializeOrReRun
-
+          
           let referenceItems = [];
           try {
             if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
@@ -261,18 +313,16 @@ if (!window.mdpiFilterInjected) {
               isProcessing = false;
               return;
             }
-            // console.log("[MDPI Filter CS] Attempting to querySelectorAll with selectors:", referenceListSelectors.substring(0, 200) + "..."); // Log selectors
             referenceItems = Array.from(document.querySelectorAll(referenceListSelectors));
           } catch (e) {
             console.error("[MDPI Filter CS] Error during document.querySelectorAll with referenceListSelectors:", e);
             console.error("[MDPI Filter CS] Selectors used:", referenceListSelectors);
-            isProcessing = false; // Reset processing flag
-            return; // Stop further processing in this function if selectors fail
+            isProcessing = false; 
+            return; 
           }
 
           console.log(`[MDPI Filter CS] Found ${referenceItems.length} potential reference items using current selectors.`);
 
-          // --- Batch 1: Collect all unique NCBI IDs from the page ---
           const pmidsToLookup = new Set();
           const pmcidsToLookup = new Set();
 
@@ -282,13 +332,11 @@ if (!window.mdpiFilterInjected) {
               if (link.href) {
                 const pmcMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
                 if (pmcMatch && pmcMatch[1]) {
-                  const pmcid = pmcMatch[1].toUpperCase();
-                  pmcidsToLookup.add(pmcid); // Add all found PMCIDs
+                  pmcidsToLookup.add(pmcMatch[1].toUpperCase()); 
                 } else {
                   const pmidMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
                   if (pmidMatch && pmidMatch[1]) {
-                    const pmid = pmidMatch[1];
-                    pmidsToLookup.add(pmid); // Add all found PMIDs
+                    pmidsToLookup.add(pmidMatch[1]); 
                   }
                 }
               }
@@ -299,8 +347,6 @@ if (!window.mdpiFilterInjected) {
           if (pmidsToLookup.size > 0) console.log("[MDPI Filter CS] PMIDs to check:", Array.from(pmidsToLookup));
           if (pmcidsToLookup.size > 0) console.log("[MDPI Filter CS] PMCIDs to check:", Array.from(pmcidsToLookup));
 
-          // --- API Calls (if needed) ---
-          // checkNcbiIdsForMdpi will handle ncbiApiCache internally and populate runCache
           let ncbiApiPotentiallyCalled = false;
           if (pmidsToLookup.size > 0) {
             console.log(`[MDPI Filter CS] Calling checkNcbiIdsForMdpi for ${pmidsToLookup.size} PMIDs.`);
@@ -319,10 +365,7 @@ if (!window.mdpiFilterInjected) {
             console.log("[MDPI Filter CS] No NCBI IDs found on page to send to API handler.");
           }
 
-          // --- Batch 2: Process items using (now populated) runCache ---
           referenceItems.forEach((item, index) => {
-            // Prevent processing known dynamic elements like MediaWiki's UTCLiveClock
-            // Common IDs for UTCLiveClock are 'utcdate' or 'pt-utcdate' (often within an <li>)
             if (item.id === 'utcdate' || item.closest('#utcdate') || item.id === 'pt-utcdate' || item.closest('#pt-utcdate')) {
               return;
             }
@@ -331,28 +374,14 @@ if (!window.mdpiFilterInjected) {
             const isMdpi = isMdpiItemByContent(item, runCache);
 
             if (isMdpi) {
-              console.log(`[MDPI Filter] Item ${index} IS MDPI. Extracting data...`, item);
-              // Call extractReferenceData first to get the correct ID.
-              // refIdCounter is managed internally by extractReferenceData via extractInternalScrollId.
               const referenceData = extractReferenceData(item); 
-              
-              console.log(`[MDPI Filter] Item ${index} extracted data:`, referenceData);
               collectedMdpiReferences.push(referenceData);
-              
-              // Use referenceData.id (which was generated by extractInternalScrollId)
-              // when calling styleRef. This ensures the DOM attribute matches the ID in the popup.
               styleRef(item, referenceData.id); 
-              
-              console.log(`[MDPI Filter] Item ${index} (MDPI) styled and added. Ref ID used for DOM: ${referenceData.id}`);
             }
           });
-          console.log("[MDPI Filter] processAllReferences FINISHED. Collected MDPI references count:", collectedMdpiReferences.length);
           isProcessing = false;
 
-          // Process inline footnotes
           if (window.MDPIFilterUtils && window.MDPIFilterUtils.styleInlineFootnotes) {
-            // The first argument to styleInlineFootnotes should be the collectedMdpiReferences array
-            // The second argument is the color
             window.MDPIFilterUtils.styleInlineFootnotes(collectedMdpiReferences, mdpiColor);
           }
           updateBadgeAndReferences();
@@ -363,18 +392,16 @@ if (!window.mdpiFilterInjected) {
         }, 250);
 
         async function runAll() {
-          console.log("[MDPI Filter CS] >>> runAll function entered."); // New log
           if (!chrome.runtime?.id) {
             console.warn('[MDPI Filter] runAll: Extension context invalidated. Aborting.');
             return;
           }
 
           if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
-            console.error("[MDPI Filter CS] runAll: CRITICAL - referenceListSelectors is not defined or is empty. Aborting runAll.");
-            updateBadgeAndReferences(); // Update badge to reflect no findings
+            updateBadgeAndReferences(); 
             return;
           }
-          refIdCounter = 0; // Reset global refIdCounter for each full runAll execution
+          refIdCounter = 0; 
 
           const runCache = new Map();
           await processAllReferences(runCache);
@@ -382,26 +409,22 @@ if (!window.mdpiFilterInjected) {
         }
 
         function initializeOrReRun() {
-          console.log("[MDPI Filter CS] >>> initializeOrReRun function entered."); // New log
           if (!chrome.runtime?.id) {
             console.warn('[MDPI Filter CS] initializeOrReRun: Extension context invalidated. Aborting.');
             return;
           }
-          // console.log("[MDPI Filter CS] initializeOrReRun called.");
 
           if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
-            console.error("[MDPI Filter CS] initializeOrReRun: Skipping runAll because referenceListSelectors are missing/empty.");
-            updateBadgeAndReferences(); // Ensure badge is cleared if we can't run
+            updateBadgeAndReferences(); 
             return;
           }
 
-          runAll(); // Initial processing
+          runAll(); 
           if (mainObserverInstance) {
-            mainObserverInstance.disconnect(); // Disconnect previous if any
+            mainObserverInstance.disconnect(); 
           }
           mainObserverInstance = new MutationObserver((mutationsList, observer) => {
             if (!(chrome.runtime && chrome.runtime.id)) {
-              console.warn('[MDPI Filter] Main observer: Extension context invalidated. Skipping debouncedRunAll.');
               return;
             }
             debouncedRunAll();
@@ -413,28 +436,23 @@ if (!window.mdpiFilterInjected) {
           });
         }
 
-        // Initial run and observer setup
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', () => {
             if (!chrome.runtime?.id) {
-              console.warn('[MDPI Filter CS] DOMContentLoaded: Extension context invalidated. Skipping initial run and observer setup.');
               return;
             }
             if (typeof referenceListSelectors !== 'undefined' && referenceListSelectors !== null && referenceListSelectors.trim() !== '') {
               initializeOrReRun();
             } else {
-              console.error("[MDPI Filter CS] DOMContentLoaded: Skipping initial run because referenceListSelectors are missing/empty.");
               updateBadgeAndReferences();
             }
           });
         } else {
           if (!chrome.runtime?.id) {
-            console.warn('[MDPI Filter CS] Document ready: Extension context invalidated. Skipping initial run and observer setup.');
           } else {
             if (typeof referenceListSelectors !== 'undefined' && referenceListSelectors !== null && referenceListSelectors.trim() !== '') {
               initializeOrReRun();
             } else {
-              console.error("[MDPI Filter CS] Document ready: Skipping initial run because referenceListSelectors are missing/empty.");
               updateBadgeAndReferences();
             }
           }
@@ -443,5 +461,5 @@ if (!window.mdpiFilterInjected) {
     } else {
       console.warn("[MDPI Filter CS] Extension context invalidated before storage access. Main script logic will not execute for this frame.");
     }
-  } // End of else (dependenciesMet)
-} // End of if (!window.mdpiFilterInjected)
+  } 
+} 

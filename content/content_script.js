@@ -599,13 +599,71 @@ if (!window.mdpiFilterInjected) {
           };
         };
 
-        // This is the definition of processAllReferences that should be kept
-        function processAllReferences(runCache) {
-          console.log("[MDPI Filter] processAllReferences STARTING. Selectors:", referenceListSelectors);
-          const items = document.querySelectorAll(referenceListSelectors);
-          console.log(`[MDPI Filter] Found ${items.length} potential reference items using current selectors.`);
+        async function processAllReferences(runCache) { // runCache is a Map, typically new for each full run
+          if (isProcessing) {
+            // console.log("[MDPI Filter] processAllReferences skipped, already processing.");
+            return;
+          }
+          isProcessing = true;
+          console.log("[MDPI Filter CS] processAllReferences STARTING. Initial runCache size:", runCache.size);
 
-          items.forEach((item, index) => {
+          clearPreviousHighlights();
+          uniqueMdpiReferences.clear();
+          collectedMdpiReferences = [];
+          refIdCounter = 0; // Reset counter for each full processing run
+
+          const referenceItems = Array.from(document.querySelectorAll(referenceListSelectors));
+          console.log(`[MDPI Filter CS] Found ${referenceItems.length} potential reference items using current selectors.`);
+
+          // --- Batch 1: Collect all unique NCBI IDs from the page ---
+          const pmidsToLookup = new Set();
+          const pmcidsToLookup = new Set();
+
+          referenceItems.forEach(item => {
+            const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
+            for (const link of allLinksInItem) {
+              if (link.href) {
+                const pmcMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
+                if (pmcMatch && pmcMatch[1]) {
+                  const pmcid = pmcMatch[1].toUpperCase();
+                  pmcidsToLookup.add(pmcid); // Add all found PMCIDs
+                } else {
+                  const pmidMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
+                  if (pmidMatch && pmidMatch[1]) {
+                    const pmid = pmidMatch[1];
+                    pmidsToLookup.add(pmid); // Add all found PMIDs
+                  }
+                }
+              }
+            }
+          });
+
+          console.log(`[MDPI Filter CS] Collected unique NCBI IDs for potential API lookup. PMIDs: ${pmidsToLookup.size}, PMCIDs: ${pmcidsToLookup.size}`);
+          if (pmidsToLookup.size > 0) console.log("[MDPI Filter CS] PMIDs to check:", Array.from(pmidsToLookup));
+          if (pmcidsToLookup.size > 0) console.log("[MDPI Filter CS] PMCIDs to check:", Array.from(pmcidsToLookup));
+
+          // --- API Calls (if needed) ---
+          // checkNcbiIdsForMdpi will handle ncbiApiCache internally and populate runCache
+          let ncbiApiPotentiallyCalled = false;
+          if (pmidsToLookup.size > 0) {
+            console.log(`[MDPI Filter CS] Calling checkNcbiIdsForMdpi for ${pmidsToLookup.size} PMIDs.`);
+            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(Array.from(pmidsToLookup), 'pmid', runCache, ncbiApiCache);
+            ncbiApiPotentiallyCalled = true;
+          }
+          if (pmcidsToLookup.size > 0) {
+            console.log(`[MDPI Filter CS] Calling checkNcbiIdsForMdpi for ${pmcidsToLookup.size} PMCIDs.`);
+            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(Array.from(pmcidsToLookup), 'pmcid', runCache, ncbiApiCache);
+            ncbiApiPotentiallyCalled = true;
+          }
+
+          if (ncbiApiPotentiallyCalled) {
+            console.log("[MDPI Filter CS] NCBI ID processing completed. runCache should now be updated from ncbiApiCache and/or API calls. runCache size:", runCache.size);
+          } else {
+            console.log("[MDPI Filter CS] No NCBI IDs found on page to send to API handler.");
+          }
+
+          // --- Batch 2: Process items using (now populated) runCache ---
+          referenceItems.forEach((item, index) => {
             // Prevent processing known dynamic elements like MediaWiki's UTCLiveClock
             // Common IDs for UTCLiveClock are 'utcdate' or 'pt-utcdate' (often within an <li>)
             if (item.id === 'utcdate' || item.closest('#utcdate') || item.id === 'pt-utcdate' || item.closest('#pt-utcdate')) {
@@ -632,6 +690,7 @@ if (!window.mdpiFilterInjected) {
             }
           });
           console.log("[MDPI Filter] processAllReferences FINISHED. Collected MDPI references count:", collectedMdpiReferences.length);
+          isProcessing = false;
         }
 
         const updateBadgeAndReferences = () => {

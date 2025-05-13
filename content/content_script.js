@@ -373,96 +373,151 @@ if (!window.mdpiFilterInjected) {
           }
         }
 
-        async function processAllReferences(runCache) { 
-          console.log("[MDPI Filter CS] >>> processAllReferences function entered."); 
-
-          if (isProcessing) {
+        async function processAllReferences(runCache) {
+          console.log("[MDPI Filter CS] Starting processAllReferences. Initial runCache size:", runCache.size);
+          isProcessing = true;
+          clearPreviousHighlights();
+        
+          collectedMdpiReferences = []; // Reset for this run
+          const uniqueMdpiRefsForThisRun = new Map();
+        
+          if (window.MDPIFilterLinkExtractor && typeof window.MDPIFilterLinkExtractor.resetExpansionFlags === 'function') {
+            window.MDPIFilterLinkExtractor.resetExpansionFlags();
+          }
+        
+          const referenceItems = document.querySelectorAll(referenceListSelectors);
+          console.log(`[MDPI Filter CS] Found ${referenceItems.length} potential reference items using selectors: ${referenceListSelectors.substring(0,100)}...`);
+        
+          if (referenceItems.length === 0) {
+            console.log("[MDPI Filter CS] No reference items found. Updating badge and references.");
+            updateBadgeAndReferences();
+            isProcessing = false;
             return;
           }
-          isProcessing = true;
-          console.log("[MDPI Filter CS] processAllReferences STARTING. Initial runCache size:", runCache.size);
-
-          clearPreviousHighlights();
-          uniqueMdpiReferences.clear();
-          collectedMdpiReferences = [];
-          
-          let referenceItems = [];
-          try {
-            if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
-              console.error("[MDPI Filter CS] processAllReferences: referenceListSelectors is undefined or empty before querySelectorAll. Value:", referenceListSelectors);
-              isProcessing = false;
-              updateBadgeAndReferences(); // Clear badge if we can't process
-              return;
-            }
-            referenceItems = Array.from(document.querySelectorAll(referenceListSelectors));
-          } catch (e) {
-            console.error("[MDPI Filter CS] Error during document.querySelectorAll with referenceListSelectors:", e);
-            console.error("[MDPI Filter CS] Selectors used:", referenceListSelectors);
-            isProcessing = false; 
-            updateBadgeAndReferences(); // Clear badge on error
-            return; 
-          }
-
-          console.log(`[MDPI Filter CS] Found ${referenceItems.length} potential reference items using current selectors.`);
-
-          const pmidsToLookup = new Set();
-          const pmcidsToLookup = new Set();
-
-          referenceItems.forEach(item => {
-            const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
-            for (const link of allLinksInItem) {
+        
+          // --- Step 1: Pre-collect all potential NCBI IDs from all items for batch API call ---
+          const allNcbiIdsToPreFetch = { pmid: new Set(), pmcid: new Set(), doi: new Set() };
+          referenceItems.forEach(itemElement => {
+            const itemText = itemElement.textContent || "";
+            const links = Array.from(itemElement.querySelectorAll('a[href]'));
+        
+            const pmidTextMatch = itemText.match(/\bPMID:\s*(\d+)\b/gi);
+            if (pmidTextMatch) pmidTextMatch.forEach(m => allNcbiIdsToPreFetch.pmid.add(m.match(/\d+/)[0]));
+            const pmcidTextMatch = itemText.match(/\b(PMC\d+)\b/gi);
+            if (pmcidTextMatch) pmcidTextMatch.forEach(m => allNcbiIdsToPreFetch.pmcid.add(m));
+        
+            links.forEach(link => {
               if (link.href) {
-                const pmcMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
-                if (pmcMatch && pmcMatch[1]) {
-                  pmcidsToLookup.add(pmcMatch[1].toUpperCase()); 
-                } else {
-                  const pmidMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
-                  if (pmidMatch && pmidMatch[1]) {
-                    pmidsToLookup.add(pmidMatch[1]); 
-                  }
+                const pmidLinkMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
+                if (pmidLinkMatch && pmidLinkMatch[1]) allNcbiIdsToPreFetch.pmid.add(pmidLinkMatch[1]);
+                const pmcidLinkMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
+                if (pmcidLinkMatch && pmcidLinkMatch[1]) allNcbiIdsToPreFetch.pmcid.add(pmcidLinkMatch[1]);
+                
+                const doiInLink = window.MDPIFilterItemContentChecker.extractDoiFromLinkInternal ? window.MDPIFilterItemContentChecker.extractDoiFromLinkInternal(link.href) : null;
+                if (doiInLink && !doiInLink.startsWith(MDPI_DOI)) {
+                    allNcbiIdsToPreFetch.doi.add(doiInLink);
                 }
               }
+            });
+            const doiTextPattern = /\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/gi;
+            let doiMatch;
+            while((doiMatch = doiTextPattern.exec(itemText)) !== null) {
+                if (doiMatch[1] && !doiMatch[1].startsWith(MDPI_DOI)) {
+                    allNcbiIdsToPreFetch.doi.add(doiMatch[1]);
+                }
             }
           });
-
-          console.log(`[MDPI Filter CS] Collected unique NCBI IDs for potential API lookup. PMIDs: ${pmidsToLookup.size}, PMCIDs: ${pmcidsToLookup.size}`);
-          if (pmidsToLookup.size > 0) console.log("[MDPI Filter CS] PMIDs to check:", Array.from(pmidsToLookup));
-          if (pmcidsToLookup.size > 0) console.log("[MDPI Filter CS] PMCIDs to check:", Array.from(pmcidsToLookup));
-
-          let ncbiApiPotentiallyCalled = false;
-          if (pmidsToLookup.size > 0) {
-            console.log(`[MDPI Filter CS] Calling checkNcbiIdsForMdpi for ${pmidsToLookup.size} PMIDs.`);
-            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(Array.from(pmidsToLookup), 'pmid', runCache, ncbiApiCache);
-            ncbiApiPotentiallyCalled = true;
+        
+          console.log(`[MDPI Filter CS] Pre-collected PMIDs: ${allNcbiIdsToPreFetch.pmid.size}, PMCIDs: ${allNcbiIdsToPreFetch.pmcid.size}, DOIs for NCBI: ${allNcbiIdsToPreFetch.doi.size}`);
+        
+          // --- Step 2: Populate runCache using global ncbiApiCache and then NCBI API ---
+          const idsForAPICall = { pmid: [], pmcid: [], doi: [] };
+        
+          allNcbiIdsToPreFetch.pmid.forEach(id => {
+            if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.pmid.push(id);
+          });
+          allNcbiIdsToPreFetch.pmcid.forEach(id => {
+            if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.pmcid.push(id);
+          });
+          allNcbiIdsToPreFetch.doi.forEach(id => {
+             if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.doi.push(id);
+          });
+        
+          if (idsForAPICall.pmid.length > 0) {
+            console.log(`[MDPI Filter CS] Querying NCBI for ${idsForAPICall.pmid.length} PMIDs.`);
+            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmid, 'pmid', runCache, ncbiApiCache);
           }
-          if (pmcidsToLookup.size > 0) {
-            console.log(`[MDPI Filter CS] Calling checkNcbiIdsForMdpi for ${pmcidsToLookup.size} PMCIDs.`);
-            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(Array.from(pmcidsToLookup), 'pmcid', runCache, ncbiApiCache);
-            ncbiApiPotentiallyCalled = true;
+          if (idsForAPICall.pmcid.length > 0) {
+            console.log(`[MDPI Filter CS] Querying NCBI for ${idsForAPICall.pmcid.length} PMCIDs.`);
+            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmcid, 'pmcid', runCache, ncbiApiCache);
           }
-
-          if (ncbiApiPotentiallyCalled) {
-            console.log("[MDPI Filter CS] NCBI ID processing completed. runCache should now be updated. runCache size:", runCache.size);
-          } else {
-            console.log("[MDPI Filter CS] No NCBI IDs found on page to send to API handler.");
+          if (idsForAPICall.doi.length > 0) {
+            console.log(`[MDPI Filter CS] Querying NCBI for ${idsForAPICall.doi.length} non-MDPI DOIs.`);
+            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.doi, 'doi', runCache, ncbiApiCache);
           }
+          console.log("[MDPI Filter CS] NCBI ID check phase complete. runCache size:", runCache.size);
+          // For debugging, log a snippet of the runCache if it's small, or just its keys
+          if (runCache.size > 0 && runCache.size < 20) {
+            console.log("[MDPI Filter CS] Current runCache contents:", JSON.parse(JSON.stringify(Array.from(runCache.entries()))));
+          } else if (runCache.size > 0) {
+            console.log("[MDPI Filter CS] Current runCache keys:", JSON.parse(JSON.stringify(Array.from(runCache.keys()))));
+          }
+        
+          // --- Step 3: Process each reference item using the populated runCache ---
+          let localRefIdCounter = refIdCounter; 
+        
+          for (const itemElement of referenceItems) {
+            const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(itemElement, localRefIdCounter);
+            localRefIdCounter = updatedRefIdCounter;
+        
+            // Log the specific item being processed before calling isMdpiItemByContent
+            const itemPreviewText = (itemElement.textContent || "").substring(0, 70).trim().replace(/\s+/g, ' ');
+            console.log(`[MDPI Filter CS] Processing item for MDPI status: ID '${extractedId}', Preview: "${itemPreviewText}..."`);
 
-          referenceItems.forEach((item, index) => {
-            if (item.id === 'utcdate' || item.closest('#utcdate') || item.id === 'pt-utcdate' || item.closest('#pt-utcdate')) {
-              return;
-            }
-            // const hasWileyAttribute = item.hasAttribute('data-bib-id'); // Already handled by extractReferenceData if needed for ID
-            const isMdpi = isMdpiItemByContent(item, runCache); // Call the correctly scoped wrapper
-
+            const isMdpi = isMdpiItemByContent(itemElement, runCache);
+            citationProcessCache.set(itemElement, isMdpi); 
+        
             if (isMdpi) {
-              const referenceData = extractReferenceData(item); 
-              collectedMdpiReferences.push(referenceData);
-              styleRef(item, referenceData.id); 
+              console.log(`[MDPI Filter CS] ITEM FLAGGED AS MDPI: ID '${extractedId}', Preview: "${itemPreviewText}...". Adding to collected references.`);
+              styleRef(itemElement, extractedId);
+              const refData = extractReferenceData(itemElement); // extractReferenceData now uses the updated localRefIdCounter via global refIdCounter
+              if (refData && !uniqueMdpiRefsForThisRun.has(refData.id)) {
+                uniqueMdpiRefsForThisRun.set(refData.id, refData);
+              }
+              // Inline footnote styling
+              let idForFootnoteLinking = itemElement.id;
+              if (!idForFootnoteLinking || !/^[a-zA-Z0-9-_:.]+$/.test(idForFootnoteLinking) || idForFootnoteLinking.length >= 100) {
+                idForFootnoteLinking = extractedId;
+              }
+              const footnoteSelectors = window.MDPIFilterUtils.generateInlineFootnoteSelectors(idForFootnoteLinking);
+              if (footnoteSelectors) {
+                try {
+                  const footnotes = document.querySelectorAll(footnoteSelectors);
+                  footnotes.forEach(footnote => {
+                    window.MDPIFilterUtils.styleInlineFootnotes(footnote, extractedId, itemElement, mode);
+                  });
+                } catch (e) {
+                  console.warn(`[MDPI Filter CS] Error selecting/styling footnotes for ${idForFootnoteLinking} with selectors "${footnoteSelectors}":`, e);
+                }
+              }
+            } else {
+              // Ensure styling is removed if not MDPI (e.g. if it was MDPI on a previous run)
+              itemElement.classList.remove('mdpi-highlighted-reference', 'mdpi-hidden-reference');
+              itemElement.style.backgroundColor = '';
+              itemElement.style.border = '';
+              itemElement.style.padding = '';
+              itemElement.style.display = ''; 
             }
-          });
-          console.log("[MDPI Filter] processAllReferences FINISHED. Collected MDPI references count:", collectedMdpiReferences.length);
+          }
+          refIdCounter = localRefIdCounter; 
+        
+          collectedMdpiReferences = Array.from(uniqueMdpiRefsForThisRun.values());
+          console.log(`[MDPI Filter CS] processAllReferences FINISHED. Collected MDPI references count: ${collectedMdpiReferences.length}`);
+          if (collectedMdpiReferences.length > 0) {
+            console.log("[MDPI Filter CS] Collected MDPI Reference IDs for this run:", collectedMdpiReferences.map(r => r.id));
+          }
+          updateBadgeAndReferences();
           isProcessing = false;
-          // Moved updateBadgeAndReferences and styleInlineFootnotes to runAll after this completes.
         }
 
         const debouncedRunAll = window.debounce(() => {

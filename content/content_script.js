@@ -95,7 +95,147 @@ if (!window.mdpiFilterInjected) {
     // Declare mainObserverInstance in a scope accessible by runAll and setupMainObserver
     let mainObserverInstance = null;
 
-    // ---
+    // --- START: Scroll to Reference Logic ---
+    if (typeof window.MDPIFilterScrollHandler === 'undefined') {
+      window.MDPIFilterScrollHandler = {
+        isElementConsideredVisible: function(el) {
+          if (!el || !(el instanceof HTMLElement)) {
+            return false;
+          }
+          let current = el;
+          while (current && current !== document.body) {
+            const style = window.getComputedStyle(current);
+            if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
+              return false;
+            }
+            current = current.parentElement;
+          }
+          // Check if element has actual dimensions
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        },
+
+        scrollToReference: function(refId) {
+          const element = document.querySelector(`[data-mdpi-filter-ref-id="${refId}"]`);
+          if (!element) {
+            console.warn(`[MDPI Filter CS] Reference element with ID ${refId} not found.`);
+            return;
+          }
+
+          let clickedAccordion = false;
+          const currentHostname = window.location.hostname;
+
+          // --- Wiley Accordion Handling ---
+          if (currentHostname.includes('onlinelibrary.wiley.com')) {
+            const accordionContent = element.closest('div.accordion__content');
+            if (accordionContent) {
+              const controlId = accordionContent.id;
+              let accordionControl = null;
+              // Try finding control by aria-controls
+              if (controlId) {
+                accordionControl = document.querySelector(`div.accordion__control[aria-controls="${controlId}"]`);
+              }
+              // Try finding control in previous sibling (often an H2)
+              if (!accordionControl && accordionContent.previousElementSibling) {
+                accordionControl = accordionContent.previousElementSibling.querySelector('div.accordion__control');
+              }
+
+              if (accordionControl && accordionControl.getAttribute('aria-expanded') === 'false') {
+                console.log('[MDPI Filter CS] Wiley accordion (aria-expanded="false") found, attempting to open.');
+                accordionControl.click();
+                clickedAccordion = true;
+              } else if (accordionControl && accordionContent.style.display === 'none') {
+                // Fallback if aria-expanded isn't false but content is hidden by style
+                console.log('[MDPI Filter CS] Wiley accordion (display:none) found, attempting to open.');
+                accordionControl.click();
+                clickedAccordion = true;
+              }
+            }
+          }
+          // --- End Wiley Accordion Handling ---
+
+          // --- Healthline "Sources" Accordion/Toggle Handling ---
+          else if (currentHostname.includes('healthline.com')) {
+            // Determine if the element or its relevant list container is hidden
+            let itemOrListContainer = element.closest('ul, ol, div[class*="content-wrapper"], section[class*="sources"]') || element;
+            if (!this.isElementConsideredVisible(itemOrListContainer)) {
+              // Find a button with "Sources" text, preferably one that is collapsed
+              let sourcesButton = Array.from(document.querySelectorAll('button')).find(btn => {
+                const buttonTextContent = (btn.textContent || "").trim().toLowerCase();
+                return buttonTextContent.includes('sources') && btn.getAttribute('aria-expanded') === 'false';
+              });
+
+              // If no explicitly collapsed "Sources" button, find any "Sources" button if content is hidden
+              if (!sourcesButton) {
+                sourcesButton = Array.from(document.querySelectorAll('button')).find(btn => {
+                  const buttonTextContent = (btn.textContent || "").trim().toLowerCase();
+                  return buttonTextContent.includes('sources');
+                });
+              }
+              
+              if (sourcesButton) {
+                console.log('[MDPI Filter CS] Healthline "Sources" button found and content appears hidden. Attempting to click.');
+                sourcesButton.click();
+                clickedAccordion = true;
+              }
+            }
+          }
+          // --- End Healthline Accordion Handling ---
+
+          const scrollDelay = clickedAccordion ? 400 : 100; // Longer delay if an accordion was clicked
+
+          setTimeout(() => {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Enhanced highlighting
+            const originalStyles = {
+              backgroundColor: element.style.backgroundColor,
+              border: element.style.border,
+              outline: element.style.outline,
+              boxShadow: element.style.boxShadow,
+              transition: element.style.transition
+            };
+            
+            element.style.transition = 'background-color 0.3s ease, border 0.3s ease, outline 0.3s ease, box-shadow 0.3s ease';
+            element.style.backgroundColor = 'rgba(255, 220, 150, 0.85)'; // Light orange, slightly more opaque
+            element.style.border = '2px solid #FF8C00'; // DarkOrange
+            element.style.outline = '2px dashed #FFA500'; // Orange dashed outline
+            element.style.boxShadow = '0 0 12px rgba(255, 165, 0, 0.7)'; // Orange glow
+
+            setTimeout(() => {
+              element.style.backgroundColor = originalStyles.backgroundColor;
+              element.style.border = originalStyles.border;
+              element.style.outline = originalStyles.outline;
+              element.style.boxShadow = originalStyles.boxShadow;
+              element.style.transition = originalStyles.transition;
+            }, 3500); // Highlight duration
+          }, scrollDelay);
+        }
+      };
+      // console.log("[MDPI Filter CS] Scroll to reference handler initialized.");
+    }
+    // --- END: Scroll to Reference Logic ---
+
+    if (chrome.runtime && chrome.runtime.id) {
+        // --- START: Add Message Listener for Scrolling ---
+        if (!window.mdpiFilterScrollListenerAdded) { // Guard to add listener only once
+            chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+                if (msg.action === 'scrollToRef' && msg.refId && window.MDPIFilterScrollHandler) {
+                    // console.log(`[MDPI Filter CS] Received scrollToRef request for ID: ${msg.refId}`);
+                    window.MDPIFilterScrollHandler.scrollToReference(msg.refId);
+                    sendResponse({ status: "acknowledged", refId: msg.refId });
+                    return true; // Indicates that sendResponse will be called asynchronously or synchronously.
+                }
+                // If not handling this message, it's good practice to return undefined implicitly
+                // or explicitly return false if no async response is planned from this listener for other messages.
+            });
+            window.mdpiFilterScrollListenerAdded = true;
+            // console.log("[MDPI Filter CS] scrollToRef message listener added.");
+        }
+        // --- END: Add Message Listener for Scrolling ---
+    } else {
+      // console.warn("[MDPI Filter CS] chrome.runtime not available. Scroll-to-ref and other runtime features won't work.");
+    }
 
     if (chrome.runtime && chrome.runtime.id) {
       chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {

@@ -106,7 +106,7 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
       const allItemNcbiIds = [...pmidStrings, ...pmcIdStrings];
       let itemHasNcbiIds = allItemNcbiIds.length > 0;
-      let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = itemHasNcbiIds;
+      let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = itemHasNcbiIds; // Assume true if NCBI IDs exist, then falsify if any are not definitively non-MDPI
 
       if (itemHasNcbiIds) {
         console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: Item has NCBI IDs, checking runCache for:`, allItemNcbiIds);
@@ -118,17 +118,31 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
               console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: MDPI status TRUE from cache for NCBI ID '${id}'. Returning TRUE.`);
               return true;
             }
+            // If cacheEntry is not explicitly false, it's not definitively non-MDPI
             if (!((typeof cacheEntry === 'object' && cacheEntry.isMdpi === false) || cacheEntry === false)) {
               allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
             }
           } else {
             console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: runCache MISS for ID '${id}'.`);
-            allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
+            allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false; // Missing from cache means not definitively non-MDPI
           }
         }
       } else {
-        allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
+        allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false; // No NCBI IDs means this condition isn't met
       }
+
+      // --- NEW DECISION POINT BEFORE WEAKER CHECKS (like P5 Journal Name) ---
+      // If a non-MDPI DOI link was found, this item is definitively NOT MDPI.
+      if (hasNonMdpiDoiLink) {
+        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Pre-P5 Decision: Non-MDPI due to 'hasNonMdpiDoiLink' being true. Returning FALSE.`);
+        return false;
+      }
+      // If the item has NCBI IDs and ALL of them are cached as definitively non-MDPI, then it's NOT MDPI.
+      if (itemHasNcbiIds && allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) {
+        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Pre-P5 Decision: Non-MDPI due to all associated NCBI IDs being cached as non-MDPI. Returning FALSE.`);
+        return false;
+      }
+      // --- END NEW DECISION POINT ---
 
       // Priority 5: Journal Name Check
       const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
@@ -145,18 +159,9 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
         return true;
       }
 
-      // FINAL DECISION POINT:
-      if (hasNonMdpiDoiLink) {
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Final: Non-MDPI due to hasNonMdpiDoiLink. Returning FALSE.`);
-        return false;
-      }
-      
-      if (itemHasNcbiIds && allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) {
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Final: Non-MDPI due to all NCBI IDs cached as non-MDPI. Returning FALSE.`);
-        return false;
-      }
-
-      console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Final: Defaulting to non-MDPI. No MDPI indicators met, and no definitive non-MDPI DOI or NCBI cache status. Returning FALSE.`);
+      // FINAL DECISION POINT (Fallback)
+      // This log indicates that none of the preceding checks (P1-P5 MDPI true conditions, or overriding non-MDPI conditions) were met.
+      console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Final Fallback: No definitive MDPI indicators found, and no overriding non-MDPI conditions met prior to P5 that were not already handled. Defaulting to non-MDPI. Returning FALSE.`);
       return false;
     }
 

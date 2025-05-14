@@ -12,6 +12,7 @@ window.MDPIFilterReferenceSelectors = [
   'li[id^="ref-"]', // Generic
   'li[id^="reference-"]', // Generic
   'li[id^="B"]', // NCBI/PMC specific Bxx-journal-id format
+  'li[id^="en"]', // For ods.od.nih.gov style IDs like "en14"
   'li:has(> span > a[id^="ref-id-"])', // Some other format
   'li:has(a[name^="bbib"])', // Another format
   'li[data-bib-id]', // Wiley

@@ -27,6 +27,7 @@
       // Handle cases where refId might be "B1" and link is "#B1" or refId is "1" and link is "#B1"
       `a[href="#B${refId.replace(/^B/i, '')}"]`,   // NCBI Bxx style
       `a[href="#CR${refId.replace(/^CR/i, '')}"]`, // Springer style
+      `a[href="#en${refId.replace(/^en/i, '')}"]`, // For ods.od.nih.gov style IDs like "en14"
       // ADDED FOR TANDFONLINE and similar sites using data-rid or data-bris-rid
       `a[data-rid="${refId}"]`,
       `a[data-bris-rid="${refId}"]`,
@@ -43,6 +44,7 @@
         commonSelectors.push(`a[href="#reference-${numericRefIdPart}"]`);
         commonSelectors.push(`a[href="#B${numericRefIdPart}"]`);
         commonSelectors.push(`a[href="#CR${numericRefIdPart}"]`);
+        commonSelectors.push(`a[href="#en${numericRefIdPart}"]`); // For ods.od.nih.gov style IDs with numeric part
         // Potentially add `a[data-rid="${numericRefIdPart}"]` if some sites use numeric data-rid
         // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<numericID>)
         commonSelectors.push(`a[data-test="citation-ref"][href$="#ref-CR${numericRefIdPart}"]`);
@@ -56,6 +58,7 @@
       `sup a[href="#reference-${refId.replace(/^reference-/i, '')}"]`,
       `sup a[href="#B${refId.replace(/^B/i, '')}"]`,
       `sup a[href="#CR${refId.replace(/^CR/i, '')}"]`,
+      `sup a[href="#en${refId.replace(/^en/i, '')}"]`, // For ods.od.nih.gov style IDs like "en14"
       `sup[id="ref${refId}"]`, // Note: This selector might be too broad if refId is purely numeric.
                                // Consider if `sup[id="ref-${refId}"]` or similar is more specific.
       `sup a[data-rid="${refId}"]`,
@@ -69,6 +72,9 @@
         supParentSelectors.push(`sup a[href="#cite_note-${numericRefIdPart}"]`);
         supParentSelectors.push(`sup a[href="#ref-${numericRefIdPart}"]`);
         supParentSelectors.push(`sup a[href="#reference-${numericRefIdPart}"]`);
+        supParentSelectors.push(`sup a[href="#B${numericRefIdPart}"]`); // Added for consistency
+        supParentSelectors.push(`sup a[href="#CR${numericRefIdPart}"]`); // Added for consistency
+        supParentSelectors.push(`sup a[href="#en${numericRefIdPart}"]`); // For ods.od.nih.gov style IDs with numeric part
         supParentSelectors.push(`sup[id="ref-${numericRefIdPart}"]`); // More specific for numeric parts
         // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<numericID> within a sup)
         supParentSelectors.push(`sup a[data-test="citation-ref"][href$="#ref-CR${numericRefIdPart}"]`);

@@ -11,6 +11,10 @@ if (!window.mdpiFilterInjected) {
     missingDependencies.push("MDPIFilterDomains (from domains.js)");
     dependenciesMet = false;
   }
+  if (!window.MDPIFilterDomainUtils || typeof window.MDPIFilterDomainUtils.getActiveSearchConfig !== 'function') {
+    missingDependencies.push("MDPIFilterDomainUtils.getActiveSearchConfig (from domains.js)");
+    dependenciesMet = false;
+  }
   if (typeof window.sanitize === 'undefined') {
     missingDependencies.push("sanitize (from sanitizer.js)");
     dependenciesMet = false;
@@ -120,50 +124,10 @@ if (!window.mdpiFilterInjected) {
 
         const mdpiColor = '#E2211C'; // Default MDPI Red, can be adjusted based on mode if needed
 
-        let isProcessing = false; // Declare isProcessing here, inside the callback
-
+        let isProcessing = false;
         // --- Helper Function Definitions ---
 
-        const isSearchEnginePage = () => {
-          const currentHostname = window.location.hostname;
-          console.log(`[MDPI Filter CS] isSearchEnginePage: Checking hostname: "${currentHostname}"`);
-
-          const domainsConfig = window.MDPIFilterDomains;
-
-          if (!domainsConfig) {
-            console.warn('[MDPI Filter CS] isSearchEnginePage: window.MDPIFilterDomains is undefined or null.');
-            return false;
-          }
-          if (!domainsConfig.searchEngineDomains) {
-            console.warn('[MDPI Filter CS] isSearchEnginePage: window.MDPIFilterDomains.searchEngineDomains is undefined.');
-            return false;
-          }
-          if (!Array.isArray(domainsConfig.searchEngineDomains)) {
-            console.warn('[MDPI Filter CS] isSearchEnginePage: window.MDPIFilterDomains.searchEngineDomains is not an array. Value:', domainsConfig.searchEngineDomains);
-            return false;
-          }
-          if (domainsConfig.searchEngineDomains.length === 0) {
-            console.warn('[MDPI Filter CS] isSearchEnginePage: window.MDPIFilterDomains.searchEngineDomains is empty.');
-            return false;
-          }
-
-          console.log(`[MDPI Filter CS] isSearchEnginePage: Checking against domains:`, JSON.parse(JSON.stringify(domainsConfig.searchEngineDomains)));
-
-          const isMatch = domainsConfig.searchEngineDomains.some(domainString => {
-            if (typeof domainString !== 'string') {
-              console.warn(`[MDPI Filter CS] isSearchEnginePage: Non-string entry in searchEngineDomains:`, domainString);
-              return false;
-            }
-            const matchFound = currentHostname.includes(domainString);
-            if (matchFound) {
-              console.log(`[MDPI Filter CS] isSearchEnginePage: Match found: "${currentHostname}" includes "${domainString}"`);
-            }
-            return matchFound;
-          });
-
-          console.log(`[MDPI Filter CS] isSearchEnginePage: Final result for "${currentHostname}": ${isMatch}`);
-          return isMatch;
-        };
+        // The isSearchEnginePage function is now replaced by MDPIFilterDomainUtils.getActiveSearchConfig
 
         function clearPreviousHighlights() {
           document.querySelectorAll('.mdpi-highlighted-reference, .mdpi-hidden-reference, .mdpi-search-result-highlight, .mdpi-search-result-hidden').forEach(el => {
@@ -243,7 +207,7 @@ if (!window.mdpiFilterInjected) {
           } else {
             // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Extension context invalidated, cannot send message.");
           }
-          if (collectedMdpiReferences.length === 0 && !isSearchEnginePage()) { 
+          if (collectedMdpiReferences.length === 0 && !window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains)) { 
             // console.log("[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup for this page.");
           }
         }
@@ -279,34 +243,14 @@ if (!window.mdpiFilterInjected) {
 
         // --- Main Processing Functions ---
 
-        async function processSearchEngineResults() {
-          console.log("[MDPI Filter CS] >>> processSearchEngineResults function entered.");
-          clearPreviousHighlights(); 
-
-          const hostname = window.location.hostname;
-          const path = window.location.pathname;
-          let config = null;
-          let foundMdpiResultsCount = 0;
-
-          // Determine config based on domain
-          const currentDomainConfig = domains; // Use the 'domains' const from the outer scope
-          if (currentDomainConfig.googleWeb && hostname.includes(currentDomainConfig.googleWeb.host) && currentDomainConfig.googleWeb.path.test(path)) {
-            config = currentDomainConfig.googleWeb;
-          } else if (currentDomainConfig.scholar && hostname.includes(currentDomainConfig.scholar.host)) {
-            config = currentDomainConfig.scholar;
-          } else if (currentDomainConfig.pubmed && hostname.includes(currentDomainConfig.pubmed.host)) {
-            config = currentDomainConfig.pubmed;
-          } else if (currentDomainConfig.europepmc && currentDomainConfig.europepmc.hostRegex && currentDomainConfig.europepmc.hostRegex.test(hostname)) {
-            config = currentDomainConfig.europepmc;
-          }
-
-
+        async function processSearchEngineResults(config) {
+          isProcessing = true;
+          // console.log("[MDPI Filter CS] Processing search engine results with config:", config);
           if (!config) {
-            console.log("[MDPI Filter CS] No specific search engine config found for:", hostname + path);
-            updateBadgeAndReferences(); // Ensure badge is cleared if no config
+            // console.log("[MDPI Filter CS] No search config provided to processSearchEngineResults. Aborting.");
+            isProcessing = false;
             return;
           }
-          console.log("[MDPI Filter CS] Using config for:", config.host || config.hostRegex.toString());
 
           const items = document.querySelectorAll(config.itemSelector || config.container); 
           console.log(`[MDPI Filter CS] Found ${items.length} items using selector: ${config.itemSelector || config.container}`);
@@ -342,7 +286,6 @@ if (!window.mdpiFilterInjected) {
 
 
             if (isMdpiResult) {
-              foundMdpiResultsCount++;
               if (mode === 'hide') {
                 item.classList.add('mdpi-search-result-hidden');
                 item.style.display = 'none';
@@ -354,13 +297,13 @@ if (!window.mdpiFilterInjected) {
               }
             }
           });
-          console.log(`[MDPI Filter CS] Processed search results. Found and styled ${foundMdpiResultsCount} MDPI results.`);
+          console.log(`[MDPI Filter CS] Processed search results. Found and styled MDPI results.`);
           
           if (chrome.runtime && chrome.runtime.id) {
             chrome.runtime.sendMessage({
               action: 'mdpiUpdate',
               data: {
-                badgeCount: foundMdpiResultsCount, 
+                badgeCount: items.length, 
                 references: [] 
               }
             }).catch(e => {
@@ -371,6 +314,7 @@ if (!window.mdpiFilterInjected) {
               }
             });
           }
+          isProcessing = false;
         }
 
         async function processAllReferences(runCache) {
@@ -525,38 +469,23 @@ if (!window.mdpiFilterInjected) {
         }, 250);
 
         async function runAll() {
-          console.log("%c[MDPI Filter CS] >>> runAll function entered.", "color: blue; font-weight: bold;");
-          if (!chrome.runtime?.id) {
-            console.warn('[MDPI Filter] runAll: Extension context invalidated. Aborting.');
+          if (isProcessing) {
+            // console.log("[MDPI Filter CS] Processing already in progress. Skipping runAll.");
             return;
           }
+          // console.log("[MDPI Filter CS] runAll triggered.");
 
-          const isSearchPage = isSearchEnginePage(); 
+          const currentHostname = window.location.hostname;
+          const currentPathname = window.location.pathname;
 
-          if (isSearchPage) {
-            console.log("%c[MDPI Filter CS] runAll: Detected SEARCH ENGINE page. Running processSearchEngineResults.", "color: green; font-weight: bold;");
-            processSearchEngineResults(); // This function now handles its own badge update.
+          const searchConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
+
+          if (searchConfig) {
+            // console.log("[MDPI Filter CS] Search engine page detected. Config:", searchConfig);
+            await processSearchEngineResults(searchConfig); // Pass the config
           } else {
-            console.log("%c[MDPI Filter CS] runAll: Detected REGULAR page. Running processAllReferences.", "color: orange; font-weight: bold;");
-            if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
-              console.error("[MDPI Filter CS] runAll (REGULAR): CRITICAL - referenceListSelectors is not defined or is empty. Aborting runAll.");
-              collectedMdpiReferences = []; 
-              uniqueMdpiReferences.clear();
-              updateBadgeAndReferences(); 
-              return;
-            }
-            refIdCounter = 0; 
-            const runCache = new Map();
-            await processAllReferences(runCache); // processAllReferences no longer calls updateBadge or styleInline
-            
-            if (window.MDPIFilterUtils && window.MDPIFilterUtils.styleInlineFootnotes) {
-              window.MDPIFilterUtils.styleInlineFootnotes(collectedMdpiReferences, mdpiColor);
-            }
-            // Also process "Cited By" sections on regular pages
-            if (window.MDPIFilterCitedBy && window.MDPIFilterCitedBy.Processor && window.MDPIFilterCitedBy.Processor.processEntries) {
-                window.MDPIFilterCitedBy.Processor.processEntries(isMdpiItemByContent, runCache);
-            }
-            updateBadgeAndReferences(); // Update badge after all processing for regular pages
+            // console.log("[MDPI Filter CS] Not a search engine page or no specific config. Processing all references.");
+            await processAllReferences(true); // runCache = true for initial run
           }
         }
 
@@ -567,10 +496,13 @@ if (!window.mdpiFilterInjected) {
             return;
           }
 
-          const isSearchPage = isSearchEnginePage();
+          const currentHostname = window.location.hostname;
+          const currentPathname = window.location.pathname;
 
-          if (!isSearchPage && (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '')) {
-            console.error("[MDPI Filter CS] initializeOrReRun: Skipping runAll on non-search page because referenceListSelectors are missing/empty.");
+          const searchConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
+
+          if (!searchConfig && (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '')) {
+            console.error("[MDPI Filter CS] initializeOrReRun: Skipping runAll because referenceListSelectors are missing/empty.");
             collectedMdpiReferences = []; 
             uniqueMdpiReferences.clear();
             updateBadgeAndReferences(); 

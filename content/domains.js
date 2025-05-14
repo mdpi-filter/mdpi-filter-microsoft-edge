@@ -3,10 +3,9 @@
 window.MDPIFilterDomains = {
 
   // Search Engine Domains:
-  // Domains listed here will cause `isSearchEnginePage()` to return true in content_script.js.
-  // On such pages, `processAllReferences` (which collects references for the popup) will be skipped.
-  // Instead, `processSearchEngineResults` will run, using the specific configs below
-  // to style or hide search results.
+  // Domains listed here are considered search engine pages.
+  // The getActiveSearchConfig function will use specific configurations below
+  // to determine how to style or hide search results on these pages.
   searchEngineDomains: [
     "www.google.com",         // For Google Web search
     "scholar.google.com",     // For Google Scholar
@@ -43,9 +42,69 @@ window.MDPIFilterDomains = {
 
   // Europe PMC (matches any subdomain of europepmc.org)
   europepmc: {
-    hostRegex: /europepmc\.org$/, // Used by processSearchEngineResults
+    hostRegex: /europepmc\.org$/, // Used by getActiveSearchConfig
                                  // 'europepmc.org' in searchEngineDomains will cover pages on this domain.
     itemSelector: 'li.separated-list-item',
     htmlContains: '<b>MDPI</b>'
   }
+};
+
+if (typeof window.MDPIFilterDomainUtils === 'undefined') {
+  window.MDPIFilterDomainUtils = {};
+}
+
+/**
+ * Determines if the current page matches a specific search engine configuration
+ * and returns that configuration.
+ * @param {string} currentHostname - The hostname of the current page.
+ * @param {string} currentPathname - The pathname of the current page.
+ * @param {object} allDomainConfigs - The global MDPIFilterDomains object.
+ * @returns {object|null} The matching domain configuration object, or null if no match.
+ */
+window.MDPIFilterDomainUtils.getActiveSearchConfig = function(currentHostname, currentPathname, allDomainConfigs) {
+  if (!allDomainConfigs) {
+    // console.warn("[MDPI Filter DomainUtils] MDPIFilterDomains not provided to getActiveSearchConfig.");
+    return null;
+  }
+
+  // Order matters for specificity if domains overlap, though current configs are distinct.
+  const configsToConsider = [
+    allDomainConfigs.googleWeb,
+    allDomainConfigs.scholar,
+    allDomainConfigs.pubmed,
+    allDomainConfigs.europepmc
+    // Add other specific search engine config objects here if defined directly in MDPIFilterDomains
+  ];
+
+  for (const config of configsToConsider) {
+    if (!config) continue; // Skip if a config (e.g., googleWeb) is not defined or missing
+
+    let hostMatch = false;
+    if (config.host) { // Primarily uses direct host string match
+      hostMatch = (currentHostname === config.host);
+    } else if (config.hostRegex) { // Uses regex for host matching (e.g., EuropePMC)
+      hostMatch = config.hostRegex.test(currentHostname);
+    }
+
+    if (hostMatch) {
+      // If path is defined in config, it must match. Otherwise, path match is true.
+      const pathMatch = config.path ? config.path.test(currentPathname) : true;
+
+      if (pathMatch) {
+        // Special condition for EuropePMC: ensure it's listed in searchEngineDomains
+        // This mirrors the original logic's intent for EuropePMC.
+        if (config === allDomainConfigs.europepmc) {
+          if (allDomainConfigs.searchEngineDomains &&
+              allDomainConfigs.searchEngineDomains.some(d => currentHostname.includes(d) && d === "europepmc.org")) {
+            return config; // EuropePMC matched and is listed
+          }
+          // If EuropePMC host/path matches but it's not in searchEngineDomains, skip this config.
+          // This ensures the searchEngineDomains list acts as a gatekeeper for EuropePMC.
+        } else {
+          return config; // Return the matched config for other types
+        }
+      }
+    }
+  }
+  return null; // No specific search engine configuration matched
 };

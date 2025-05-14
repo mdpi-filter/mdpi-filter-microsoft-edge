@@ -22,7 +22,8 @@ window.MDPIFilterDomains = {
     host: 'www.google.com', // Should match an entry or be covered by an entry in searchEngineDomains
     path: /^\/search/,
     container: 'div.g',
-    linkSelector: 'a[href*="mdpi.com"]'
+    linkSelector: 'a[href*="mdpi.com"]',
+    useNcbiApi: true // Added to enable NCBI API checks for Google Web
   },
 
   // Google Scholar

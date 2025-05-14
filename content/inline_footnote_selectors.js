@@ -29,7 +29,9 @@
       `a[href="#CR${refId.replace(/^CR/i, '')}"]`, // Springer style
       // ADDED FOR TANDFONLINE and similar sites using data-rid or data-bris-rid
       `a[data-rid="${refId}"]`,
-      `a[data-bris-rid="${refId}"]`
+      `a[data-bris-rid="${refId}"]`,
+      // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<ID>)
+      `a[data-test="citation-ref"][href$="#ref-${refId}"]`
     ];
 
     const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35" or "ref-CR35"
@@ -42,6 +44,8 @@
         commonSelectors.push(`a[href="#B${numericRefIdPart}"]`);
         commonSelectors.push(`a[href="#CR${numericRefIdPart}"]`);
         // Potentially add `a[data-rid="${numericRefIdPart}"]` if some sites use numeric data-rid
+        // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<numericID>)
+        commonSelectors.push(`a[data-test="citation-ref"][href$="#ref-CR${numericRefIdPart}"]`);
     }
 
     const supParentSelectors = [
@@ -55,7 +59,9 @@
       `sup[id="ref${refId}"]`, // Note: This selector might be too broad if refId is purely numeric.
                                // Consider if `sup[id="ref-${refId}"]` or similar is more specific.
       `sup a[data-rid="${refId}"]`,
-      `sup a[data-bris-rid="${refId}"]`
+      `sup a[data-bris-rid="${refId}"]`,
+      // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<ID> within a sup)
+      `sup a[data-test="citation-ref"][href$="#ref-${refId}"]`
     ];
      if (numericRefIdPart) {
         supParentSelectors.push(`sup a[href="#${numericRefIdPart}"]`);
@@ -64,6 +70,8 @@
         supParentSelectors.push(`sup a[href="#ref-${numericRefIdPart}"]`);
         supParentSelectors.push(`sup a[href="#reference-${numericRefIdPart}"]`);
         supParentSelectors.push(`sup[id="ref-${numericRefIdPart}"]`); // More specific for numeric parts
+        // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<numericID> within a sup)
+        supParentSelectors.push(`sup a[data-test="citation-ref"][href$="#ref-CR${numericRefIdPart}"]`);
     }
 
     // --- Wiley Specific Check Integration ---

@@ -191,53 +191,53 @@ if (!window.mdpiFilterInjected) {
           const text = badgeCount > 0 ? String(badgeCount) : '';
         
           if (chrome.runtime && chrome.runtime.id) {
-            chrome.runtime.sendMessage({
-              action: 'mdpiUpdate',
-              data: {
-                badgeCount: badgeCount,
-                references: collectedMdpiReferences
+            chrome.runtime.sendMessage({ action: 'updateBadge', text: text, count: badgeCount, color: mdpiColor }).catch(e => {
+              if (!e.message.includes("Receiving end does not exist")) {
+                // console.warn("[MDPI Filter CS] Error sending updateBadge message:", e.message);
               }
-            }).catch(error => {
-              if (error.message.includes("Receiving end does not exist") || error.message.includes("context invalidated")) {
-                // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Could not send message to background, context likely invalidated.");
-              } else {
-                // console.error("[MDPI Filter CS] updateBadgeAndReferences: Error sending message:", error);
+            });
+            // Send message to popup if it's open
+            chrome.runtime.sendMessage({ action: 'updateReferences', references: collectedMdpiReferences }).catch(e => {
+              if (!e.message.includes("Receiving end does not exist") && !e.message.includes("The message port closed before a response was received.")) {
+                // console.warn("[MDPI Filter CS] Error sending updateReferences message to popup:", e.message);
               }
             });
           } else {
-            // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Extension context invalidated, cannot send message.");
+            // console.warn("[MDPI Filter CS] updateBadgeAndReferences: Extension context invalidated. Cannot send message.");
           }
-          if (collectedMdpiReferences.length === 0 && !window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains)) { 
-            // console.log("[MDPI Filter CS] updateBadgeAndReferences: No references to send to popup for this page.");
+          // Call the function to style inline footnotes and other UI updates
+          if (typeof window.MDPIFilterUtils !== 'undefined' && typeof window.MDPIFilterUtils.styleInlineFootnotes === 'function') {
+            window.MDPIFilterUtils.styleInlineFootnotes(collectedMdpiReferences, mdpiColor);
+          }
+          // If there are no MDPI references on a non-search page, ensure the "no references found" message is potentially shown.
+          if (collectedMdpiReferences.length === 0 && !window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains)) {
+            // console.log("[MDPI Filter CS] No MDPI references found on a non-search page. Popup might show 'No MDPI references found'.");
           }
         }
 
         const extractReferenceData = (item) => {
-          // The item.id or a generated one if item.id is not present.
-          // For Wiley, item.dataset.bibId is often the most stable identifier for the reference list item.
-          // MDPIFilterReferenceIdExtractor.extractInternalScrollId handles getting or generating an ID
-          // and also sets 'data-mdpi-filter-ref-id' which is used for scrolling.
+          // Use MDPIFilterReferenceIdExtractor to get/generate an internal ID (e.g., "mdpi-ref-X")
+          // This also sets 'data-mdpi-filter-ref-id' on the item.
           const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(item, refIdCounter);
-          refIdCounter = updatedRefIdCounter; 
+          refIdCounter = updatedRefIdCounter; // Update the global counter for the next item
 
           const textContent = item.textContent || '';
           const primaryLink = window.MDPIFilterLinkExtractor.extractPrimaryLink(item, window.MDPIFilterLinkExtractionSelectors);
 
-          // The listItemDomId is crucial for linking inline citations back to this reference item.
-          // It should be the actual DOM ID of the list item if available, or the data-bib-id for Wiley,
-          // or the generated mdpi-filter-ref-id as a fallback.
-          // The `extractedId` from `extractInternalScrollId` is suitable for the `id` field for popup interaction.
-          // For `listItemDomId` (used by inline styler), we prefer item.id or item.dataset.bibId if they exist and are robust.
-          // If not, `extractedId` (which is `data-mdpi-filter-ref-id`) can be a fallback.
-          let listItemDomIdForInlineLinking = item.id || item.dataset.bibId || extractedId;
-
+          // Determine the ID to be used for linking inline footnotes.
+          // This should be the actual DOM ID of the list item (e.g., "en37") if it exists,
+          // as this is what inline <a> tags' href attributes will typically point to.
+          const actualListItemDomId = item.id; // e.g., "en37" for ods.od.nih.gov
 
           return {
-            id: extractedId, // This is data-mdpi-filter-ref-id, used for scrolling from popup
+            id: extractedId, // The internal ID, e.g., "mdpi-ref-36". Used for data-mdpi-filter-ref-id, popup interaction.
             text: sanitize(textContent.substring(0, 250) + (textContent.length > 250 ? '...' : '')),
-            fullText: textContent, 
-            link: primaryLink,
-            listItemDomId: listItemDomIdForInlineLinking // ID used by inline_footnote_styler to find corresponding markers
+            fullText: textContent,
+            primaryLink: primaryLink,
+            // This listItemDomId is passed to generateInlineFootnoteSelectors.
+            // It must be the ID that inline footnotes actually link to (e.g., "en37").
+            // Fallback to extractedId if item.id is not available, though this might not always work for linking.
+            listItemDomId: actualListItemDomId || extractedId
           };
         };
 

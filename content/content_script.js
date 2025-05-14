@@ -485,7 +485,7 @@ if (!window.mdpiFilterInjected) {
             await processSearchEngineResults(searchConfig); // Pass the config
           } else {
             // console.log("[MDPI Filter CS] Not a search engine page or no specific config. Processing all references.");
-            await processAllReferences(true); // runCache = true for initial run
+            await processAllReferences(new Map()); // Pass a new Map instance
           }
         }
 

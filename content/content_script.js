@@ -288,66 +288,119 @@ if (!window.mdpiFilterInjected) {
             isProcessing = false;
             return;
           }
-
-          const items = document.querySelectorAll(config.itemSelector || config.container); 
-          console.log(`[MDPI Filter CS] Found ${items.length} items using selector: ${config.itemSelector || config.container}`);
-
-          items.forEach(item => {
+        
+          const items = document.querySelectorAll(config.itemSelector || config.container);
+          console.log(`[MDPI Filter CS] Found ${items.length} items for search processing using selector: ${config.itemSelector || config.container}`);
+        
+          let mdpiResultsCount = 0; // To count actual MDPI results for the badge
+        
+          for (const item of items) { // Use for...of for async/await
             let isMdpiResult = false;
-            // Check based on linkSelector (preferred for MDPI links)
+            const itemPreviewText = (item.textContent || "").substring(0, 70).trim().replace(/\s+/g, ' ');
+            // console.log(`[MDPI Filter CS Search] Processing item: "${itemPreviewText}..."`);
+        
+            // 1. Direct MDPI link check (using config.linkSelector)
             if (config.linkSelector) {
-                const mdpiLink = item.querySelector(config.linkSelector);
-                if (mdpiLink && mdpiLink.href && (mdpiLink.href.includes(MDPI_DOMAIN) || MDPI_DOI_REGEX.test(mdpiLink.href))) {
-                    isMdpiResult = true;
+              const mainLinkElement = item.querySelector(config.linkSelector);
+              if (mainLinkElement && mainLinkElement.href) {
+                const mainLinkHref = mainLinkElement.href;
+                if (mainLinkHref.includes(MDPI_DOMAIN) || MDPI_DOI_REGEX.test(mainLinkHref)) {
+                  isMdpiResult = true;
+                  // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (direct link).`);
                 }
+              }
             }
-            // Check based on DOI pattern in text content
+        
+            // 2. NCBI API Check (if useNcbiApi is true and not already identified as MDPI)
+            if (!isMdpiResult && config.useNcbiApi && config.linkSelector) {
+              const mainLinkElement = item.querySelector(config.linkSelector);
+              if (mainLinkElement && mainLinkElement.href) {
+                const mainLinkHref = mainLinkElement.href;
+                let idToCheck = null;
+                let idType = null;
+        
+                const pmidMatch = mainLinkHref.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
+                if (pmidMatch && pmidMatch[1]) {
+                  idToCheck = pmidMatch[1];
+                  idType = 'pmid';
+                }
+        
+                if (!idToCheck) {
+                  const pmcidMatch = mainLinkHref.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
+                  if (pmcidMatch && pmcidMatch[1]) {
+                    idToCheck = pmcidMatch[1];
+                    idType = 'pmcid';
+                  }
+                }
+        
+                if (idToCheck && idType) {
+                  // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." requires NCBI check for ${idType}: ${idToCheck}.`);
+                  // Ensure runCache and ncbiApiCache are accessible here (defined in outer scope).
+                  isMdpiResult = await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([idToCheck], idType, runCache, ncbiApiCache);
+                  if (isMdpiResult) {
+                    // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (NCBI API).`);
+                  } else {
+                    // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is NOT MDPI (NCBI API).`);
+                  }
+                }
+              }
+            }
+        
+            // 3. Fallback checks (if not already identified as MDPI)
             if (!isMdpiResult && config.doiPattern && item.textContent && item.textContent.includes(config.doiPattern)) {
               isMdpiResult = true;
+              // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (DOI pattern).`);
             }
-            // Check based on HTML contains (e.g., "<b>MDPI</b>")
             if (!isMdpiResult && config.htmlContains && item.innerHTML && item.innerHTML.includes(config.htmlContains)) {
               isMdpiResult = true;
+              // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (HTML contains).`);
             }
-            // Fallback: General MDPI DOI regex check on item's text content if no specific patterns matched
             if (!isMdpiResult && MDPI_DOI_REGEX.test(item.textContent || '')) {
-                isMdpiResult = true;
+              isMdpiResult = true;
+              // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (MDPI DOI regex in text).`);
             }
-            // Fallback: General MDPI domain check in any link within the item
             if (!isMdpiResult) {
-                const anyLink = item.querySelector('a[href*="mdpi.com"], a[href*="10.3390"]');
-                if (anyLink) {
-                    isMdpiResult = true;
-                }
+              const anyMdpiLinkInItem = item.querySelector('a[href*="mdpi.com"], a[href*="10.3390"]');
+              if (anyMdpiLinkInItem) {
+                isMdpiResult = true;
+                // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (fallback link check).`);
+              }
             }
-
-
+        
             if (isMdpiResult) {
+              mdpiResultsCount++;
               if (mode === 'hide') {
                 item.classList.add('mdpi-search-result-hidden');
                 item.style.display = 'none';
-              } else { 
+              } else {
                 item.classList.add('mdpi-search-result-highlight');
-                item.style.border = `2px dotted ${mdpiColor}`; 
+                item.style.border = `2px dotted ${mdpiColor}`;
                 item.style.padding = '3px';
-                item.style.backgroundColor = 'rgba(255, 230, 230, 0.5)'; 
+                item.style.backgroundColor = 'rgba(255, 230, 230, 0.5)';
               }
+            } else {
+              // Ensure styling is removed if not MDPI
+              item.classList.remove('mdpi-search-result-hidden', 'mdpi-search-result-highlight');
+              item.style.display = '';
+              item.style.border = '';
+              item.style.padding = '';
+              item.style.backgroundColor = '';
             }
-          });
-          console.log(`[MDPI Filter CS] Processed search results. Found and styled MDPI results.`);
-          
+          }
+          // console.log(`[MDPI Filter CS] Processed search results. Found and styled ${mdpiResultsCount} MDPI results.`);
+        
           if (chrome.runtime && chrome.runtime.id) {
             chrome.runtime.sendMessage({
-              action: 'mdpiUpdate',
+              type: 'mdpiUpdate', // Ensure this matches background listener
               data: {
-                badgeCount: items.length, 
-                references: [] 
+                badgeCount: mdpiResultsCount, // Use actual count of MDPI results
+                references: [] // Search pages don't populate detailed references
               }
-            }).catch(e => {
-              if (e.message.includes("Receiving end does not exist") || e.message.includes("context invalidated")) {
-                // console.warn("[MDPI Filter CS] Error sending search result badge update (context likely invalidated):", e.message)
+            }, response => { // Add callback to handle potential errors
+              if (chrome.runtime.lastError) {
+                // console.warn("[MDPI Filter CS] Error sending search result badge update:", chrome.runtime.lastError.message);
               } else {
-                // console.warn("[MDPI Filter CS] Error sending search result badge update:", e.message)
+                // console.log("[MDPI Filter CS] Search result badge update sent. Response:", response);
               }
             });
           }
@@ -503,7 +556,7 @@ if (!window.mdpiFilterInjected) {
         }
 
         const debouncedRunAll = window.debounce(() => {
-          runAll();
+          runAll(); // This will now call the async runAll
         }, 250);
 
         async function runAll() {
@@ -520,10 +573,10 @@ if (!window.mdpiFilterInjected) {
 
           if (searchConfig) {
             // console.log("[MDPI Filter CS] Search engine page detected. Config:", searchConfig);
-            await processSearchEngineResults(searchConfig); // Pass the config
+            await processSearchEngineResults(searchConfig); // Pass the config and await
           } else {
             // console.log("[MDPI Filter CS] Not a search engine page or no specific config. Processing all references.");
-            await processAllReferences(new Map()); // Pass a new Map instance
+            await processAllReferences(new Map()); // Pass a new Map instance and await
           }
         }
 

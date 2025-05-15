@@ -21,7 +21,7 @@ window.MDPIFilterDomains = {
     host: 'www.google.com', // Should match an entry or be covered by an entry in searchEngineDomains
     path: /^\/search/,
     container: 'div.MjjYud', // Updated selector
-    linkSelector: 'a.zReHs[href]', // Updated to select the main title link
+    linkSelector: 'div.yuRUbf a.zReHs[href]', // Updated to select the main title link more specifically
     useNcbiApi: true // Added to enable NCBI API checks for Google Web
   },
 

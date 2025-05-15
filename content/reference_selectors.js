@@ -24,5 +24,8 @@ window.MDPIFilterReferenceSelectors = [
   'li.css-1ti7iub:has(cite a[href])', // Healthline: list items in "Sources" section with a citation link
   'div.circle-list__item[id^="r"]', // Cambridge Core
   'li:has(> div.cit.ref-cit)', // For BMJ-like structures
-  'li[id^="R"]' // Add this for PMC-style references like <li id="R4">
+  'li[id^="R"]', // PMC-style references like <li id="R4">
+  // --- Added for PMC/NCBI style: IDs ending with 'r' followed by digits (e.g., zoi220196r19) ---
+  'li[id$="r"]', // Matches IDs ending with 'r' (will filter in code for digits after 'r')
+  'li[id*="r"][id]', // Fallback: any li with 'r' in id (will filter in code)
 ].join(',');

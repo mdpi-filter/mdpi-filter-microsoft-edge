@@ -168,37 +168,25 @@ chrome.webNavigation.onCompleted.addListener(
 // 3) Message listener for updates, popup requests, AND scroll requests
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Message from Content Script with count and references
-  if (msg.action === 'mdpiUpdate' && sender.tab?.id) { // Changed msg.type to msg.action
+  if (msg.type === 'mdpiUpdate' && sender.tab?.id) { // Changed msg.action back to msg.type
     const tabId = sender.tab.id;
     // Access data from msg.data
     const count = msg.data?.badgeCount ?? 0; 
-    const references = msg.data?.references ?? [];
-    const text = count > 0 ? String(count) : '';
-
-    console.log(`[MDPI Filter BG] Received mdpiUpdate for tab ${tabId}. Count: ${count}, References array length: ${references.length}`);
-    if (references.length > 0) {
-      // console.log('[MDPI Filter BG] First few references data:', JSON.stringify(references.slice(0,2)));
+    // Ensure badge is updated (example, actual badge logic might be more complex)
+    chrome.action.setBadgeText({ text: count > 0 ? count.toString() : '', tabId: tabId });
+    if (count > 0) {
+      chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId: tabId });
     }
 
-
-    // Update badge
-    try {
-        chrome.action.setBadgeText({ text, tabId });
-        if (count > 0) {
-            chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId }); // MDPI Red
-        } else {
-            chrome.action.setBadgeBackgroundColor({ color: '#6c757d', tabId }); // Grey
-        }
-        // console.log(`[MDPI Filter BG] Badge text set to "${text}" for tab ${tabId}`);
-    } catch (e) {
-        console.warn(`[MDPI Filter BG] Error setting badge for tab ${tabId}:`, e.message);
+    // Store references
+    if (msg.data && Array.isArray(msg.data.references)) {
+      tabReferenceData[tabId] = msg.data.references;
+      // console.log(`[MDPI Filter BG] Stored ${msg.data.references.length} references for tab ${tabId}.`);
+    } else {
+      // console.log(`[MDPI Filter BG] No references in mdpiUpdate or not an array for tab ${tabId}. Clearing.`);
+      delete tabReferenceData[tabId]; // Clear if no valid references
     }
-
-    // Store references (now including ID)
-    tabReferenceData[tabId] = references;
-    // console.log(`[MDPI Filter BG] Stored ${tabReferenceData[tabId].length} references for tab ${tabId}.`);
-    sendResponse({status: "mdpiUpdate received by background"}); // Acknowledge receipt
-    return false; // Message processed synchronously
+    // Optional: sendResponse({status: "MDPI data received by background"});
   }
 
   // Message from Popup Script requesting references
@@ -241,6 +229,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   // --- End New Handler ---
 
+  // Return true for asynchronous sendResponse calls if any path might use it.
+  // For 'mdpiUpdate', if it's fire-and-forget from content script, no return true is needed for that branch.
+  // For 'getMdpiReferences' and 'scrollToRef', 'return true' is correctly placed if they are async.
+  if (msg.type === 'getMdpiReferences' || (msg.type === 'scrollToRef' && msg.refId)) {
+    return true; // Keep this for async operations
+  }
 });
 
 // Clean up references when a tab is closed

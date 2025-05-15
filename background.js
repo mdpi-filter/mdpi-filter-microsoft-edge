@@ -147,76 +147,59 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (isMdpiUpdateMessage && sender.tab?.id) {
     const tabId = sender.tab.id;
-    const data = msg.data || {}; // Ensure data object exists, and default to empty if not.
+    const data = msg.data || {};
     const count = data.badgeCount ?? 0;
+    const references = data.references || []; // Ensure references is an array
 
     // Update badge
-    chrome.action.setBadgeText({ text: count > 0 ? count.toString() : '', tabId: tabId });
-    if (count > 0) {
-      chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId: tabId });
-    } else {
-      // Optional: Clear badge background color if count is 0, e.g., by setting to transparent
-      // chrome.action.setBadgeBackgroundColor({ color: [0, 0, 0, 0], tabId: tabId });
-    }
+    chrome.action.setBadgeText({ text: count > 0 ? String(count) : '', tabId: tabId });
+    chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId: tabId }); // MDPI Red
 
     // Store references
-    if (data.references && Array.isArray(data.references)) {
-      tabReferenceData[tabId] = data.references;
-      // console.log(`[MDPI Filter BG] Stored ${data.references.length} references for tab ${tabId} (using ${msg.type ? 'type' : 'action'}).`);
-    } else {
-      // console.log(`[MDPI Filter BG] No valid references array in mdpiUpdate for tab ${tabId}. Clearing. Received data.references:`, data.references);
-      delete tabReferenceData[tabId]; // Clear if no valid references
-    }
-    // mdpiUpdate is usually fire-and-forget from content script, so no sendResponse needed for this branch.
-  }
+    tabReferenceData[tabId] = references;
+    // console.log(`[MDPI Filter BG] Updated references for tab ${tabId}. Count: ${count}. Refs:`, references);
+    // console.log(`[MDPI Filter BG] tabReferenceData for tab ${tabId} after update:`, tabReferenceData[tabId]);
 
-  // Message from Popup Script requesting references
-  if (msg.type === 'getMdpiReferences') {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs && tabs.length > 0 && tabs[0].id != null) {
-        const tabId = tabs[0].id;
-        const refs = tabReferenceData[tabId] || [];
-        // console.log(`[MDPI Filter BG] Popup requested references for tab ${tabId}. Found: ${refs.length}`);
-        sendResponse({ references: refs });
+    sendResponse({ status: "success", message: "MDPI update processed by background." });
+    // No need to return true here as sendResponse is called synchronously for this message type.
+  } else if (msg.type === 'getMdpiReferences') {
+    const queryOptions = { active: true, currentWindow: true };
+    chrome.tabs.query(queryOptions, (tabs) => {
+      if (chrome.runtime.lastError) {
+        console.error("[MDPI Filter BG] Error querying active tab for getMdpiReferences:", chrome.runtime.lastError.message);
+        sendResponse({ error: "Could not get active tab", references: [] });
+        return;
+      }
+      if (tabs && tabs.length > 0) {
+        const activeTabId = tabs[0].id;
+        const refsForTab = tabReferenceData[activeTabId] || [];
+        // console.log(`[MDPI Filter BG] Popup requested references for tab ${activeTabId}. Sending ${refsForTab.length} refs:`, refsForTab);
+        sendResponse({ references: refsForTab });
       } else {
-        // console.log("[MDPI Filter BG] Popup requested references, but no active tab found or tab ID missing.");
-        sendResponse({ references: [] }); // Send empty array if no active tab
+        // console.warn("[MDPI Filter BG] getMdpiReferences: No active tab found or tabs array empty.");
+        sendResponse({ error: "No active tab found", references: [] });
       }
     });
-    return true; // Important for async sendResponse
-  }
-
-  // Message from Popup Script to Scroll to Reference
-  if (msg.type === 'scrollToRef' && msg.refId) {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs && tabs.length > 0 && tabs[0].id != null) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'scrollToRef', refId: msg.refId }, response => {
-          if (chrome.runtime.lastError) {
-            // console.error('[MDPI Filter BG] Error sending scrollToRef to content script:', chrome.runtime.lastError.message);
-          }
-          // console.log('[MDPI Filter BG] scrollToRef response from content script:', response);
-          if (sendResponse) { // Check if sendResponse is still valid
-            try {
-              sendResponse(response);
-            } catch (e) {
-              // console.warn('[MDPI Filter BG] Could not sendResponse for scrollToRef:', e.message);
-            }
-          }
-        });
-      } else {
-        // console.log("[MDPI Filter BG] scrollToRef: No active tab found.");
-        if (sendResponse) {
-          try {
-            sendResponse({ success: false, error: "No active tab found" });
-          } catch (e) { /* console.warn */ }
+    return true; // Indicates sendResponse will be called asynchronously
+  } else if (msg.type === 'scrollToRef' && msg.refId) {
+    const tabIdToScroll = msg.tabId || sender.tab?.id;
+    if (tabIdToScroll) {
+      chrome.tabs.sendMessage(tabIdToScroll, { type: 'scrollToRefOnPage', refId: msg.refId }, response => {
+        if (chrome.runtime.lastError) {
+          // console.warn(`[MDPI Filter BG] Error sending scrollToRefOnPage to tab ${tabIdToScroll}: ${chrome.runtime.lastError.message}`);
+          sendResponse({ status: 'error', message: chrome.runtime.lastError.message });
+        } else {
+          // console.log(`[MDPI Filter BG] scrollToRefOnPage response from content script:`, response);
+          sendResponse(response || { status: 'success', message: 'Scroll message sent.' });
         }
-      }
-    });
-    return true; // Important for async sendResponse
+      });
+    } else {
+      // console.warn("[MDPI Filter BG] scrollToRef: No tab ID available to send scroll message.");
+      sendResponse({ status: 'error', message: 'No tab ID for scrolling.' });
+    }
+    return true; // Indicates sendResponse will be called asynchronously
   }
-
   // If other message types are added and are async, they also need to return true.
-  // For the mdpiUpdate message, since it's fire-and-forget, we don't return true from its branch.
 });
 
 // Clean up references when a tab is closed

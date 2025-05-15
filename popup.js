@@ -91,13 +91,11 @@ ${currentTabUrl}
          .forEach(li => li.remove());
 
     if (count === 0) {
-      // Message in placeholder should be set by the sendMessage callback for errors or initial empty.
-      // This function just ensures it's visible.
-      referencesPlaceholder.style.display = 'block';
-      // If not an error state and truly no references, ensure appropriate message.
-      if (!referencesPlaceholder.classList.contains('error')) {
+      // Only show "No references" if not loading and not in error state
+      if (!referencesPlaceholder.classList.contains('error') && referencesPlaceholder.textContent !== 'Loading references...') {
         referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
       }
+      referencesPlaceholder.style.display = 'block';
     } else { // count > 0
       referencesPlaceholder.style.display = 'none'; // Hide static placeholder
 
@@ -152,6 +150,7 @@ ${currentTabUrl}
 
   // --- Robust Reference Loader with Retry ---
   function loadReferencesWithRetry(retries = 3, delayMs = 300) {
+    let loading = true;
     referencesPlaceholder.textContent = 'Loading references...';
     referencesPlaceholder.classList.remove('error');
     referencesPlaceholder.style.display = 'block';
@@ -164,11 +163,13 @@ ${currentTabUrl}
           referencesPlaceholder.textContent = 'Error loading references.';
           referencesPlaceholder.classList.add('error');
           displayReferences([]);
+          loading = false;
         } else if (response && response.references && Array.isArray(response.references)) {
           if (response.references.length === 0 && attempt < retries) {
-            // Try again after a short delay
+            // Still loading, don't update placeholder to "No references" yet
             setTimeout(() => tryLoad(attempt + 1), delayMs);
           } else {
+            loading = false;
             if (response.references.length === 0) {
               referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
             }
@@ -178,6 +179,7 @@ ${currentTabUrl}
           referencesPlaceholder.textContent = 'Could not load references from page.';
           referencesPlaceholder.classList.add('error');
           displayReferences([]);
+          loading = false;
         }
       });
     }

@@ -35,7 +35,7 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
       return anyMdpiInCache;
     }
 
-    const BATCH_SIZE = 20;
+    const BATCH_SIZE = 200;
     let overallFoundMdpiInBatches = false;
 
     for (let i = 0; i < idsToQueryApi.length; i += BATCH_SIZE) {

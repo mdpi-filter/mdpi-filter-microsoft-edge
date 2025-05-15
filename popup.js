@@ -150,32 +150,41 @@ ${currentTabUrl}
          .replace(/'/g, "&#039;");
   }
 
-  // Request references from background script when popup opens
-  // Ensure placeholder is in its initial "Loading..." state before request
-  referencesPlaceholder.textContent = 'Loading references...';
-  referencesPlaceholder.classList.remove('error');
-  referencesPlaceholder.style.display = 'block';
-  referencesCountSpan.textContent = '0'; // Initial count
+  // --- Robust Reference Loader with Retry ---
+  function loadReferencesWithRetry(retries = 3, delayMs = 300) {
+    referencesPlaceholder.textContent = 'Loading references...';
+    referencesPlaceholder.classList.remove('error');
+    referencesPlaceholder.style.display = 'block';
+    referencesCountSpan.textContent = '0';
 
-  chrome.runtime.sendMessage({ type: 'getMdpiReferences' }, (response) => {
-    if (chrome.runtime.lastError) {
-      console.error("Error getting references:", chrome.runtime.lastError.message);
-      referencesPlaceholder.textContent = 'Error loading references.';
-      referencesPlaceholder.classList.add('error');
-      displayReferences([]); // Update count to 0, ensure placeholder is visible with error
-    } else if (response && response.references && Array.isArray(response.references)) {
-      if (response.references.length === 0) {
-        referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
-        // classList.remove('error') was done before sending message
-      }
-      // If >0 items, displayReferences will hide the placeholder.
-      // If 0 items, displayReferences will ensure placeholder is visible with the text set above.
-      displayReferences(response.references);
-    } else { // Unexpected response
-      console.warn("[MDPI Filter Popup] Received no references or unexpected response:", response);
-      referencesPlaceholder.textContent = 'Could not load references from page.';
-      referencesPlaceholder.classList.add('error');
-      displayReferences([]); // Update count to 0, ensure placeholder is visible
+    function tryLoad(attempt) {
+      chrome.runtime.sendMessage({ type: 'getMdpiReferences' }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("Error getting references:", chrome.runtime.lastError.message);
+          referencesPlaceholder.textContent = 'Error loading references.';
+          referencesPlaceholder.classList.add('error');
+          displayReferences([]);
+        } else if (response && response.references && Array.isArray(response.references)) {
+          if (response.references.length === 0 && attempt < retries) {
+            // Try again after a short delay
+            setTimeout(() => tryLoad(attempt + 1), delayMs);
+          } else {
+            if (response.references.length === 0) {
+              referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
+            }
+            displayReferences(response.references);
+          }
+        } else {
+          referencesPlaceholder.textContent = 'Could not load references from page.';
+          referencesPlaceholder.classList.add('error');
+          displayReferences([]);
+        }
+      });
     }
-  });
+
+    tryLoad(0);
+  }
+
+  // --- Call the robust loader on popup open ---
+  loadReferencesWithRetry();
 });

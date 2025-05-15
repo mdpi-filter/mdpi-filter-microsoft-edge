@@ -20,7 +20,7 @@ window.MDPIFilterDomains = {
   googleWeb: {
     host: 'www.google.com', // Should match an entry or be covered by an entry in searchEngineDomains
     path: /^\/search/,
-    container: 'div.g',
+    container: 'div.MjjYud', // Updated selector
     linkSelector: 'a[href*="mdpi.com"]',
     useNcbiApi: true // Added to enable NCBI API checks for Google Web
   },

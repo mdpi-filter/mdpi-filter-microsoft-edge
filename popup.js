@@ -4,9 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveBtn = document.getElementById('save');
   const status = document.getElementById('status');
   const reportBtn = document.getElementById('reportIssue');
-  const referencesList = document.getElementById('referencesList'); // Get the UL element
-  const referencesPlaceholder = document.getElementById('referencesPlaceholder'); // Get the placeholder LI
-  const referencesCountSpan = document.getElementById('referencesCount'); // Get the span for the count
+  const referencesList = document.getElementById('referencesList');
+  const referencesPlaceholder = document.getElementById('referencesPlaceholder'); // The static <li>
+  const referencesCountSpan = document.getElementById('referencesCount');
 
   // --- Load Mode Setting ---
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
@@ -81,62 +81,68 @@ ${currentTabUrl}
   });
 
   // --- Load and Display References ---
-  function displayReferences(references) {
-    referencesList.innerHTML = ''; // Clear existing list
-    const count = references ? references.length : 0;
-    referencesCountSpan.textContent = count; // Update the count
+  function displayReferences(referencesArray) {
+    const validReferences = Array.isArray(referencesArray) ? referencesArray : [];
+    const count = validReferences.length;
+    referencesCountSpan.textContent = count;
+
+    // Clear only dynamically added <li> items, keeping the static placeholder structure
+    Array.from(referencesList.querySelectorAll('li:not(#referencesPlaceholder)'))
+         .forEach(li => li.remove());
 
     if (count === 0) {
-      const li = document.createElement('li');
-      li.textContent = 'No MDPI references detected on this page.';
-      li.className = 'placeholder'; // Style as placeholder
-      referencesList.appendChild(li);
-      return;
-    }
-
-    references.forEach(ref => {
-      const li = document.createElement('li');
-      // Store the unique reference ID from the content script
-      li.dataset.refId = ref.id; // Use the ID received from background
-      li.title = "Click to scroll to reference"; // Add tooltip
-
-      let content = '';
-      if (ref.number) {
-        content += `<span class="ref-number">${ref.number}.</span> `;
+      // Message in placeholder should be set by the sendMessage callback for errors or initial empty.
+      // This function just ensures it's visible.
+      referencesPlaceholder.style.display = 'block';
+      // If not an error state and truly no references, ensure appropriate message.
+      if (!referencesPlaceholder.classList.contains('error')) {
+        referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
       }
-      // Escape and add the text - Make the text part of the clickable item
-      content += `<span class="ref-text">${escapeHtml(ref.text)}</span>`;
+    } else { // count > 0
+      referencesPlaceholder.style.display = 'none'; // Hide static placeholder
 
-      li.innerHTML = content; // Set the content
-      referencesList.appendChild(li);
-    });
+      validReferences.forEach(ref => {
+        // Defensive check for ref structure
+        if (typeof ref !== 'object' || ref === null || typeof ref.id !== 'string' || typeof ref.text !== 'string') {
+          console.warn('[MDPI Filter Popup] Skipping invalid reference object:', ref);
+          return; // Skip this malformed reference
+        }
+
+        const li = document.createElement('li');
+        li.dataset.refId = ref.id;
+        li.title = "Click to scroll to reference";
+        let content = '';
+        if (ref.number) {
+          content += `<span class="ref-number">${escapeHtml(String(ref.number))}. </span>`;
+        }
+        content += `<span class="ref-text">${escapeHtml(ref.text)}</span>`;
+        li.innerHTML = content;
+        referencesList.appendChild(li); // Add new items after the placeholder (which is now hidden)
+      });
+    }
   }
 
   // --- Add Click Listener for Scrolling ---
   referencesList.addEventListener('click', (event) => {
-    const clickedLi = event.target.closest('li[data-ref-id]'); // Find the parent LI with the ID
+    const clickedLi = event.target.closest('li[data-ref-id]');
     if (clickedLi) {
       const refId = clickedLi.dataset.refId;
-      console.log(`[MDPI Filter Popup] Clicked reference LI, requesting scroll to ID: ${refId}`);
-      // Send message to background script to trigger scroll in content script
-      chrome.runtime.sendMessage({ type: 'scrollToRef', refId: refId }, (response) => {
-        if (chrome.runtime.lastError) {
-            console.error("[MDPI Filter Popup] Error sending scrollToRef:", chrome.runtime.lastError.message);
-            // Optionally show feedback to user in the popup
-        } else {
-            console.log("[MDPI Filter Popup] scrollToRef response:", response);
-            // Optionally close popup after click, or show status
-            // window.close(); // Uncomment to close popup on click
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs && tabs.length > 0 && tabs[0].id != null) {
+          chrome.runtime.sendMessage({ type: 'scrollToRef', refId: refId, tabId: tabs[0].id }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('[MDPI Filter Popup] Error sending scrollToRef:', chrome.runtime.lastError.message);
+            }
+          });
         }
       });
     }
   });
-  // --- End Click Listener ---
 
   // Helper to escape HTML
   function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
+    if (unsafe === null || typeof unsafe === 'undefined') return '';
+    return String(unsafe)
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
          .replace(/>/g, "&gt;")
@@ -145,17 +151,31 @@ ${currentTabUrl}
   }
 
   // Request references from background script when popup opens
+  // Ensure placeholder is in its initial "Loading..." state before request
+  referencesPlaceholder.textContent = 'Loading references...';
+  referencesPlaceholder.classList.remove('error');
+  referencesPlaceholder.style.display = 'block';
+  referencesCountSpan.textContent = '0'; // Initial count
+
   chrome.runtime.sendMessage({ type: 'getMdpiReferences' }, (response) => {
     if (chrome.runtime.lastError) {
       console.error("Error getting references:", chrome.runtime.lastError.message);
       referencesPlaceholder.textContent = 'Error loading references.';
       referencesPlaceholder.classList.add('error');
-    } else if (response && response.references) {
+      displayReferences([]); // Update count to 0, ensure placeholder is visible with error
+    } else if (response && response.references && Array.isArray(response.references)) {
+      if (response.references.length === 0) {
+        referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
+        // classList.remove('error') was done before sending message
+      }
+      // If >0 items, displayReferences will hide the placeholder.
+      // If 0 items, displayReferences will ensure placeholder is visible with the text set above.
       displayReferences(response.references);
-    } else {
-       referencesPlaceholder.textContent = 'Could not load references.';
-       referencesPlaceholder.classList.add('error');
+    } else { // Unexpected response
+      console.warn("[MDPI Filter Popup] Received no references or unexpected response:", response);
+      referencesPlaceholder.textContent = 'Could not load references from page.';
+      referencesPlaceholder.classList.add('error');
+      displayReferences([]); // Update count to 0, ensure placeholder is visible
     }
   });
-
 });

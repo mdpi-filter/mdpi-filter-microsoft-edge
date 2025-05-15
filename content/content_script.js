@@ -625,30 +625,61 @@ if (!window.mdpiFilterInjected) {
         if (chrome.runtime && chrome.runtime.onMessage) {
           chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             if (msg.type === 'scrollToRefOnPage' && msg.refId) {
-              console.log(`[MDPI Filter CS] Received scrollToRefOnPage for refId: ${msg.refId}`);
-              const selector = `[data-mdpi-filter-ref-id="${msg.refId}"]`;
-              const elementToScrollTo = document.querySelector(selector);
-
-              if (elementToScrollTo) {
-                elementToScrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Optional: Add a temporary visual cue
-                elementToScrollTo.style.outline = `2px dashed ${mdpiColor}`;
-                setTimeout(() => {
-                  elementToScrollTo.style.outline = '';
-                }, 2000);
-                console.log(`[MDPI Filter CS] Scrolled to element with ${selector}`);
-                sendResponse({ status: 'success', message: `Scrolled to ${msg.refId}` });
-              } else {
-                console.warn(`[MDPI Filter CS] Element with ${selector} not found.`);
-                sendResponse({ status: 'error', message: `Element with refId ${msg.refId} not found.` });
+              // --- Wiley: Expand References Accordion if Needed ---
+              if (window.location.hostname.includes('onlinelibrary.wiley.com')) {
+                // Find the accordion control for "References"
+                const accordionControls = document.querySelectorAll('div.article-accordion .accordion__control[aria-expanded="false"]');
+                for (const control of accordionControls) {
+                  const titleElement = control.querySelector('.section__title');
+                  if (titleElement && titleElement.textContent.trim().toLowerCase() === 'references') {
+                    control.click();
+                    // Wait for the accordion to expand before scrolling
+                    setTimeout(() => {
+                      const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+                      if (refElem) {
+                        refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        refElem.classList.add('mdpi-ref-scroll-highlight');
+                        setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
+                      }
+                    }, 400); // 400ms should be enough for the animation
+                    sendResponse({ status: 'expanded-and-scrolled' });
+                    return true;
+                  }
+                }
               }
-              return true; 
+              // --- Default: Just Scroll ---
+              const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+              if (refElem) {
+                refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                refElem.classList.add('mdpi-ref-scroll-highlight');
+                setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
+                sendResponse({ status: 'scrolled' });
+              } else {
+                sendResponse({ status: 'not-found' });
+              }
+              return true;
             }
             return false; 
           });
         } else {
-            console.warn("[MDPI Filter CS] chrome.runtime.onMessage not available. Scrolling from popup will not work.");
+          console.warn("[MDPI Filter CS] chrome.runtime.onMessage not available. Scrolling from popup will not work.");
         }
+
+        // --- Add highlight style for scroll feedback ---
+        (function addMdpiScrollHighlightStyle() {
+          if (!document.getElementById('mdpi-ref-scroll-highlight-style')) {
+            const style = document.createElement('style');
+            style.id = 'mdpi-ref-scroll-highlight-style';
+            style.textContent = `
+              .mdpi-ref-scroll-highlight {
+                outline: 3px solid #E2211C !important;
+                background: #ffe0e0 !important;
+                transition: outline 0.2s, background 0.2s;
+              }
+            `;
+            document.head.appendChild(style);
+          }
+        })();
 
         // --- Initial Execution ---
         if (document.readyState === 'loading') {

@@ -129,37 +129,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.webNavigation.onCompleted.addListener(
   details => {
     if (details.frameId === 0) {
-      console.log(`[MDPI Filter BG] webNavigation.onCompleted: Attempting to inject scripts into main frame of tab ${details.tabId}`);
-      chrome.scripting.executeScript({
-        target: { tabId: details.tabId, allFrames: false }, // Inject only into the main frame
-        files: [
-          'content/domains.js',
-          'content/sanitizer.js',
-          'content/utils.js',
-          'content/cache_manager.js',
-          'content/reference_selectors.js',
-          'content/inline_footnote_selectors.js',
-          'content/inline_footnote_styler.js',
-          'content/cited_by_selectors.js',
-          'content/cited_by_styler.js',
-          'content/cited_by_processor.js',
-          'content/link_extraction_selectors.js',
-          'content/link_extractor.js',
-          'content/item_content_checker.js',
-          'content/reference_id_extractor.js',
-          'content/ncbi_api_handler.js', // Added new module
-          'content/content_script.js'
-        ]
-      }).catch(e => {
-          // Ignore common injection errors, especially during navigation
-          if (!(e.message.includes('Cannot access') ||
-                e.message.includes('Receiving end does not exist') ||
-                e.message.includes('context invalidated') ||
-                e.message.includes('Could not establish connection') ||
-                e.message.includes('No tab with id'))) {
-             console.warn(`[MDPI Filter BG] Failed to inject modules into main frame of tab ${details.tabId} (onCompleted):`, e);
-          }
-      });
+      console.log(`[MDPI Filter BG] webNavigation.onCompleted: Tab ${details.tabId} main frame completed loading.`);
+      // Assuming manifest.json handles all script injections now.
+      // If issues persist with scripts not loading, this might need to be revisited,
+      // but for now, rely on manifest to avoid double injection or conflicts.
+      // injectModules(details.tabId, "webNavigation.onCompleted"); // Commented out
     }
   },
   { url: [{ schemes: ['http','https'] }] }

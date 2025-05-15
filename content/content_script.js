@@ -127,6 +127,43 @@ if (!window.mdpiFilterInjected) {
         let isProcessing = false;
         // --- Helper Function Definitions ---
 
+        // New function to send updates to the background script
+        function sendUpdateToBackground() {
+          console.log(`[MDPI Filter CS] Attempting to send 'mdpiUpdate' to background. Number of references: ${collectedMdpiReferences.length}`);
+
+          if (!chrome.runtime || !chrome.runtime.id) {
+            console.error('[MDPI Filter CS] CRITICAL: chrome.runtime.id is not available. Cannot send message to background. Content script might be in an invalid context or the extension was reloaded/updated.');
+            return;
+          }
+
+          const dataToSend = {
+            badgeCount: collectedMdpiReferences.length,
+            references: collectedMdpiReferences.map(ref => ({
+              id: ref.id,
+              text: ref.text,
+              number: ref.number,
+              listItemDomId: ref.listItemDomId
+            }))
+          };
+
+          try {
+            console.log('[MDPI Filter CS] Data prepared for background:', JSON.parse(JSON.stringify(dataToSend)));
+          } catch (e) {
+            console.warn('[MDPI Filter CS] Could not stringify dataToSend for logging:', e, dataToSend);
+          }
+
+          chrome.runtime.sendMessage({
+            type: 'mdpiUpdate',
+            data: dataToSend
+          }, response => {
+            if (chrome.runtime.lastError) {
+              console.error('[MDPI Filter CS] Error sending mdpiUpdate to background:', chrome.runtime.lastError.message);
+            } else {
+              console.log('[MDPI Filter CS] mdpiUpdate successfully sent to background. Response from background:', response);
+            }
+          });
+        }
+
         // The isSearchEnginePage function is now replaced by MDPIFilterDomainUtils.getActiveSearchConfig
 
         function clearPreviousHighlights() {
@@ -580,41 +617,4 @@ if (!window.mdpiFilterInjected) {
       console.warn("[MDPI Filter CS] Extension context invalidated before storage access. Main script logic will not execute for this frame.");
     }
   } 
-}
-
-// New function to send updates to the background script
-function sendUpdateToBackground() {
-  console.log(`[MDPI Filter CS] Attempting to send 'mdpiUpdate' to background. Number of references: ${collectedMdpiReferences.length}`);
-
-  if (!chrome.runtime || !chrome.runtime.id) {
-    console.error('[MDPI Filter CS] CRITICAL: chrome.runtime.id is not available. Cannot send message to background. Content script might be in an invalid context or the extension was reloaded/updated.');
-    return;
-  }
-
-  const dataToSend = {
-    badgeCount: collectedMdpiReferences.length,
-    references: collectedMdpiReferences.map(ref => ({
-      id: ref.id,
-      text: ref.text,
-      number: ref.number,
-      listItemDomId: ref.listItemDomId
-    }))
-  };
-
-  try {
-    console.log('[MDPI Filter CS] Data prepared for background:', JSON.parse(JSON.stringify(dataToSend)));
-  } catch (e) {
-    console.warn('[MDPI Filter CS] Could not stringify dataToSend for logging:', e, dataToSend);
-  }
-
-  chrome.runtime.sendMessage({
-    type: 'mdpiUpdate',
-    data: dataToSend
-  }, response => {
-    if (chrome.runtime.lastError) {
-      console.error('[MDPI Filter CS] Error sending mdpiUpdate to background:', chrome.runtime.lastError.message);
-    } else {
-      console.log('[MDPI Filter CS] mdpiUpdate successfully sent to background. Response from background:', response);
-    }
-  });
 }

@@ -293,6 +293,7 @@ if (!window.mdpiFilterInjected) {
           console.log(`[MDPI Filter CS] Found ${items.length} items for search processing using selector: ${config.itemSelector || config.container}`);
         
           let mdpiResultsCount = 0; // To count actual MDPI results for the badge
+          const runCache = new Map(); // Initialize runCache for this processing run
         
           for (const item of items) { // Use for...of for async/await
             let isMdpiResult = false;
@@ -335,7 +336,7 @@ if (!window.mdpiFilterInjected) {
         
                 if (idToCheck && idType) {
                   // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." requires NCBI check for ${idType}: ${idToCheck}.`);
-                  // Ensure runCache and ncbiApiCache are accessible here (defined in outer scope).
+                  // Ensure runCache and ncbiApiCache are accessible here (runCache is now local, ncbiApiCache is from outer scope).
                   isMdpiResult = await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([idToCheck], idType, runCache, ncbiApiCache);
                   if (isMdpiResult) {
                     // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (NCBI API).`);

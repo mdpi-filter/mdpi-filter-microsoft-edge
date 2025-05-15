@@ -23,5 +23,6 @@ window.MDPIFilterReferenceSelectors = [
   'hl-trusted-source:has(a[href])', // Healthline: standalone trusted source elements with a link
   'li.css-1ti7iub:has(cite a[href])', // Healthline: list items in "Sources" section with a citation link
   'div.circle-list__item[id^="r"]', // Cambridge Core
-  'li:has(> div.cit.ref-cit)' // For BMJ-like structures
+  'li:has(> div.cit.ref-cit)', // For BMJ-like structures
+  'li[id^="R"]' // Add this for PMC-style references like <li id="R4">
 ].join(',');

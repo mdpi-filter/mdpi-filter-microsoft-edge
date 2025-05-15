@@ -6,7 +6,13 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
   const MDPI_DOMAIN = 'mdpi.com'; // Needed for checking journal names, though not directly used in API call itself for MDPI status
   const MDPI_DOI_PREFIX = '10.3390'; // For identifying MDPI DOIs
 
-  async function checkNcbiIdsForMdpi(ids, idType, runCache, ncbiApiCache) { // ids is an array
+  async function checkNcbiIdsForMdpi(ids, idType, runCache, ncbiApiCache) {
+    // Filter out DOIs with fragments or invalid chars
+    if (idType === 'doi') {
+      ids = ids.map(id => id.split('#')[0].split('?')[0].trim())
+               .filter(id => /^[0-9.]+\/[^\s"'<>&]+$/.test(id));
+    }
+
     console.log(`[MDPI Filter NCBI API DEBUG] >>> checkNcbiIdsForMdpi ENTRY. Type: ${idType}, IDs to check:`, JSON.parse(JSON.stringify(ids)));
 
     if (!ids || ids.length === 0) {
@@ -55,6 +61,16 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
       try {
         const response = await fetch(apiUrl);
         if (response.ok) {
+          // Defensive: check content-type
+          const contentType = response.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            console.error(`[MDPI Filter NCBI API DEBUG] NCBI API did not return JSON. Content-Type: ${contentType}`);
+            batchIdsToQuery.forEach(id => {
+              if (!runCache.has(id)) runCache.set(id, false);
+              if (!ncbiApiCache.has(id)) ncbiApiCache.set(id, false);
+            });
+            continue;
+          }
           const data = await response.json();
           console.log(`[MDPI Filter NCBI API DEBUG] Received API data for batch (type ${idType}):`, JSON.parse(JSON.stringify(data)));
           const processedInThisBatch = new Set();

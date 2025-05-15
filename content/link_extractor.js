@@ -51,13 +51,13 @@
       });
     }
 
-    // Iterate through the provided link selectors
+    // Iterate through the provided link selectors (now objects)
     for (const selectorConfig of linkSelectors) {
       const linkElement = itemElement.querySelector(selectorConfig.selector);
 
       if (linkElement) {
         let url = '';
-        const attribute = selectorConfig.attribute || 'href'; // Default to 'href'
+        const attribute = selectorConfig.attribute || 'href';
 
         if (attribute === 'text') {
           const textContent = linkElement.textContent || '';
@@ -67,7 +67,7 @@
               url = match[0];
             }
           } else {
-            url = textContent.trim(); // Fallback to full text if no pattern
+            url = textContent.trim();
           }
         } else if (attribute === 'data-doi' && linkElement.dataset && linkElement.dataset.doi) {
           url = linkElement.dataset.doi;
@@ -75,56 +75,26 @@
           url = linkElement.getAttribute(attribute);
         }
 
-
         if (url) {
           url = url.trim();
-          // console.log(`[MDPI Filter LE] Raw extracted URL: "${url}" using selector: "${selectorConfig.selector}", attribute: "${attribute}"`);
-
           if (selectorConfig.type === 'doi') {
-            // For DOIs, ensure it's a full URL or prepend resolver
-            if (url.startsWith('10.')) { // It's a DOI string
-              // console.log(`[MDPI Filter LE] DOI string found: "${url}". Prepending resolver.`);
+            if (url.startsWith('10.')) {
               return `https://doi.org/${url}`;
-            } else if (url.includes('doi.org/')) { // It's already a DOI URL
-              // console.log(`[MDPI Filter LE] Full DOI URL found: "${url}".`);
+            } else if (url.includes('doi.org/')) {
               return url;
-            } else if (attribute === 'data-doi' && url) { // Handles cases where data-doi might not start with 10. but is intended as DOI
-                // console.log(`[MDPI Filter LE] DOI from data-doi: "${url}". Prepending resolver.`);
-                return `https://doi.org/${url}`;
+            } else if (attribute === 'data-doi' && url) {
+              return `https://doi.org/${url}`;
             }
-          } else if (selectorConfig.type === 'pubmed' && (url.includes('pubmed.ncbi.nlm.nih.gov') || /^\d+$/.test(url))) {
-            if (/^\d+$/.test(url)) { // It's a PubMed ID
-              return `https://pubmed.ncbi.nlm.nih.gov/${url}/`;
-            }
-            return url; // It's a full PubMed URL
-          } else if (selectorConfig.type === 'pmc' && (url.includes('ncbi.nlm.nih.gov/pmc/articles/PMC') || /^PMC\d+$/.test(url))) {
-             if (/^PMC\d+$/.test(url)) { // It's a PMC ID
-              return `https://www.ncbi.nlm.nih.gov/pmc/articles/${url}/`;
-            }
-            return url; // It's a full PMC URL
-          } else if (selectorConfig.type === 'arxiv' && (url.includes('arxiv.org/') || /^\d{4}\.\d{4,5}(v\d+)?$/.test(url) || /^[a-zA-Z-]+(\.[a-zA-Z-]+)?\/\d{7}(v\d+)?$/.test(url))) {
-            // Handle various arXiv ID formats and full URLs
-            if (!url.includes('arxiv.org/')) {
-                return `https://arxiv.org/abs/${url}`;
-            }
-            return url;
           } else if (selectorConfig.type === 'generic') {
-            // For generic links, try to make them absolute if they are relative
             try {
               const absoluteUrl = new URL(url, document.baseURI).href;
-              // console.log(`[MDPI Filter LE] Generic URL found: "${url}", resolved to: "${absoluteUrl}"`);
               return absoluteUrl;
             } catch (e) {
-              // console.warn(`[MDPI Filter LE] Could not construct absolute URL for generic link: "${url}"`, e);
-              return url; // Return as is if URL construction fails
+              return url;
             }
           }
-          // If type is not matched or specific conditions not met, but URL was extracted
-          // and it's not one of the specific types handled above, return it if it looks like a URL.
-          // This can be a fallback for miscategorized or new types of links.
           if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
-             // console.log(`[MDPI Filter LE] Fallback URL (looks like a URL): "${url}"`);
-             return url;
+            return url;
           }
         }
       }

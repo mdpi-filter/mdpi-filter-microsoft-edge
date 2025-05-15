@@ -593,32 +593,44 @@ if (!window.mdpiFilterInjected) {
 
           const searchConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
 
-          if (!searchConfig && (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '')) {
-            console.error("[MDPI Filter CS] initializeOrReRun: Skipping runAll because referenceListSelectors are missing/empty.");
-            collectedMdpiReferences = []; 
-            uniqueMdpiReferences.clear();
-            updateBadgeAndReferences(); 
-            return;
-          }
-
-          runAll(); // Initial processing
-          
-          if (mainObserverInstance) {
-            mainObserverInstance.disconnect(); 
-          }
-          mainObserverInstance = new MutationObserver((mutationsList, observer) => {
-            if (!(chrome.runtime && chrome.runtime.id)) {
-              console.warn('[MDPI Filter] Main observer: Extension context invalidated. Skipping debouncedRunAll.');
-              if(mainObserverInstance) mainObserverInstance.disconnect(); // Stop observing if context is lost
+          // Wiley: If accordion is present and closed, click and wait for <ul>
+          if (currentHostname.includes('onlinelibrary.wiley.com')) {
+            const accordionControl = document.querySelector('div.article-accordion .accordion__control[aria-expanded="false"]');
+            if (accordionControl) {
+              accordionControl.click();
+              // Wait for <ul> to appear (max 2s)
+              let waited = 0;
+              const interval = setInterval(() => {
+                const ul = document.querySelector('div.article-accordion ul.rlist.separator');
+                if (ul || waited > 2000) {
+                  clearInterval(interval);
+                  runAll();
+                  setupMainObserver();
+                }
+                waited += 100;
+              }, 100);
               return;
             }
-            debouncedRunAll();
-          });
+          }
 
-          mainObserverInstance.observe(document.documentElement, {
-            childList: true,
-            subtree: true
-          });
+          runAll();
+          setupMainObserver();
+
+          function setupMainObserver() {
+            if (mainObserverInstance) mainObserverInstance.disconnect();
+            mainObserverInstance = new MutationObserver((mutationsList, observer) => {
+              if (!(chrome.runtime && chrome.runtime.id)) {
+                console.warn('[MDPI Filter] Main observer: Extension context invalidated. Skipping debouncedRunAll.');
+                if(mainObserverInstance) mainObserverInstance.disconnect();
+                return;
+              }
+              debouncedRunAll();
+            });
+            mainObserverInstance.observe(document.documentElement, {
+              childList: true,
+              subtree: true
+            });
+          }
         }
 
         // --- Message Listener for Scrolling ---

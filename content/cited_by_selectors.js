@@ -14,6 +14,7 @@
     '#cited-by__content',   // Common ID for "Cited By" content
     'div.citedBySection',   // Generic class name
     'section[aria-labelledby="citedby-label"]', // Accessibility pattern
+    'div#impact', // EuropePMC "Citations & impact" section container
     // Add other container selectors as identified across different sites
   ].join(',');
 
@@ -23,6 +24,7 @@
     'li.citedByEntry',          // A general pattern for "Cited By" list items
     'div.citation-item.cited-by', // Another pattern observed
     'article.citation-item',    // Generic article item that might be in a "Cited By" list
+    'div#impact div#article-citations li.separated-list-item', // EuropePMC items within "Citations & impact" -> "Article citations" list
     // Add other item-specific selectors as identified
   ].join(',');
 

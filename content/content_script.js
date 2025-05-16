@@ -472,26 +472,58 @@ if (!window.mdpiFilterInjected) {
           isProcessing = false;
         }
 
-        async function processAllReferences(runCache) {
-          console.log("[MDPI Filter CS] Starting processAllReferences. Initial runCache size:", runCache.size);
-          isProcessing = true;
-          clearPreviousHighlights();
+        async function processAllReferences(runCache, settings) {
+          // console.log("[MDPI Filter CS] processAllReferences called.");
+          const collectedMdpiReferences = [];
+          let mdpiFoundInRefs = false;
+          const uniqueMdpiRefsForThisRun = new Map(); // Tracks unique MDPI refs by their generated ID for this run
         
-          collectedMdpiReferences = []; // Reset for this run
-          const uniqueMdpiRefsForThisRun = new Map();
-        
-          if (window.MDPIFilterLinkExtractor && typeof window.MDPIFilterLinkExtractor.resetExpansionFlags === 'function') {
-            window.MDPIFilterLinkExtractor.resetExpansionFlags();
+          const referenceListSelectors = window.MDPIFilterReferenceSelectors;
+          if (!referenceListSelectors) {
+            // console.warn("[MDPI Filter CS] Reference selectors not found.");
+            return { collectedMdpiReferences, mdpiFoundInRefs };
           }
+          // console.log("[MDPI Filter CS] Using reference selectors:", referenceListSelectors);
         
-          const referenceItems = document.querySelectorAll(referenceListSelectors);
-          console.log(`[MDPI Filter CS] Found ${referenceItems.length} potential reference items using selectors: ${referenceListSelectors.substring(0,100)}...`);
+          let allPotentialReferenceItems = Array.from(document.querySelectorAll(referenceListSelectors));
+          // console.log(`[MDPI Filter CS] Found ${allPotentialReferenceItems.length} potential reference items initially.`);
+        
+          // --- Filter out items from "Similar Articles" and "Cited By/Impact" sections on EuropePMC article pages ---
+          if (window.location.hostname.includes('europepmc.org') &&
+              (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) && // Check for article-specific paths
+              !window.location.pathname.startsWith('/search')) {
+        
+            // console.log("[MDPI Filter CS] On EuropePMC article page, filtering reference items.");
+            allPotentialReferenceItems = allPotentialReferenceItems.filter(item => {
+              const inSimilarArticles = item.closest('div#similar-articles');
+              const inImpactSection = item.closest('div#impact'); // This section contains "Article citations"
+        
+              if (inSimilarArticles) {
+                // console.log('[MDPI Filter CS] Filtering out item from EuropePMC "Similar Articles" section:', item.textContent.substring(0,100));
+                return false;
+              }
+              if (inImpactSection) {
+                // console.log('[MDPI Filter CS] Filtering out item from EuropePMC "Impact/Citations" section:', item.textContent.substring(0,100));
+                return false;
+              }
+              return true;
+            });
+            // console.log(`[MDPI Filter CS] Found ${allPotentialReferenceItems.length} reference items after EuropePMC article page filtering.`);
+          }
+          // --- End of EuropePMC specific filtering ---
+        
+          const referenceItems = allPotentialReferenceItems; // Use the filtered list
         
           if (referenceItems.length === 0) {
-            console.log("[MDPI Filter CS] No reference items found. Updating badge and references.");
-            updateBadgeAndReferences();
-            isProcessing = false;
-            return;
+            // console.log("[MDPI Filter CS] No reference items found after filtering (or initially).");
+            updatePopupData([], 0); // Ensure popup is cleared if no refs
+            return { collectedMdpiReferences, mdpiFoundInRefs };
+          }
+        
+          // Reset expansion flags in link_extractor before processing items,
+          // in case the page structure changed or accordions were closed.
+          if (window.MDPIFilterLinkExtractor && typeof window.MDPIFilterLinkExtractor.resetExpansionFlags === 'function') {
+            window.MDPIFilterLinkExtractor.resetExpansionFlags();
           }
         
           // --- Step 1: Pre-collect all potential NCBI IDs from all items for batch API call ---

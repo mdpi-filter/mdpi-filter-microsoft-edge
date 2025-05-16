@@ -218,18 +218,24 @@ if (!window.mdpiFilterInjected) {
           try {
             isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
           } catch (e) {}
-          // Only apply special style for Google search (highlightTargetSelector present)
+
           if (mode === 'hide') {
             highlightTarget.classList.add('mdpi-hidden-reference');
             highlightTarget.style.display = 'none';
           } else {
             highlightTarget.classList.add('mdpi-highlighted-reference', 'mdpi-search-result-highlight');
-            if (config && config.highlightTargetSelector && isDarkMode) {
-              // High-contrast for dark mode
-              highlightTarget.style.backgroundColor = 'rgba(255,255,180,0.18)';
-              highlightTarget.style.border = '2px solid #ffe066';
+            if (config && config.highlightTargetSelector) {
+              // Only apply yellow highlight in dark mode
+              if (isDarkMode) {
+                highlightTarget.style.backgroundColor = 'rgba(255,255,180,0.18)';
+                highlightTarget.style.border = '2px solid #ffe066';
+              } else {
+                // Light mode: use the original subtle red highlight
+                highlightTarget.style.backgroundColor = 'rgba(255, 224, 224, 0.7)';
+                highlightTarget.style.border = `2px dotted ${mdpiColor}`;
+              }
             } else {
-              // Default (light mode or non-Google)
+              // Non-Google: always use the original style
               highlightTarget.style.backgroundColor = 'rgba(255, 224, 224, 0.7)';
               highlightTarget.style.border = `2px dotted ${mdpiColor}`;
             }

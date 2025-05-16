@@ -17,10 +17,10 @@ body {
 }
 
 h1 {
-  font-size: 18px;
-  margin-top: 0; /* Remove default top margin */
-  margin-bottom: 8px;
+  font-size: 20px;       /* Slightly bigger */
+  margin: 0 0 8px 0;     /* No top margin, small bottom */
   color: #36406B;
+  text-align: left;
 }
 
 p {

@@ -212,13 +212,27 @@ if (!window.mdpiFilterInjected) {
             if (found) highlightTarget = found;
           }
           highlightTarget.setAttribute('data-mdpi-filter-ref-id', refId);
+
+          // --- Improved contrast for dark mode on Google search ---
+          let isDarkMode = false;
+          try {
+            isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          } catch (e) {}
+          // Only apply special style for Google search (highlightTargetSelector present)
           if (mode === 'hide') {
             highlightTarget.classList.add('mdpi-hidden-reference');
             highlightTarget.style.display = 'none';
           } else {
             highlightTarget.classList.add('mdpi-highlighted-reference', 'mdpi-search-result-highlight');
-            highlightTarget.style.backgroundColor = 'rgba(255, 224, 224, 0.7)';
-            highlightTarget.style.border = `2px dotted ${mdpiColor}`;
+            if (config && config.highlightTargetSelector && isDarkMode) {
+              // High-contrast for dark mode
+              highlightTarget.style.backgroundColor = 'rgba(255,255,180,0.18)';
+              highlightTarget.style.border = '2px solid #ffe066';
+            } else {
+              // Default (light mode or non-Google)
+              highlightTarget.style.backgroundColor = 'rgba(255, 224, 224, 0.7)';
+              highlightTarget.style.border = `2px dotted ${mdpiColor}`;
+            }
             highlightTarget.style.padding = '3px';
           }
         }

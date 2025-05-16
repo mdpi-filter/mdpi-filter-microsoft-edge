@@ -217,21 +217,6 @@ if (!window.mdpiFilterInjected) {
           }
           highlightTarget.setAttribute('data-mdpi-filter-ref-id', refId);
 
-          // --- Improved contrast for dark mode on Google search ---
-          let isDarkMode = false;
-          try {
-            // Check for the data-theme attribute on the <html> element for Google pages
-            if (config && (config.host === 'www.google.com' || config.host === 'scholar.google.com')) {
-                const htmlElement = document.documentElement;
-                if (htmlElement && htmlElement.getAttribute('data-theme') === 'dark') {
-                    isDarkMode = true;
-                }
-            }
-            // Fallback or other site-specific dark mode checks could go here if needed
-          } catch (e) {
-            // console.warn("[MDPI Filter CS] Error checking dark mode:", e);
-          }
-
           if (mode === 'hide') {
             item.classList.add('mdpi-hidden-reference');
             item.style.display = 'none'; // Ensure it's hidden
@@ -241,27 +226,19 @@ if (!window.mdpiFilterInjected) {
             // Apply specific styling for Google search results
             if (config && (config.host === 'www.google.com' || config.host === 'scholar.google.com')) {
               highlightTarget.classList.add('mdpi-search-result-highlight'); // Add class to the target
-              // Dark mode specific styling for Google
-              if (isDarkMode) {
-                highlightTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; // Lighter highlight for dark mode
-                highlightTarget.style.border = `2px solid ${mdpiColor}`;
-                highlightTarget.style.borderRadius = '5px';
-                highlightTarget.style.padding = '2px 4px'; // Add some padding
-                highlightTarget.style.boxShadow = `0 0 5px ${mdpiColor}`;
-              } else {
-                // Light mode styling for Google
-                highlightTarget.style.backgroundColor = 'rgba(255, 182, 193, 0.3)'; // Light pink, less aggressive
-                highlightTarget.style.border = `1px solid ${mdpiColor}`;
-                highlightTarget.style.borderRadius = '3px';
-                highlightTarget.style.padding = '1px 3px';
-              }
+              // Unified styling for Google (previously light mode style)
+              highlightTarget.style.backgroundColor = 'rgba(255, 182, 193, 0.3)'; // Light pink, less aggressive
+              highlightTarget.style.border = `1px solid ${mdpiColor}`;
+              highlightTarget.style.borderRadius = '3px';
+              highlightTarget.style.padding = '1px 3px';
+              highlightTarget.style.boxShadow = ''; // Ensure no box shadow from previous dark mode style
             } else {
               // General reference styling (non-Google search or if config not matched)
               highlightTarget.style.borderLeft = `3px solid ${mdpiColor}`;
               highlightTarget.style.paddingLeft = '5px';
               highlightTarget.style.backgroundColor = 'rgba(226, 33, 28, 0.05)'; // Very subtle background
             }
-            // console.log(`[MDPI Filter CS] Highlighting item with refId ${refId}:`, item, "Dark Mode:", isDarkMode);
+            // console.log(`[MDPI Filter CS] Highlighting item with refId ${refId}:`, item);
           }
         }
         

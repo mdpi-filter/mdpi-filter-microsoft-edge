@@ -81,14 +81,29 @@ ${currentTabUrl}
   });
 
   // --- Load and Display References ---
-  function displayReferences(referencesArray) {
+  function displayReferences(referencesArray, isLoading = false) {
     const validReferences = Array.isArray(referencesArray) ? referencesArray : [];
     const count = validReferences.length;
-    referencesCountSpan.textContent = count;
+
+    // Update count or status text
+    if (isLoading) {
+      referencesCountSpan.textContent = 'Loading';
+    } else if (count === 0) {
+      referencesCountSpan.textContent = 'No';
+    } else {
+      referencesCountSpan.textContent = count;
+    }
 
     // Clear only dynamically added <li> items, keeping the static placeholder structure
     Array.from(referencesList.querySelectorAll('li:not(#referencesPlaceholder)'))
          .forEach(li => li.remove());
+
+    if (isLoading) {
+      referencesPlaceholder.textContent = 'Loading references...';
+      referencesPlaceholder.classList.remove('error');
+      referencesPlaceholder.style.display = 'block';
+      return;
+    }
 
     if (count === 0) {
       // Only show "No references" if not loading and not in error state
@@ -151,10 +166,7 @@ ${currentTabUrl}
   // --- Robust Reference Loader with Retry ---
   function loadReferencesWithRetry(retries = 3, delayMs = 300, allowForceResend = true) {
     let loading = true;
-    referencesPlaceholder.textContent = 'Loading references...';
-    referencesPlaceholder.classList.remove('error');
-    referencesPlaceholder.style.display = 'block';
-    referencesCountSpan.textContent = '0';
+    displayReferences([], true); // Show "Loading" in count and placeholder
 
     function tryLoad(attempt) {
       chrome.runtime.sendMessage({ type: 'getMdpiReferences' }, (response) => {
@@ -166,27 +178,20 @@ ${currentTabUrl}
           loading = false;
         } else if (response && response.references && Array.isArray(response.references)) {
           if (response.references.length === 0 && attempt < retries) {
-            // Still loading, don't update placeholder to "No references" yet
             setTimeout(() => tryLoad(attempt + 1), delayMs);
           } else if (response.references.length === 0 && allowForceResend) {
-            // --- If no references, try to force content script to resend if highlights exist ---
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
               if (tabs && tabs.length > 0 && tabs[0].id != null) {
                 chrome.tabs.sendMessage(tabs[0].id, { type: 'forceResendMdpiReferences' }, () => {
-                  // Try to reload references after a short delay (give content script time to respond)
                   setTimeout(() => loadReferencesWithRetry(1, 300, false), 350);
                 });
               } else {
-                referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
                 displayReferences([]);
                 loading = false;
               }
             });
           } else {
             loading = false;
-            if (response.references.length === 0) {
-              referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
-            }
             displayReferences(response.references);
           }
         } else {

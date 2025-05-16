@@ -149,7 +149,7 @@ ${currentTabUrl}
   }
 
   // --- Robust Reference Loader with Retry ---
-  function loadReferencesWithRetry(retries = 3, delayMs = 300) {
+  function loadReferencesWithRetry(retries = 3, delayMs = 300, allowForceResend = true) {
     let loading = true;
     referencesPlaceholder.textContent = 'Loading references...';
     referencesPlaceholder.classList.remove('error');
@@ -168,6 +168,20 @@ ${currentTabUrl}
           if (response.references.length === 0 && attempt < retries) {
             // Still loading, don't update placeholder to "No references" yet
             setTimeout(() => tryLoad(attempt + 1), delayMs);
+          } else if (response.references.length === 0 && allowForceResend) {
+            // --- If no references, try to force content script to resend if highlights exist ---
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              if (tabs && tabs.length > 0 && tabs[0].id != null) {
+                chrome.tabs.sendMessage(tabs[0].id, { type: 'forceResendMdpiReferences' }, () => {
+                  // Try to reload references after a short delay (give content script time to respond)
+                  setTimeout(() => loadReferencesWithRetry(1, 300, false), 350);
+                });
+              } else {
+                referencesPlaceholder.textContent = 'No MDPI references detected on this page.';
+                displayReferences([]);
+                loading = false;
+              }
+            });
           } else {
             loading = false;
             if (response.references.length === 0) {

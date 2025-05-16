@@ -704,6 +704,20 @@ if (!window.mdpiFilterInjected) {
             initializeOrReRun();
           }
         }
+
+        // Listen for force resend request from popup
+        chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+          if (msg && msg.type === 'forceResendMdpiReferences') {
+            if (typeof sendUpdateToBackground === 'function') {
+              sendUpdateToBackground();
+              sendResponse({ status: 'resent' });
+            } else {
+              sendResponse({ status: 'no-func' });
+            }
+            return true;
+          }
+          // ...other listeners if any...
+        });
       });
     } else {
       console.warn("[MDPI Filter CS] Extension context invalidated before storage access. Main script logic will not execute for this frame.");

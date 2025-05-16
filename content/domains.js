@@ -22,7 +22,8 @@ window.MDPIFilterDomains = {
     path: /^\/search/,
     container: 'div.MjjYud', // Updated selector
     linkSelector: 'div.yuRUbf a.zReHs[href]', // Updated to select the main title link more specifically
-    useNcbiApi: true // Added to enable NCBI API checks for Google Web
+    useNcbiApi: true, // Added to enable NCBI API checks for Google Web
+    highlightTargetSelector: 'div.N54PNb' // <--- Add this line
   },
 
   // Google Scholar

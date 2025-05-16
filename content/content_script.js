@@ -199,20 +199,27 @@ if (!window.mdpiFilterInjected) {
           });
         }
 
-        function styleRef(item, refId) {
+        // Update styleRef to accept config and use highlightTargetSelector if present
+        function styleRef(item, refId, config) {
           if (!item || typeof item.setAttribute !== 'function') {
             console.warn('[MDPI Filter CS] styleRef: Invalid item provided.', item);
             return;
           }
-          item.setAttribute('data-mdpi-filter-ref-id', refId);
+          // Use highlightTargetSelector if present in config
+          let highlightTarget = item;
+          if (config && config.highlightTargetSelector) {
+            const found = item.querySelector(config.highlightTargetSelector);
+            if (found) highlightTarget = found;
+          }
+          highlightTarget.setAttribute('data-mdpi-filter-ref-id', refId);
           if (mode === 'hide') {
-            item.classList.add('mdpi-hidden-reference');
-            item.style.display = 'none';
+            highlightTarget.classList.add('mdpi-hidden-reference');
+            highlightTarget.style.display = 'none';
           } else {
-            item.classList.add('mdpi-highlighted-reference');
-            item.style.backgroundColor = 'rgba(255, 224, 224, 0.7)';
-            item.style.border = `1px solid ${mdpiColor}`;
-            item.style.padding = '2px';
+            highlightTarget.classList.add('mdpi-highlighted-reference', 'mdpi-search-result-highlight');
+            highlightTarget.style.backgroundColor = 'rgba(255, 224, 224, 0.7)';
+            highlightTarget.style.border = `2px dotted ${mdpiColor}`;
+            highlightTarget.style.padding = '3px';
           }
         }
         
@@ -363,23 +370,22 @@ if (!window.mdpiFilterInjected) {
             }
         
             if (isMdpiResult) {
+              // Pass config to styleRef
+              styleRef(item, `mdpi-search-${mdpiResultsCount + 1}`, config);
               mdpiResultsCount++;
-              if (mode === 'hide') {
-                item.classList.add('mdpi-search-result-hidden');
-                item.style.display = 'none';
-              } else {
-                item.classList.add('mdpi-search-result-highlight');
-                item.style.border = `2px dotted ${mdpiColor}`;
-                item.style.padding = '3px';
-                item.style.backgroundColor = 'rgba(255, 230, 230, 0.5)';
-              }
             } else {
-              // Ensure styling is removed if not MDPI
-              item.classList.remove('mdpi-search-result-hidden', 'mdpi-search-result-highlight');
-              item.style.display = '';
-              item.style.border = '';
-              item.style.padding = '';
-              item.style.backgroundColor = '';
+              // Remove highlight if previously set
+              let highlightTarget = item;
+              if (config && config.highlightTargetSelector) {
+                const found = item.querySelector(config.highlightTargetSelector);
+                if (found) highlightTarget = found;
+              }
+              highlightTarget.classList.remove('mdpi-highlighted-reference', 'mdpi-search-result-highlight', 'mdpi-hidden-reference', 'mdpi-search-result-hidden');
+              highlightTarget.style.backgroundColor = '';
+              highlightTarget.style.border = '';
+              highlightTarget.style.padding = '';
+              highlightTarget.style.display = '';
+              highlightTarget.style.outline = '';
             }
           }
           // console.log(`[MDPI Filter CS] Processed search results. Found and styled ${mdpiResultsCount} MDPI results.`);

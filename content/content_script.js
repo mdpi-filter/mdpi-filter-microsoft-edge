@@ -365,6 +365,27 @@ if (!window.mdpiFilterInjected) {
                   }
                 }
 
+                // Extract PMCID from europepmc.org links (e.g., /articles/PMC..., /article/PMC/PMC...)
+                if (!idToCheck) {
+                  const europePmcPmcidMatch = mainLinkHref.match(/europepmc\.org\/(?:articles|article\/PMC)\/(PMC\d+)/i);
+                  if (europePmcPmcidMatch && europePmcPmcidMatch[1]) {
+                    idToCheck = europePmcPmcidMatch[1];
+                    idType = 'pmcid';
+                    // console.log(`[MDPI Filter CS Search] Extracted EuropePMC PMCID: ${idToCheck} from ${mainLinkHref}`);
+                  }
+                }
+
+                // Extract PMID from europepmc.org links (e.g., /articles/123..., /abstract/MED/123...)
+                // Ensure it's purely numeric to treat as potential PMID
+                if (!idToCheck) {
+                  const europePmcPmidMatch = mainLinkHref.match(/europepmc\.org\/(?:articles|abstract\/MED)\/(\d+)(?:\/?$|\?|#)/i);
+                  if (europePmcPmidMatch && europePmcPmidMatch[1] && /^\d+$/.test(europePmcPmidMatch[1])) {
+                    idToCheck = europePmcPmidMatch[1];
+                    idType = 'pmid';
+                    // console.log(`[MDPI Filter CS Search] Extracted EuropePMC PMID: ${idToCheck} from ${mainLinkHref}`);
+                  }
+                }
+        
                 // Extract DOI if the link is a DOI link (e.g. doi.org)
                 // Only check non-MDPI DOIs via API, as MDPI DOIs would be caught by direct checks.
                 if (!idToCheck && typeof window.MDPIFilterItemContentChecker?.extractDoiFromLinkInternal === 'function') {

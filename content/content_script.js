@@ -312,40 +312,51 @@ if (!window.mdpiFilterInjected) {
           const items = document.querySelectorAll(config.itemSelector || config.container);
           console.log(`[MDPI Filter CS] Found ${items.length} items for search processing using selector: ${config.itemSelector || config.container}`);
         
-          let mdpiResultsCount = 0; // To count actual MDPI results for the badge
-          const runCache = new Map(); // Initialize runCache for this processing run
+          let mdpiResultsCount = 0; 
+          const runCache = new Map(); 
         
-          for (const item of items) { // Use for...of for async/await
+          for (const item of items) { 
             let isMdpiResult = false;
             const itemPreviewText = (item.textContent || "").substring(0, 70).trim().replace(/\s+/g, ' ');
             // console.log(`[MDPI Filter CS Search] Processing item: "${itemPreviewText}..."`);
         
-            // 1. Direct MDPI link check (using config.linkSelector)
+            // 1. Direct MDPI link check (using config.linkSelector for MDPI domains/DOIs)
             if (config.linkSelector) {
-              const mainLinkElement = item.querySelector(config.linkSelector);
-              if (mainLinkElement && mainLinkElement.href) {
-                const mainLinkHref = mainLinkElement.href;
-                if (mainLinkHref.includes(MDPI_DOMAIN) || MDPI_DOI_REGEX.test(mainLinkHref)) {
+              const mdpiLinkElement = item.querySelector(config.linkSelector);
+              if (mdpiLinkElement && mdpiLinkElement.href) {
+                // For current googleWeb, config.linkSelector is 'a[href*="mdpi.com"]'.
+                // This check ensures the link actually matches MDPI_DOMAIN or MDPI_DOI_REGEX.
+                if (mdpiLinkElement.href.includes(MDPI_DOMAIN) || MDPI_DOI_REGEX.test(mdpiLinkElement.href)) {
                   isMdpiResult = true;
-                  // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (direct link).`);
+                  // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (direct MDPI link via config.linkSelector).`);
                 }
               }
             }
         
             // 2. NCBI API Check (if useNcbiApi is true and not already identified as MDPI)
-            if (!isMdpiResult && config.useNcbiApi && config.linkSelector) {
-              const mainLinkElement = item.querySelector(config.linkSelector);
+            if (!isMdpiResult && config.useNcbiApi) {
+              // Try to find the primary link of the search result item.
+              // Common Google search result link structure:
+              let mainLinkElement = item.querySelector('div.yuRUbf > a[href]');
+              if (!mainLinkElement) {
+                // Fallback for other structures or if yuRUbf is not present (e.g., image items might not have it)
+                // or for other search engines where yuRUbf doesn't apply.
+                mainLinkElement = item.querySelector('a[href]');
+              }
+
               if (mainLinkElement && mainLinkElement.href) {
                 const mainLinkHref = mainLinkElement.href;
                 let idToCheck = null;
                 let idType = null;
         
+                // Extract PMID from pubmed.ncbi.nlm.nih.gov links
                 const pmidMatch = mainLinkHref.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
                 if (pmidMatch && pmidMatch[1]) {
                   idToCheck = pmidMatch[1];
                   idType = 'pmid';
                 }
         
+                // Extract PMCID from ncbi.nlm.nih.gov/pmc/articles/ links
                 if (!idToCheck) {
                   const pmcidMatch = mainLinkHref.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
                   if (pmcidMatch && pmcidMatch[1]) {
@@ -353,10 +364,19 @@ if (!window.mdpiFilterInjected) {
                     idType = 'pmcid';
                   }
                 }
+
+                // Extract DOI if the link is a DOI link (e.g. doi.org)
+                // Only check non-MDPI DOIs via API, as MDPI DOIs would be caught by direct checks.
+                if (!idToCheck && typeof window.MDPIFilterItemContentChecker?.extractDoiFromLinkInternal === 'function') {
+                    const doiInLink = window.MDPIFilterItemContentChecker.extractDoiFromLinkInternal(mainLinkHref);
+                    if (doiInLink && !doiInLink.startsWith(MDPI_DOI)) { 
+                        idToCheck = doiInLink;
+                        idType = 'doi';
+                    }
+                }
         
                 if (idToCheck && idType) {
-                  // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." requires NCBI check for ${idType}: ${idToCheck}.`);
-                  // Ensure runCache and ncbiApiCache are accessible here (runCache is now local, ncbiApiCache is from outer scope).
+                  // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." requires NCBI check for ${idType}: ${idToCheck} from link ${mainLinkHref}.`);
                   isMdpiResult = await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([idToCheck], idType, runCache, ncbiApiCache);
                   if (isMdpiResult) {
                     // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (NCBI API).`);
@@ -368,23 +388,27 @@ if (!window.mdpiFilterInjected) {
             }
         
             // 3. Fallback checks (if not already identified as MDPI)
+            // These checks apply to the item's general content.
             if (!isMdpiResult && config.doiPattern && item.textContent && item.textContent.includes(config.doiPattern)) {
               isMdpiResult = true;
-              // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (DOI pattern).`);
+              // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (DOI pattern in text).`);
             }
             if (!isMdpiResult && config.htmlContains && item.innerHTML && item.innerHTML.includes(config.htmlContains)) {
               isMdpiResult = true;
               // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (HTML contains).`);
             }
+            // Check for MDPI DOI regex in the item's text content
             if (!isMdpiResult && MDPI_DOI_REGEX.test(item.textContent || '')) {
               isMdpiResult = true;
               // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (MDPI DOI regex in text).`);
             }
+            // Final fallback: check if any link within the item (not just the primary one identified by config.linkSelector) points to MDPI.
             if (!isMdpiResult) {
-              const anyMdpiLinkInItem = item.querySelector('a[href*="mdpi.com"], a[href*="10.3390"]');
+              // Check for any link containing MDPI domain or the MDPI DOI prefix.
+              const anyMdpiLinkInItem = item.querySelector(`a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"]`);
               if (anyMdpiLinkInItem) {
                 isMdpiResult = true;
-                // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (fallback link check).`);
+                // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (fallback general MDPI link in item).`);
               }
             }
         
@@ -411,12 +435,12 @@ if (!window.mdpiFilterInjected) {
         
           if (chrome.runtime && chrome.runtime.id) {
             chrome.runtime.sendMessage({
-              type: 'mdpiUpdate', // Ensure this matches background listener
+              type: 'mdpiUpdate', 
               data: {
-                badgeCount: mdpiResultsCount, // Use actual count of MDPI results
-                references: [] // Search pages don't populate detailed references
+                badgeCount: mdpiResultsCount, 
+                references: [] 
               }
-            }, response => { // Add callback to handle potential errors
+            }, response => { 
               if (chrome.runtime.lastError) {
                 // console.warn("[MDPI Filter CS] Error sending search result badge update:", chrome.runtime.lastError.message);
               } else {

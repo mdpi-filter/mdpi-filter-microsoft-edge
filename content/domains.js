@@ -52,6 +52,7 @@ window.MDPIFilterDomains = {
   europepmc: {
     hostRegex: /europepmc\.org$/, // Used by getActiveSearchConfig
                                  // 'europepmc.org' in searchEngineDomains will cover pages on this domain.
+    path: /^\/search/, // ADDED: Only consider /search paths as search engine results
     itemSelector: 'li.separated-list-item',
     htmlContains: '<b>MDPI</b>'
   }

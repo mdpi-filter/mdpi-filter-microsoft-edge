@@ -345,7 +345,7 @@ if (!window.mdpiFilterInjected) {
 
         // --- Main Processing Functions ---
 
-        async function processSearchEngineResults(config) {
+        async function processSearchEngineResults(config, settingsToUse) { // Added settingsToUse parameter
           isProcessing = true;
           // console.log("[MDPI Filter CS] Processing search engine results with config:", config);
           if (!config) {
@@ -353,9 +353,14 @@ if (!window.mdpiFilterInjected) {
             isProcessing = false;
             return;
           }
+          if (!settingsToUse) {
+            console.error("[MDPI Filter CS] processSearchEngineResults called without settings. Aborting.");
+            isProcessing = false;
+            return;
+          }
         
           const items = document.querySelectorAll(config.itemSelector || config.container);
-          console.log(`[MDPI Filter CS] Found ${items.length} items for search processing using selector: ${config.itemSelector || config.container}`);
+          // console.log(`[MDPI Filter CS] Found ${items.length} items for search processing using selector: ${config.itemSelector || config.container}`);
         
           let mdpiResultsCount = 0; 
           const runCache = new Map(); 
@@ -369,9 +374,8 @@ if (!window.mdpiFilterInjected) {
             if (config.linkSelector) {
               const mdpiLinkElement = item.querySelector(config.linkSelector);
               if (mdpiLinkElement && mdpiLinkElement.href) {
-                // For current googleWeb, config.linkSelector is 'a[href*="mdpi.com"]'.
-                // This check ensures the link actually matches MDPI_DOMAIN or MDPI_DOI_REGEX.
-                if (mdpiLinkElement.href.includes(MDPI_DOMAIN) || MDPI_DOI_REGEX.test(mdpiLinkElement.href)) {
+                // Use settingsToUse.mdpiDomain and MDPI_DOI_REGEX (which is based on settingsToUse.mdpiDoiPrefix via MDPI_DOI_CONST)
+                if (mdpiLinkElement.href.includes(settingsToUse.mdpiDomain) || MDPI_DOI_REGEX.test(mdpiLinkElement.href)) {
                   isMdpiResult = true;
                   // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (direct MDPI link via config.linkSelector).`);
                 }
@@ -435,7 +439,8 @@ if (!window.mdpiFilterInjected) {
                 // Only check non-MDPI DOIs via API, as MDPI DOIs would be caught by direct checks.
                 if (!idToCheck && typeof window.MDPIFilterItemContentChecker?.extractDoiFromLinkInternal === 'function') {
                     const doiInLink = window.MDPIFilterItemContentChecker.extractDoiFromLinkInternal(mainLinkHref);
-                    if (doiInLink && !doiInLink.startsWith(MDPI_DOI)) { 
+                    // Use settingsToUse.mdpiDoiPrefix
+                    if (doiInLink && !doiInLink.startsWith(settingsToUse.mdpiDoiPrefix)) { 
                         idToCheck = doiInLink;
                         idType = 'doi';
                     }
@@ -464,6 +469,7 @@ if (!window.mdpiFilterInjected) {
               // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (HTML contains).`);
             }
             // Check for MDPI DOI regex in the item's text content
+            // MDPI_DOI_REGEX is fine here as it's based on the constant MDPI_DOI_CONST, and settingsToUse.mdpiDoiPrefix is also based on it.
             if (!isMdpiResult && MDPI_DOI_REGEX.test(item.textContent || '')) {
               isMdpiResult = true;
               // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (MDPI DOI regex in text).`);
@@ -471,7 +477,8 @@ if (!window.mdpiFilterInjected) {
             // Final fallback: check if any link within the item (not just the primary one identified by config.linkSelector) points to MDPI.
             if (!isMdpiResult) {
               // Check for any link containing MDPI domain or the MDPI DOI prefix.
-              const anyMdpiLinkInItem = item.querySelector(`a[href*="${MDPI_DOMAIN}"], a[href*="${MDPI_DOI}"]`);
+              // Use settingsToUse.mdpiDomain and settingsToUse.mdpiDoiPrefix
+              const anyMdpiLinkInItem = item.querySelector(`a[href*="${settingsToUse.mdpiDomain}"], a[href*="${settingsToUse.mdpiDoiPrefix}"]`);
               if (anyMdpiLinkInItem) {
                 isMdpiResult = true;
                 // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (fallback general MDPI link in item).`);
@@ -479,7 +486,7 @@ if (!window.mdpiFilterInjected) {
             }
         
             if (isMdpiResult) {
-              // Pass config to styleRef
+              // Pass config to styleRef. styleRef uses currentRunSettings internally, which is effectively settingsToUse here.
               styleRef(item, `mdpi-search-${mdpiResultsCount + 1}`, config);
               mdpiResultsCount++;
             } else {
@@ -650,7 +657,7 @@ if (!window.mdpiFilterInjected) {
           const activeDomainConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains);
 
           if (activeDomainConfig) {
-            await processSearchEngineResults(activeDomainConfig); // processSearchEngineResults uses settingsToUse.mode internally
+            await processSearchEngineResults(activeDomainConfig, settingsToUse); // Pass settingsToUse
           } else {
             // --- Step 0: Handle page-specific NCBI API check (e.g., on EuropePMC article page) ---
             const isEuropePMCArticlePage = window.location.hostname.includes('europepmc.org') &&

@@ -20,16 +20,16 @@ window.MDPIFilterDomains = {
   googleWeb: {
     host: 'www.google.com', // Should match an entry or be covered by an entry in searchEngineDomains
     path: /^\/search/,
-    // itemSelector now targets individual image items OR specific standard result content blocks.
-    itemSelector: 'div#iur div[jsname="qQjpJ"], div.N54PNb, div.AP7Wnd, div.VTuCfe, div.VwiC3b, div.maxWxw, div.ULSxyf',
+    // itemSelector targets:
+    // 1. Standard result blocks (div.MjjYud) that DO NOT contain an image carousel (div#iur).
+    // 2. Individual image items (div[jsname="qQjpJ"]) within an image carousel (div#iur).
+    itemSelector: 'div.MjjYud:not(:has(div#iur)), div#iur div[jsname="qQjpJ"]',
     // General link selector to find MDPI links within the item.
     linkSelector: 'a[href*="mdpi.com"]',
     useNcbiApi: true, // Enable NCBI API checks
-    // highlightTargetSelector for standard results.
-    // For image items (div[jsname="qQjpJ"]), these selectors should not match,
-    // causing the item itself to become the highlightTarget.
-    // For standard items that are now also the itemSelector (e.g. div.N54PNb),
-    // querySelector will find itself or a specific child if applicable (e.g., within div.ULSxyf).
+    // highlightTargetSelector for standard results (within div.MjjYud).
+    // For image items (div[jsname="qQjpJ"]), these selectors are not expected to match,
+    // causing the item itself to become the highlightTarget, which is correct.
     highlightTargetSelector: 'div.N54PNb, div.AP7Wnd, div.VTuCfe, div.VwiC3b, div.maxWxw, div.ULSxyf div.N54PNb'
   },
 

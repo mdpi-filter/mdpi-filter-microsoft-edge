@@ -375,10 +375,10 @@ if (!window.mdpiFilterInjected) {
                   }
                 }
 
-                // Extract PMID from europepmc.org links (e.g., /articles/123..., /abstract/MED/123...)
+                // Extract PMID from europepmc.org links (e.g., /articles/123..., /abstract/MED/123..., /article/med/123...)
                 // Ensure it's purely numeric to treat as potential PMID
                 if (!idToCheck) {
-                  const europePmcPmidMatch = mainLinkHref.match(/europepmc\.org\/(?:articles|abstract\/MED)\/(\d+)(?:\/?$|\?|#)/i);
+                  const europePmcPmidMatch = mainLinkHref.match(/europepmc\.org\/(?:articles|abstract\/MED|article\/med)\/(\d+)(?:\/?$|\?|#)/i);
                   if (europePmcPmidMatch && europePmcPmidMatch[1] && /^\d+$/.test(europePmcPmidMatch[1])) {
                     idToCheck = europePmcPmidMatch[1];
                     idType = 'pmid';

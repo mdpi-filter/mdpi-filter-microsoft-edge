@@ -531,6 +531,12 @@ if (!window.mdpiFilterInjected) {
 
           let allPotentialReferenceItems = Array.from(document.querySelectorAll(referenceListSelectors));
 
+          // Filter out items that are descendants of other items in the list to avoid processing nested matches
+          allPotentialReferenceItems = allPotentialReferenceItems.filter(item => {
+            return !allPotentialReferenceItems.some(otherItem => otherItem !== item && otherItem.contains(item));
+          });
+
+
           if (window.location.hostname.includes('europepmc.org') &&
               (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
               !window.location.pathname.startsWith('/search')) {

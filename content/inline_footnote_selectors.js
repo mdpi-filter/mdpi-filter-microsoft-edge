@@ -97,6 +97,16 @@
                 supParentSelectors.push(`sup a[href="#${escapedWileyBibId}"]`);
             }
         }
+    } else {
+      // --- Wiley fallback: If the selector is a data-bib-id (no id), still add selectors for it ---
+      // This covers the case where the reference <li> has only data-bib-id, and inline <a> uses href="#data-bib-id"
+      // Try to find an element with data-bib-id === listItemDomId
+      const bibIdElement = document.querySelector(`[data-bib-id="${CSS.escape(listItemDomId)}"]`);
+      if (bibIdElement) {
+        // Add selectors for a[href="#<data-bib-id>"] and sup a[href="#<data-bib-id>"]
+        commonSelectors.push(`a[href="#${listItemDomId}"]`);
+        supParentSelectors.push(`sup a[href="#${listItemDomId}"]`);
+      }
     }
     // --- End Wiley Specific Check Integration ---
 

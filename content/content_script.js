@@ -96,50 +96,89 @@ if (!window.mdpiFilterInjected) {
     // console.log("[MDPI Filter CS] All dependencies met. Content script executing (mdpiFilterInjected set).");
 
     // --- Constants, Selectors, State ---
-    const MDPI_DOMAIN = 'mdpi.com';
-    const MDPI_DOI    = '10.3390';
-    const MDPI_DOI_REGEX = new RegExp(MDPI_DOI.replace(/\./g, '\\.') + "/[^\\s\"'<>&]+", "i");
-    const domains     = window.MDPIFilterDomains || {};
-    const sanitize    = window.sanitize || (html => html);
-    const referenceListSelectors = window.MDPIFilterReferenceSelectors; // Defined by reference_selectors.js
+    const MDPI_DOMAIN_CONST = 'mdpi.com'; // Renamed to avoid conflict if settings also has mdpiDomain
+    const MDPI_DOI_CONST = '10.3390';   // Renamed
+    const MDPI_DOI_REGEX = new RegExp(MDPI_DOI_CONST.replace(/\./g, '\\.') + "/[^\\s\"'<>&]+", "i");
+    const domains = window.MDPIFilterDomains || {};
+    const sanitize = window.sanitize || (html => html);
+    const referenceListSelectors = window.MDPIFilterReferenceSelectors;
     if (typeof referenceListSelectors === 'undefined' || referenceListSelectors === null || referenceListSelectors.trim() === '') {
-      console.error("[MDPI Filter CS] CRITICAL: referenceListSelectors is undefined or empty after assignment from window.MDPIFilterReferenceSelectors. Value:", referenceListSelectors, "Window object value:", window.MDPIFilterReferenceSelectors);
-    } else {
-      // console.log("[MDPI Filter CS] referenceListSelectors initialized successfully:", referenceListSelectors.substring(0, 100) + "..."); // Log part of it
+      console.error("[MDPI Filter CS] CRITICAL: referenceListSelectors is undefined or empty. Value:", referenceListSelectors, "Window object value:", window.MDPIFilterReferenceSelectors);
     }
-    const uniqueMdpiReferences = new Set();
-    let collectedMdpiReferences = []; // Array to store detailed reference info
-    let refIdCounter = 0; // Counter for unique reference IDs
 
-    // Declare mainObserverInstance in a scope accessible by runAll and setupMainObserver
+    // let collectedMdpiReferences = []; // This global one will be updated by updatePopupData
+    let refIdCounter = 0;
+
     let mainObserverInstance = null;
 
+    // Store settings globally within the script
+    let currentRunSettings = {
+        mode: 'highlight', // Default
+        mdpiDomain: MDPI_DOMAIN_CONST,
+        mdpiDoiPrefix: MDPI_DOI_CONST
+    };
     // ---
 
     if (chrome.runtime && chrome.runtime.id) {
-      chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
-        // Check for errors after the async storage operation
+      chrome.storage.sync.get({ mode: 'highlight' }, (retrievedStorageSettings) => {
         if (chrome.runtime.lastError) {
-          console.error(`[MDPI Filter CS] Error accessing storage: ${chrome.runtime.lastError.message}. Halting script initialization for this frame.`);
-          return; // Abort if storage access failed
+          console.error(`[MDPI Filter CS] Error accessing storage: ${chrome.runtime.lastError.message}. Using default settings.`);
+          // currentRunSettings already has defaults
+        } else if (retrievedStorageSettings) {
+          currentRunSettings.mode = retrievedStorageSettings.mode;
+          // mdpiDomain and mdpiDoiPrefix are fixed for now, but could be added to storage later
         }
 
-        // Re-check runtime context after the async operation, as it might have been invalidated
         if (!(chrome.runtime && chrome.runtime.id)) {
           console.warn("[MDPI Filter CS] Extension context became invalidated after storage.sync.get. Halting script initialization for this frame.");
-          return; // Abort if context is now invalid
+          return;
         }
 
-        console.log('%c MDPI FILTER EXTENSION SCRIPT LOADED AND CONTEXT SELECTED! CHECK HERE! ', 'background: yellow; color: black; font-size: 16px; font-weight: bold;');
-        // console.log("[MDPI Filter] Mode:", mode);
+        console.log('%c MDPI FILTER EXTENSION SCRIPT LOADED! ', 'background: yellow; color: black; font-size: 16px; font-weight: bold;');
+        console.log("[MDPI Filter] Initial settings:", currentRunSettings);
 
-        // --- Use Caches from Global Scope ---
         const { ncbiApiCache, citationProcessCache } = window.MDPIFilterCaches;
-        // ---
-
-        const mdpiColor = '#E2211C'; // Default MDPI Red, can be adjusted based on mode if needed
-
+        const mdpiColor = '#E2211C';
         let isProcessing = false;
+
+        // This function will be responsible for updating the global collectedMdpiReferences
+        // and then calling sendUpdateToBackground.
+        function updatePopupData(newCollectedReferences, count) {
+            // Directly update the global/module-scoped collectedMdpiReferences
+            // This was missing, leading to the popup not getting updated correctly.
+            // The `collectedMdpiReferences` variable used by sendUpdateToBackground
+            // needs to be the one at the higher scope.
+            // However, processAllReferences returns its own list.
+            // So, the caller of processAllReferences (runAll) should handle this.
+            // This function is now more about sending the data.
+
+            console.log(`[MDPI Filter CS] updatePopupData: Attempting to send 'mdpiUpdate' to background. Count: ${count}`);
+            if (!chrome.runtime || !chrome.runtime.id) {
+                console.error('[MDPI Filter CS] CRITICAL: chrome.runtime.id is not available in updatePopupData.');
+                return;
+            }
+            const dataToSend = {
+                badgeCount: count,
+                references: newCollectedReferences.map(ref => ({
+                    id: ref.id,
+                    text: ref.text,
+                    number: ref.number,
+                    listItemDomId: ref.listItemDomId
+                }))
+            };
+            try {
+                chrome.runtime.sendMessage({ type: 'mdpiUpdate', data: dataToSend }, response => {
+                    if (chrome.runtime.lastError) {
+                        console.error('[MDPI Filter CS] Error sending mdpiUpdate from updatePopupData:', chrome.runtime.lastError.message);
+                    } else {
+                        // console.log('[MDPI Filter CS] mdpiUpdate successfully sent from updatePopupData. Response:', response);
+                    }
+                });
+            } catch (e) {
+                console.error('[MDPI Filter CS] Exception sending mdpiUpdate from updatePopupData:', e);
+            }
+        }
+
         // --- Helper Function Definitions ---
 
         // New function to send updates to the background script
@@ -217,53 +256,44 @@ if (!window.mdpiFilterInjected) {
         // Update styleRef to accept config and use highlightTargetSelector if present
         function styleRef(item, refId, config) {
           if (!item || typeof item.setAttribute !== 'function') {
-            // console.warn("[MDPI Filter CS] styleRef: Invalid item provided or item lacks setAttribute.", item);
             return;
           }
-          // Use highlightTargetSelector if present in config
           let highlightTarget = item;
           if (config && config.highlightTargetSelector) {
             const targetElement = item.querySelector(config.highlightTargetSelector);
             if (targetElement) {
               highlightTarget = targetElement;
-            } else {
-              // console.warn(`[MDPI Filter CS] styleRef: highlightTargetSelector "${config.highlightTargetSelector}" not found within item. Defaulting to item itself.`);
             }
           }
           highlightTarget.setAttribute('data-mdpi-filter-ref-id', refId);
 
-          if (mode === 'hide') {
+          if (currentRunSettings.mode === 'hide') { // Use currentRunSettings.mode
             item.classList.add('mdpi-hidden-reference');
-            item.style.display = 'none'; // Ensure it's hidden
-            // console.log(`[MDPI Filter CS] Hiding item with refId ${refId}:`, item);
-          } else { // 'highlight' or default
+            item.style.display = 'none';
+          } else {
             item.classList.add('mdpi-highlighted-reference');
             // Apply specific styling for Google search results
             if (config && (config.host === 'www.google.com' || config.host === 'scholar.google.com')) {
-              highlightTarget.classList.add('mdpi-search-result-highlight'); // Add class to the target
-              // Unified styling for Google (previously light mode style)
-              highlightTarget.style.backgroundColor = 'rgba(255, 182, 193, 0.3)'; // Light pink, less aggressive
+              highlightTarget.classList.add('mdpi-search-result-highlight');
+              highlightTarget.style.backgroundColor = 'rgba(255, 182, 193, 0.3)';
               highlightTarget.style.border = `1px solid ${mdpiColor}`;
               highlightTarget.style.borderRadius = '3px';
               highlightTarget.style.padding = '1px 3px';
-              highlightTarget.style.boxShadow = ''; // Ensure no box shadow from previous dark mode style
+              highlightTarget.style.boxShadow = '';
             } else {
-              // General reference styling (non-Google search or if config not matched)
               highlightTarget.style.borderLeft = `3px solid ${mdpiColor}`;
               highlightTarget.style.paddingLeft = '5px';
-              highlightTarget.style.backgroundColor = 'rgba(226, 33, 28, 0.05)'; // Very subtle background
+              highlightTarget.style.backgroundColor = 'rgba(226, 33, 28, 0.05)';
             }
-            // console.log(`[MDPI Filter CS] Highlighting item with refId ${refId}:`, item);
           }
         }
-        
-        // Wrapper for the globally available item content checker
+
         const isMdpiItemByContent = (item, runCache) => {
           if (!item) return false;
-          // MDPI_DOI and MDPI_DOMAIN are accessible from the outer scope here
-          return window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, MDPI_DOI, MDPI_DOMAIN);
+          // Use currentRunSettings for mdpiDoiPrefix and mdpiDomain
+          return window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, currentRunSettings.mdpiDoiPrefix, currentRunSettings.mdpiDomain);
         };
-        
+
         function updateBadgeAndReferences() {
           const badgeCount = collectedMdpiReferences.length;
           const text = badgeCount > 0 ? String(badgeCount) : '';
@@ -487,71 +517,50 @@ if (!window.mdpiFilterInjected) {
           isProcessing = false;
         }
 
-        async function processAllReferences(runCache, settings) {
+        async function processAllReferences(runCache, settingsToUse) { // settingsToUse is currentRunSettings
           // console.log("[MDPI Filter CS] processAllReferences called.");
-          const collectedMdpiReferences = [];
+          let collectedMdpiReferences = []; // FIX: Was const, changed to let
           let mdpiFoundInRefs = false;
-          const uniqueMdpiRefsForThisRun = new Map(); // Tracks unique MDPI refs by their generated ID for this run
-        
+          const uniqueMdpiRefsForThisRun = new Map();
+
           const referenceListSelectors = window.MDPIFilterReferenceSelectors;
           if (!referenceListSelectors) {
-            // console.warn("[MDPI Filter CS] Reference selectors not found.");
             return { collectedMdpiReferences, mdpiFoundInRefs };
           }
-          // console.log("[MDPI Filter CS] Using reference selectors:", referenceListSelectors);
-        
+
           let allPotentialReferenceItems = Array.from(document.querySelectorAll(referenceListSelectors));
-          // console.log(`[MDPI Filter CS] Found ${allPotentialReferenceItems.length} potential reference items initially.`);
-        
-          // --- Filter out items from "Similar Articles" and "Cited By/Impact" sections on EuropePMC article pages ---
+
           if (window.location.hostname.includes('europepmc.org') &&
-              (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) && // Check for article-specific paths
+              (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
               !window.location.pathname.startsWith('/search')) {
-        
-            // console.log("[MDPI Filter CS] On EuropePMC article page, filtering reference items.");
             allPotentialReferenceItems = allPotentialReferenceItems.filter(item => {
               const inSimilarArticles = item.closest('div#similar-articles');
-              const inImpactSection = item.closest('div#impact'); // This section contains "Article citations"
-        
-              if (inSimilarArticles) {
-                // console.log('[MDPI Filter CS] Filtering out item from EuropePMC "Similar Articles" section:', item.textContent.substring(0,100));
-                return false;
-              }
-              if (inImpactSection) {
-                // console.log('[MDPI Filter CS] Filtering out item from EuropePMC "Impact/Citations" section:', item.textContent.substring(0,100));
-                return false;
-              }
-              return true;
+              const inImpactSection = item.closest('div#impact');
+              return !inSimilarArticles && !inImpactSection;
             });
-            // console.log(`[MDPI Filter CS] Found ${allPotentialReferenceItems.length} reference items after EuropePMC article page filtering.`);
           }
-          // --- End of EuropePMC specific filtering ---
-        
-          const referenceItems = allPotentialReferenceItems; // Use the filtered list
-        
+
+          const referenceItems = allPotentialReferenceItems;
+
           if (referenceItems.length === 0) {
-            // console.log("[MDPI Filter CS] No reference items found after filtering (or initially).");
-            updatePopupData([], 0); // Ensure popup is cleared if no refs
+            // updatePopupData([], 0); // Caller (runAll) will handle final update.
             return { collectedMdpiReferences, mdpiFoundInRefs };
           }
-        
-          // Reset expansion flags in link_extractor before processing items,
-          // in case the page structure changed or accordions were closed.
+
           if (window.MDPIFilterLinkExtractor && typeof window.MDPIFilterLinkExtractor.resetExpansionFlags === 'function') {
             window.MDPIFilterLinkExtractor.resetExpansionFlags();
           }
-        
-          // --- Step 1: Pre-collect all potential NCBI IDs from all items for batch API call ---
+
           const allNcbiIdsToPreFetch = { pmid: new Set(), pmcid: new Set(), doi: new Set() };
           referenceItems.forEach(itemElement => {
             const itemText = itemElement.textContent || "";
             const links = Array.from(itemElement.querySelectorAll('a[href]'));
-        
+
             const pmidTextMatch = itemText.match(/\bPMID:\s*(\d+)\b/gi);
             if (pmidTextMatch) pmidTextMatch.forEach(m => allNcbiIdsToPreFetch.pmid.add(m.match(/\d+/)[0]));
             const pmcidTextMatch = itemText.match(/\b(PMC\d+)\b/gi);
             if (pmcidTextMatch) pmcidTextMatch.forEach(m => allNcbiIdsToPreFetch.pmcid.add(m));
-        
+
             links.forEach(link => {
               if (link.href) {
                 const pmidLinkMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
@@ -560,7 +569,7 @@ if (!window.mdpiFilterInjected) {
                 if (pmcidLinkMatch && pmcidLinkMatch[1]) allNcbiIdsToPreFetch.pmcid.add(pmcidLinkMatch[1]);
                 
                 const doiInLink = window.MDPIFilterItemContentChecker.extractDoiFromLinkInternal ? window.MDPIFilterItemContentChecker.extractDoiFromLinkInternal(link.href) : null;
-                if (doiInLink && !doiInLink.startsWith(MDPI_DOI)) {
+                if (doiInLink && !doiInLink.startsWith(settingsToUse.mdpiDoiPrefix)) { // Use settingsToUse
                     allNcbiIdsToPreFetch.doi.add(doiInLink);
                 }
               }
@@ -568,357 +577,260 @@ if (!window.mdpiFilterInjected) {
             const doiTextPattern = /\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/gi;
             let doiMatch;
             while((doiMatch = doiTextPattern.exec(itemText)) !== null) {
-                if (doiMatch[1] && !doiMatch[1].startsWith(MDPI_DOI)) {
+                if (doiMatch[1] && !doiMatch[1].startsWith(settingsToUse.mdpiDoiPrefix)) { // Use settingsToUse
                     allNcbiIdsToPreFetch.doi.add(doiMatch[1]);
                 }
             }
           });
-        
-          console.log(`[MDPI Filter CS] Pre-collected PMIDs: ${allNcbiIdsToPreFetch.pmid.size}, PMCIDs: ${allNcbiIdsToPreFetch.pmcid.size}, DOIs for NCBI: ${allNcbiIdsToPreFetch.doi.size}`);
-        
-          // --- Step 2: Populate runCache using global ncbiApiCache and then NCBI API ---
+
           const idsForAPICall = { pmid: [], pmcid: [], doi: [] };
-        
-          allNcbiIdsToPreFetch.pmid.forEach(id => {
-            if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.pmid.push(id);
-          });
-          allNcbiIdsToPreFetch.pmcid.forEach(id => {
-            if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.pmcid.push(id);
-          });
-          allNcbiIdsToPreFetch.doi.forEach(id => {
-             if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.doi.push(id);
-          });
-        
-          if (idsForAPICall.pmid.length > 0) {
-            console.log(`[MDPI Filter CS] Querying NCBI for ${idsForAPICall.pmid.length} PMIDs.`);
-            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmid, 'pmid', runCache, ncbiApiCache);
-          }
-          if (idsForAPICall.pmcid.length > 0) {
-            console.log(`[MDPI Filter CS] Querying NCBI for ${idsForAPICall.pmcid.length} PMCIDs.`);
-            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmcid, 'pmcid', runCache, ncbiApiCache);
-          }
-          if (idsForAPICall.doi.length > 0) {
-            console.log(`[MDPI Filter CS] Querying NCBI for ${idsForAPICall.doi.length} non-MDPI DOIs.`);
-            await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.doi, 'doi', runCache, ncbiApiCache);
-          }
-          console.log("[MDPI Filter CS] NCBI ID check phase complete. runCache size:", runCache.size);
-          // For debugging, log a snippet of the runCache if it's small, or just its keys
-          if (runCache.size > 0 && runCache.size < 20) {
-            console.log("[MDPI Filter CS] Current runCache contents:", JSON.parse(JSON.stringify(Array.from(runCache.entries()))));
-          } else if (runCache.size > 0) {
-            console.log("[MDPI Filter CS] Current runCache keys:", JSON.parse(JSON.stringify(Array.from(runCache.keys()))));
-          }
-        
-          // --- Step 3: Process each reference item using the populated runCache ---
-          let localRefIdCounter = refIdCounter; 
-        
+          allNcbiIdsToPreFetch.pmid.forEach(id => { if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.pmid.push(id); });
+          allNcbiIdsToPreFetch.pmcid.forEach(id => { if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.pmcid.push(id); });
+          allNcbiIdsToPreFetch.doi.forEach(id => { if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.doi.push(id); });
+
+          if (idsForAPICall.pmid.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmid, 'pmid', runCache, ncbiApiCache);
+          if (idsForAPICall.pmcid.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmcid, 'pmcid', runCache, ncbiApiCache);
+          if (idsForAPICall.doi.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.doi, 'doi', runCache, ncbiApiCache);
+
+          let localRefIdCounter = refIdCounter;
           for (const itemElement of referenceItems) {
             const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(itemElement, localRefIdCounter);
             localRefIdCounter = updatedRefIdCounter;
-        
-            // Log the specific item being processed before calling isMdpiItemByContent
-            const itemPreviewText = (itemElement.textContent || "").substring(0, 70).trim().replace(/\s+/g, ' ');
-            console.log(`[MDPI Filter CS] Processing item for MDPI status: ID '${extractedId}', Preview: "${itemPreviewText}..."`);
 
-            const isMdpi = isMdpiItemByContent(itemElement, runCache);
-            citationProcessCache.set(itemElement, isMdpi); 
-        
+            const isMdpi = isMdpiItemByContent(itemElement, runCache); // isMdpiItemByContent uses currentRunSettings internally
+            citationProcessCache.set(itemElement, isMdpi);
+
             if (isMdpi) {
-              console.log(`[MDPI Filter CS] ITEM FLAGGED AS MDPI: ID '${extractedId}', Preview: "${itemPreviewText}...". Adding to collected references.`);
-              styleRef(itemElement, extractedId);
-              const refData = extractReferenceData(itemElement); // extractReferenceData now uses the updated localRefIdCounter via global refIdCounter
+              mdpiFoundInRefs = true; // Set this flag
+              styleRef(itemElement, extractedId); // styleRef uses currentRunSettings.mode
+              const refData = extractReferenceData(itemElement);
               if (refData && !uniqueMdpiRefsForThisRun.has(refData.id)) {
                 uniqueMdpiRefsForThisRun.set(refData.id, refData);
               }
-              // Inline footnote styling
-              let idForFootnoteLinking = itemElement.id;
-              if (!idForFootnoteLinking || !/^[a-zA-Z0-9-_:.]+$/.test(idForFootnoteLinking) || idForFootnoteLinking.length >= 100) {
-                idForFootnoteLinking = extractedId;
-              }
+              let idForFootnoteLinking = itemElement.id || itemElement.getAttribute('data-bib-id') || extractedId;
               const footnoteSelectors = window.MDPIFilterUtils.generateInlineFootnoteSelectors(idForFootnoteLinking);
               if (footnoteSelectors) {
                 try {
                   const footnotes = document.querySelectorAll(footnoteSelectors);
                   footnotes.forEach(footnote => {
-                    window.MDPIFilterUtils.styleInlineFootnotes(footnote, extractedId, itemElement, mode);
+                    window.MDPIFilterUtils.styleInlineFootnotes(footnote, extractedId, itemElement, settingsToUse.mode); // Pass mode
                   });
-                } catch (e) {
-                  console.warn(`[MDPI Filter CS] Error selecting/styling footnotes for ${idForFootnoteLinking} with selectors "${footnoteSelectors}":`, e);
-                }
+                } catch (e) { /* console.warn */ }
               }
             } else {
-              // Ensure styling is removed if not MDPI (e.g. if it was MDPI on a previous run)
               itemElement.classList.remove('mdpi-highlighted-reference', 'mdpi-hidden-reference');
-              itemElement.style.backgroundColor = '';
-              itemElement.style.border = '';
-              itemElement.style.padding = '';
-              itemElement.style.display = ''; 
+              itemElement.style.backgroundColor = ''; itemElement.style.border = ''; itemElement.style.padding = ''; itemElement.style.display = '';
             }
           }
-          refIdCounter = localRefIdCounter; 
-        
-          collectedMdpiReferences = Array.from(uniqueMdpiRefsForThisRun.values());
-          console.log(`[MDPI Filter CS] processAllReferences FINISHED. Collected MDPI references count: ${collectedMdpiReferences.length}`);
-          if (collectedMdpiReferences.length > 0) {
-            console.log("[MDPI Filter CS] Collected MDPI Reference IDs for this run:", collectedMdpiReferences.map(r => r.id));
-          }
-          updateBadgeAndReferences();
-          sendUpdateToBackground(); // Call the new function after processing references
-          isProcessing = false;
+          refIdCounter = localRefIdCounter;
+          collectedMdpiReferences = Array.from(uniqueMdpiRefsForThisRun.values()); // Assign to local `let` variable
+          // console.log(`[MDPI Filter CS] processAllReferences FINISHED. Collected MDPI references count: ${collectedMdpiReferences.length}`);
+          return { collectedMdpiReferences, mdpiFoundInRefs };
         }
 
         const debouncedRunAll = window.debounce(() => {
-          runAll(); // This will now call the async runAll
-        }, 250);
-
-        async function runAll(settings) {
-          // console.log("[MDPI Filter CS] runAll triggered. Settings:", settings);
-          const runCache = new Map(); 
-
-          // --- Step 0: Handle page-specific NCBI API check (e.g., on EuropePMC article page) ---
-          const activeDomainConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains);
-          const isEuropePMCArticlePage = window.location.hostname.includes('europepmc.org') &&
-                                   (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
-                                   !window.location.pathname.startsWith('/search');
-
-          if (isEuropePMCArticlePage && domains.europepmc && domains.europepmc.useNcbiApi) {
-            // console.log("[MDPI Filter CS] On EuropePMC article page, attempting direct ID check from URL/meta.");
-            let pagePmid = null;
-            let pagePmcid = null;
-
-            // Try extracting from URL first
-            let urlMatch = window.location.pathname.match(/^\/(?:article\/(?:MED|PMC)\/|med\/|pmc\/)(PMC\d+|\d+)/i);
-            if (urlMatch && urlMatch[1]) {
-              if (urlMatch[1].toUpperCase().startsWith('PMC')) {
-                pagePmcid = urlMatch[1].toUpperCase();
-              } else if (/^\d+$/.test(urlMatch[1])) {
-                pagePmid = urlMatch[1];
-              }
-            }
-
-            // If not in URL, try meta tags (less common for the ID itself on EuropePMC but good fallback)
-            if (!pagePmid && !pagePmcid) {
-              const pmidMeta = document.querySelector('meta[name="citation_pmid"]');
-              if (pmidMeta && pmidMeta.content) pagePmid = pmidMeta.content;
-              const pmcidMeta = document.querySelector('meta[name="citation_pmcid"]');
-              if (pmcidMeta && pmcidMeta.content) pagePmcid = pmcidMeta.content.toUpperCase();
-            }
-            
-            const idsForDirectApiCall = { pmid: [], pmcid: [], doi: [] }; // DOI not typical here but keep structure
-            if (pagePmid && !ncbiApiCache.has(pagePmid)) idsForDirectApiCall.pmid.push(pagePmid);
-            else if (pagePmid) runCache.set(pagePmid, ncbiApiCache.get(pagePmid));
-
-            if (pagePmcid && !ncbiApiCache.has(pagePmcid)) idsForDirectApiCall.pmcid.push(pagePmcid);
-            else if (pagePmcid) runCache.set(pagePmcid, ncbiApiCache.get(pagePmcid));
-
-            if (idsForDirectApiCall.pmid.length > 0) {
-              // console.log(`[MDPI Filter CS] Querying NCBI for page PMID: ${idsForDirectApiCall.pmid.join(', ')}`);
-              await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForDirectApiCall.pmid, 'pmid', runCache, ncbiApiCache);
-            }
-            if (idsForDirectApiCall.pmcid.length > 0) {
-              // console.log(`[MDPI Filter CS] Querying NCBI for page PMCID: ${idsForDirectApiCall.pmcid.join(', ')}`);
-              await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForDirectApiCall.pmcid, 'pmcid', runCache, ncbiApiCache);
-            }
-          }
-          // --- End of Step 0 ---
-
-
-          // --- Step 1: Pre-collect all potential NCBI IDs from reference items and other scannable content ---
-          // This step now needs to be careful NOT to collect from "Similar Articles" or "Cited By" for the main pre-fetch,
-          // as those are handled by their own processors. The filtering in processAllReferences handles this for the main list.
-          // For a global pre-fetch, we might need to be more selective or rely on the individual processors' needs.
-          // For now, processAllReferences's internal pre-fetch logic is the primary source for main refs.
-          const allNcbiIdsToPreFetch = { pmid: new Set(), pmcid: new Set(), doi: new Set() };
-
-          // The pre-collection logic inside processAllReferences will populate this for the *main references*.
-          // Other processors (CitedBy, SimilarArticles) will use item_content_checker, which can extract IDs if needed,
-          // and those will hit the API if not already in runCache/ncbiApiCache.
-
-          // --- Step 2: Populate runCache using global ncbiApiCache and then NCBI API ---
-          // This step is primarily for IDs collected by processAllReferences for the main reference list.
-          // However, the API handler itself is robust and can be called by other processors too.
-          // The `allNcbiIdsToPreFetch` will be populated by the first pass of `processAllReferences`
-          // before it does its main loop. This is a bit intertwined.
-          // Let's ensure `processAllReferences` does its pre-collection first.
-
-          // Initial scan for pre-fetching (this part of processAllReferences needs to run first)
-          // We'll call a modified version or extract the pre-collection part.
-          // For simplicity, let's assume processAllReferences handles its own pre-fetching internally for now.
-          // The runCache will be populated progressively.
-
-          // --- Step 3: Process each reference item using the populated runCache (for popup) ---
-          const { collectedMdpiReferences: mainCollectedRefs, mdpiFoundInRefs: mainMdpiFound } = await processAllReferences(runCache, settings);
-          // console.log("[MDPI Filter CS] Main references processed. MDPI found:", mainMdpiFound, "Collected:", mainCollectedRefs.length);
-
-          // --- Step 4: Process "Cited By" entries (styles in place, does not contribute to popup count) ---
-          if (window.MDPIFilterCitedBy && window.MDPIFilterCitedBy.Processor && typeof window.MDPIFilterCitedBy.Processor.processEntries === 'function') {
-            // console.log("[MDPI Filter CS] Processing 'Cited By' entries...");
-            await window.MDPIFilterCitedBy.Processor.processEntries(runCache, settings);
-          }
-
-          // --- Step 5: Process "Similar Articles" entries (styles in place, does not contribute to popup count) ---
-          if (window.MDPIFilterSimilarArticles && window.MDPIFilterSimilarArticles.Processor && typeof window.MDPIFilterSimilarArticles.Processor.processEntries === 'function') {
-            // console.log("[MDPI Filter CS] Processing 'Similar Articles' entries...");
-            await window.MDPIFilterSimilarArticles.Processor.processEntries(runCache, settings);
-          }
-
-          // --- Step 6: Style inline footnotes (does not contribute to popup count) ---
-          if (window.MDPIFilterUtils && typeof window.MDPIFilterUtils.styleInlineFootnotes === 'function') {
-            // console.log("[MDPI Filter CS] Styling inline footnotes...");
-            window.MDPIFilterUtils.styleInlineFootnotes(settings.mode, MDPI_DOI, MDPI_DOMAIN, runCache);
-          }
-
-          // --- Step 7: Update popup with data from main references only ---
-          updatePopupData(mainCollectedRefs, mainCollectedRefs.length);
-          // console.log("[MDPI Filter CS] runAll finished. Popup updated.");
-    }
-
-    function initializeOrReRun() {
-      console.log("[MDPI Filter CS] >>> initializeOrReRun function entered."); 
-      if (!chrome.runtime?.id) {
-        console.warn('[MDPI Filter CS] initializeOrReRun: Extension context invalidated. Aborting.');
-        return;
-      }
-
-      const currentHostname = window.location.hostname;
-      const currentPathname = window.location.pathname;
-
-      const searchConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
-
-      // Wiley: If accordion is present and closed, click and wait for <ul>
-      if (currentHostname.includes('onlinelibrary.wiley.com')) {
-        const accordionControl = document.querySelector('div.article-accordion .accordion__control[aria-expanded="false"]');
-        if (accordionControl) {
-          accordionControl.click();
-          // Wait for <ul> to appear (max 2s)
-          let waited = 0;
-          const interval = setInterval(() => {
-            const ul = document.querySelector('div.article-accordion ul.rlist.separator');
-            if (ul || waited > 2000) {
-              clearInterval(interval);
-              runAll();
-              setupMainObserver();
-            }
-            waited += 100;
-          }, 100);
-          return;
-        }
-      }
-
-      runAll();
-      setupMainObserver();
-
-      function setupMainObserver() {
-        if (mainObserverInstance) mainObserverInstance.disconnect();
-        mainObserverInstance = new MutationObserver((mutationsList, observer) => {
-          if (!(chrome.runtime && chrome.runtime.id)) {
-            console.warn('[MDPI Filter] Main observer: Extension context invalidated. Skipping debouncedRunAll.');
-            if(mainObserverInstance) mainObserverInstance.disconnect();
+          if (!chrome.runtime?.id) {
+            console.warn('[MDPI Filter CS] debouncedRunAll: Extension context invalidated. Aborting.');
+            if (mainObserverInstance) mainObserverInstance.disconnect();
             return;
           }
-          debouncedRunAll();
-        });
-        mainObserverInstance.observe(document.documentElement, {
-          childList: true,
-          subtree: true
-        });
-      }
-    }
+          runAll(currentRunSettings); // Pass the up-to-date settings
+        }, 250);
 
-    // --- Message Listener for Scrolling ---
-    if (chrome.runtime && chrome.runtime.onMessage) {
-      chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-        // Accept both scrollToRef and scrollToRefOnPage for compatibility
-        if ((msg.type === 'scrollToRefOnPage' || msg.type === 'scrollToRef') && msg.refId) {
-          // --- Wiley: Expand References Accordion if Needed ---
-          if (window.location.hostname.includes('onlinelibrary.wiley.com')) {
-            // Find the accordion control for "References"
-            const accordionControls = document.querySelectorAll('div.article-accordion .accordion__control[aria-expanded="false"]');
-            for (const control of accordionControls) {
-              const titleElement = control.querySelector('.section__title');
+        async function runAll(settingsToUse) { // Parameter name changed for clarity
+          if (!settingsToUse) {
+            console.error("[MDPI Filter CS] runAll called without settings. Aborting.");
+            return;
+          }
+          // console.log("[MDPI Filter CS] runAll triggered. Settings:", settingsToUse);
+          isProcessing = true;
+          clearPreviousHighlights(); // Clear previous state before processing
+          const runCache = new Map();
+
+          const activeDomainConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains);
+
+          if (activeDomainConfig) {
+            await processSearchEngineResults(activeDomainConfig); // processSearchEngineResults uses settingsToUse.mode internally
+          } else {
+            // --- Step 0: Handle page-specific NCBI API check (e.g., on EuropePMC article page) ---
+            const isEuropePMCArticlePage = window.location.hostname.includes('europepmc.org') &&
+                                     (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
+                                     !window.location.pathname.startsWith('/search');
+
+            if (isEuropePMCArticlePage && domains.europepmc && domains.europepmc.useNcbiApi) {
+              let pagePmid = null; let pagePmcid = null;
+              let urlMatch = window.location.pathname.match(/^\/(?:article\/(?:MED|PMC)\/|med\/|pmc\/)(PMC\d+|\d+)/i);
+              if (urlMatch && urlMatch[1]) { if (urlMatch[1].toUpperCase().startsWith('PMC')) pagePmcid = urlMatch[1].toUpperCase(); else if (/^\d+$/.test(urlMatch[1])) pagePmid = urlMatch[1]; }
+              if (!pagePmid && !pagePmcid) { /* ... meta tag check ... */ }
+              const idsForDirectApiCall = { pmid: [], pmcid: [], doi: [] };
+              if (pagePmid) { if (ncbiApiCache.has(pagePmid)) runCache.set(pagePmid, ncbiApiCache.get(pagePmid)); else idsForDirectApiCall.pmid.push(pagePmid); }
+              if (pagePmcid) { if (ncbiApiCache.has(pagePmcid)) runCache.set(pagePmcid, ncbiApiCache.get(pagePmcid)); else idsForDirectApiCall.pmcid.push(pagePmcid); }
+              if (idsForDirectApiCall.pmid.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForDirectApiCall.pmid, 'pmid', runCache, ncbiApiCache);
+              if (idsForDirectApiCall.pmcid.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForDirectApiCall.pmcid, 'pmcid', runCache, ncbiApiCache);
+            }
+            // --- End of Step 0 ---
+
+            const { collectedMdpiReferences: mainCollectedRefs, mdpiFoundInRefs: mainMdpiFound } = await processAllReferences(runCache, settingsToUse);
+            
+            if (window.MDPIFilterCitedBy?.Processor?.processEntries) {
+              await window.MDPIFilterCitedBy.Processor.processEntries(runCache, settingsToUse);
+            }
+            if (window.MDPIFilterSimilarArticles?.Processor?.processEntries) {
+              await window.MDPIFilterSimilarArticles.Processor.processEntries(runCache, settingsToUse);
+            }
+            if (window.MDPIFilterUtils?.styleInlineFootnotes) { // Check for the main styler function
+                // The new styleInlineFootnotes takes (mode, mdpiDoiPrefix, mdpiDomain, runCache)
+                // This needs to be reconciled with how it's called from processAllReferences.
+                // For now, let's assume the one in processAllReferences handles the specific item linking.
+                // A general call might be for unlinked footnotes if that's a feature.
+                // window.MDPIFilterUtils.styleInlineFootnotes(settingsToUse.mode, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomain, runCache);
+            }
+            updatePopupData(mainCollectedRefs, mainCollectedRefs.length);
+          }
+          isProcessing = false;
+          // console.log("[MDPI Filter CS] runAll finished.");
+        }
+
+        function initializeOrReRun() {
+          // console.log("[MDPI Filter CS] >>> initializeOrReRun function entered.");
+          if (!chrome.runtime?.id) {
+            console.warn('[MDPI Filter CS] initializeOrReRun: Extension context invalidated. Aborting.');
+            return;
+          }
+          // currentRunSettings should be up-to-date here
+          const currentHostname = window.location.hostname;
+          if (currentHostname.includes('onlinelibrary.wiley.com')) {
+            const accordionControl = document.querySelector('div.article-accordion .accordion__control[aria-expanded="false"]');
+            if (accordionControl) {
+              const titleElement = accordionControl.querySelector('.section__title');
               if (titleElement && titleElement.textContent.trim().toLowerCase() === 'references') {
-                control.click();
-                // Wait for the accordion to expand before scrolling
-                setTimeout(() => {
-                  const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
-                  if (refElem) {
-                    refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    refElem.classList.add('mdpi-ref-scroll-highlight');
-                    setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
+                accordionControl.click();
+                let waited = 0;
+                const interval = setInterval(() => {
+                  const ul = document.querySelector('div.article-accordion ul.rlist.separator');
+                  if (ul || waited > 2000) {
+                    clearInterval(interval);
+                    runAll(currentRunSettings); // Pass current settings
+                    setupMainObserver();
                   }
-                }, 400); // 400ms should be enough for the animation
-                sendResponse({ status: 'expanded-and-scrolled' });
-                return true;
+                  waited += 100;
+                }, 100);
+                return;
               }
             }
           }
-          // --- Default: Just Scroll ---
-          const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
-          if (refElem) {
-            refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            refElem.classList.add('mdpi-ref-scroll-highlight');
-            setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
-            sendResponse({ status: 'scrolled' });
-          } else {
-            sendResponse({ status: 'not-found' });
-          }
-          return true;
+          runAll(currentRunSettings); // Pass current settings
+          setupMainObserver();
         }
-        return false; 
-      });
-    } else {
-      console.warn("[MDPI Filter CS] chrome.runtime.onMessage not available. Scrolling from popup will not work.");
-    }
 
-    // --- Add highlight style for scroll feedback ---
-    (function addMdpiScrollHighlightStyle() {
-      if (!document.getElementById('mdpi-ref-scroll-highlight-style')) {
-        const style = document.createElement('style');
-        style.id = 'mdpi-ref-scroll-highlight-style';
-        style.textContent = `
-          .mdpi-ref-scroll-highlight {
-            outline: 3px solid #E2211C !important;
-            background: #ffe0e0 !important;
-            transition: outline 0.2s, background 0.2s;
-          }
-        `;
-        document.head.appendChild(style);
-      }
-    })();
-
-    // --- Initial Execution ---
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        if (!chrome.runtime?.id) {
-          console.warn('[MDPI Filter CS] DOMContentLoaded: Extension context invalidated. Skipping initial run.');
-          return;
+        function setupMainObserver() {
+          if (mainObserverInstance) mainObserverInstance.disconnect();
+          mainObserverInstance = new MutationObserver((mutationsList, observer) => {
+            if (!(chrome.runtime && chrome.runtime.id)) {
+              console.warn('[MDPI Filter] Main observer: Extension context invalidated. Skipping debouncedRunAll.');
+              if (mainObserverInstance) mainObserverInstance.disconnect();
+              return;
+            }
+            debouncedRunAll(); // debouncedRunAll now calls runAll with currentRunSettings
+          });
+          mainObserverInstance.observe(document.documentElement, { childList: true, subtree: true });
         }
-        initializeOrReRun();
-      });
-    } else {
-      if (!chrome.runtime?.id) {
-        console.warn('[MDPI Filter CS] Document ready: Extension context invalidated. Skipping initial run.');
-      } else {
-        initializeOrReRun();
-      }
-    }
 
-    // Listen for force resend request from popup
-    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-      if (msg && msg.type === 'forceResendMdpiReferences') {
-        if (typeof sendUpdateToBackground === 'function') {
-          sendUpdateToBackground();
-          sendResponse({ status: 'resent' });
+        // --- Message Listener for Scrolling ---
+        if (chrome.runtime && chrome.runtime.onMessage) {
+          chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+            // Accept both scrollToRef and scrollToRefOnPage for compatibility
+            if ((msg.type === 'scrollToRefOnPage' || msg.type === 'scrollToRef') && msg.refId) {
+              // --- Wiley: Expand References Accordion if Needed ---
+              if (window.location.hostname.includes('onlinelibrary.wiley.com')) {
+                // Find the accordion control for "References"
+                const accordionControls = document.querySelectorAll('div.article-accordion .accordion__control[aria-expanded="false"]');
+                for (const control of accordionControls) {
+                  const titleElement = control.querySelector('.section__title');
+                  if (titleElement && titleElement.textContent.trim().toLowerCase() === 'references') {
+                    control.click();
+                    // Wait for the accordion to expand before scrolling
+                    setTimeout(() => {
+                      const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+                      if (refElem) {
+                        refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        refElem.classList.add('mdpi-ref-scroll-highlight');
+                        setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
+                      }
+                    }, 400); // 400ms should be enough for the animation
+                    sendResponse({ status: 'expanded-and-scrolled' });
+                    return true;
+                  }
+                }
+              }
+              // --- Default: Just Scroll ---
+              const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+              if (refElem) {
+                refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                refElem.classList.add('mdpi-ref-scroll-highlight');
+                setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
+                sendResponse({ status: 'scrolled' });
+              } else {
+                sendResponse({ status: 'not-found' });
+              }
+              return true;
+            }
+            return false; 
+          });
         } else {
-          sendResponse({ status: 'no-func' });
+          console.warn("[MDPI Filter CS] chrome.runtime.onMessage not available. Scrolling from popup will not work.");
         }
-        return true;
-      }
-      // ...other listeners if any...
-    });
-  });
+
+        // --- Add highlight style for scroll feedback ---
+        (function addMdpiScrollHighlightStyle() {
+          if (!document.getElementById('mdpi-ref-scroll-highlight-style')) {
+            const style = document.createElement('style');
+            style.id = 'mdpi-ref-scroll-highlight-style';
+            style.textContent = `
+              .mdpi-ref-scroll-highlight {
+                outline: 3px solid #E2211C !important;
+                background: #ffe0e0 !important;
+                transition: outline 0.2s, background 0.2s;
+              }
+            `;
+            document.head.appendChild(style);
+          }
+        })();
+
+        // --- Initial Execution ---
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', () => {
+            if (!chrome.runtime?.id) { console.warn('[MDPI Filter CS] DOMContentLoaded: Extension context invalidated. Skipping initial run.'); return; }
+            initializeOrReRun();
+          });
+        } else {
+          if (!chrome.runtime?.id) { console.warn('[MDPI Filter CS] Document ready: Extension context invalidated. Skipping initial run.'); }
+          else { initializeOrReRun(); }
+        }
+
+        // Listen for force resend request from popup
+        chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+          if (msg && msg.type === 'forceResendMdpiReferences') {
+            // This needs to access the *latest* collected references.
+            // runAll should be responsible for the final update to the popup.
+            // A direct call to updatePopupData here might send stale data if runAll hasn't completed.
+            // Better to trigger a re-run or ensure runAll's update is the source of truth.
+            // For now, let's re-trigger runAll, which will call updatePopupData.
+            console.log("[MDPI Filter CS] Received forceResendMdpiReferences. Triggering runAll.");
+            if (chrome.runtime?.id) {
+                runAll(currentRunSettings); // Re-run with current settings
+                sendResponse({ status: 'rerun-triggered' });
+            } else {
+                sendResponse({ status: 'context-invalidated' });
+            }
+            return true; // Indicate async response
+          }
+          return false; // Important for other listeners
+        });
+
+      }); // End of chrome.storage.sync.get callback
     } else {
       console.warn("[MDPI Filter CS] Extension context invalidated before storage access. Main script logic will not execute for this frame.");
     }
-  } 
+  }
 }

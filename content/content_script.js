@@ -39,14 +39,29 @@ if (!window.mdpiFilterInjected) {
     missingDependencies.push("MDPIFilterCitedBy.Selectors.ITEM_SELECTORS (from cited_by_selectors.js)");
     dependenciesMet = false;
   }
-  if (!window.MDPIFilterCitedBy || !window.MDPIFilterCitedBy.Styler || typeof window.MDPIFilterCitedBy.Styler.styleItem === 'undefined') {
+  if (typeof window.MDPIFilterCitedBy === 'undefined' || !window.MDPIFilterCitedBy.Styler || typeof window.MDPIFilterCitedBy.Styler.styleItem !== 'function') {
     missingDependencies.push("MDPIFilterCitedBy.Styler.styleItem (from cited_by_styler.js)");
     dependenciesMet = false;
   }
-  if (!window.MDPIFilterCitedBy || !window.MDPIFilterCitedBy.Processor || typeof window.MDPIFilterCitedBy.Processor.processEntries === 'undefined') {
+  if (typeof window.MDPIFilterCitedBy === 'undefined' || !window.MDPIFilterCitedBy.Processor || typeof window.MDPIFilterCitedBy.Processor.processEntries !== 'function') {
     missingDependencies.push("MDPIFilterCitedBy.Processor.processEntries (from cited_by_processor.js)");
     dependenciesMet = false;
   }
+
+  // Add checks for new Similar Articles modules
+  if (!window.MDPIFilterSimilarArticles || !window.MDPIFilterSimilarArticles.Selectors || typeof window.MDPIFilterSimilarArticles.Selectors.ITEM_SELECTORS === 'undefined') {
+    missingDependencies.push("MDPIFilterSimilarArticles.Selectors.ITEM_SELECTORS (from similar_articles_selectors.js)");
+    dependenciesMet = false;
+  }
+  if (!window.MDPIFilterSimilarArticles || !window.MDPIFilterSimilarArticles.Styler || typeof window.MDPIFilterSimilarArticles.Styler.styleItem !== 'function') {
+    missingDependencies.push("MDPIFilterSimilarArticles.Styler.styleItem (from similar_articles_styler.js)");
+    dependenciesMet = false;
+  }
+  if (!window.MDPIFilterSimilarArticles || !window.MDPIFilterSimilarArticles.Processor || typeof window.MDPIFilterSimilarArticles.Processor.processEntries !== 'function') {
+    missingDependencies.push("MDPIFilterSimilarArticles.Processor.processEntries (from similar_articles_processor.js)");
+    dependenciesMet = false;
+  }
+
   // Add check for the new link extraction selectors array
   if (typeof window.MDPIFilterLinkExtractionSelectors === 'undefined' || !Array.isArray(window.MDPIFilterLinkExtractionSelectors)) {
     missingDependencies.push("MDPIFilterLinkExtractionSelectors (from link_extraction_selectors.js)");
@@ -656,171 +671,252 @@ if (!window.mdpiFilterInjected) {
           runAll(); // This will now call the async runAll
         }, 250);
 
-        async function runAll() {
-          if (isProcessing) {
-            // console.log("[MDPI Filter CS] Processing already in progress. Skipping runAll.");
+        async function runAll(settings) {
+          // console.log("[MDPI Filter CS] runAll triggered. Settings:", settings);
+          const runCache = new Map(); 
+
+          // --- Step 0: Handle page-specific NCBI API check (e.g., on EuropePMC article page) ---
+          const activeDomainConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains);
+          const isEuropePMCArticlePage = window.location.hostname.includes('europepmc.org') &&
+                                   (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
+                                   !window.location.pathname.startsWith('/search');
+
+          if (isEuropePMCArticlePage && domains.europepmc && domains.europepmc.useNcbiApi) {
+            // console.log("[MDPI Filter CS] On EuropePMC article page, attempting direct ID check from URL/meta.");
+            let pagePmid = null;
+            let pagePmcid = null;
+
+            // Try extracting from URL first
+            let urlMatch = window.location.pathname.match(/^\/(?:article\/(?:MED|PMC)\/|med\/|pmc\/)(PMC\d+|\d+)/i);
+            if (urlMatch && urlMatch[1]) {
+              if (urlMatch[1].toUpperCase().startsWith('PMC')) {
+                pagePmcid = urlMatch[1].toUpperCase();
+              } else if (/^\d+$/.test(urlMatch[1])) {
+                pagePmid = urlMatch[1];
+              }
+            }
+
+            // If not in URL, try meta tags (less common for the ID itself on EuropePMC but good fallback)
+            if (!pagePmid && !pagePmcid) {
+              const pmidMeta = document.querySelector('meta[name="citation_pmid"]');
+              if (pmidMeta && pmidMeta.content) pagePmid = pmidMeta.content;
+              const pmcidMeta = document.querySelector('meta[name="citation_pmcid"]');
+              if (pmcidMeta && pmcidMeta.content) pagePmcid = pmcidMeta.content.toUpperCase();
+            }
+            
+            const idsForDirectApiCall = { pmid: [], pmcid: [], doi: [] }; // DOI not typical here but keep structure
+            if (pagePmid && !ncbiApiCache.has(pagePmid)) idsForDirectApiCall.pmid.push(pagePmid);
+            else if (pagePmid) runCache.set(pagePmid, ncbiApiCache.get(pagePmid));
+
+            if (pagePmcid && !ncbiApiCache.has(pagePmcid)) idsForDirectApiCall.pmcid.push(pagePmcid);
+            else if (pagePmcid) runCache.set(pagePmcid, ncbiApiCache.get(pagePmcid));
+
+            if (idsForDirectApiCall.pmid.length > 0) {
+              // console.log(`[MDPI Filter CS] Querying NCBI for page PMID: ${idsForDirectApiCall.pmid.join(', ')}`);
+              await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForDirectApiCall.pmid, 'pmid', runCache, ncbiApiCache);
+            }
+            if (idsForDirectApiCall.pmcid.length > 0) {
+              // console.log(`[MDPI Filter CS] Querying NCBI for page PMCID: ${idsForDirectApiCall.pmcid.join(', ')}`);
+              await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForDirectApiCall.pmcid, 'pmcid', runCache, ncbiApiCache);
+            }
+          }
+          // --- End of Step 0 ---
+
+
+          // --- Step 1: Pre-collect all potential NCBI IDs from reference items and other scannable content ---
+          // This step now needs to be careful NOT to collect from "Similar Articles" or "Cited By" for the main pre-fetch,
+          // as those are handled by their own processors. The filtering in processAllReferences handles this for the main list.
+          // For a global pre-fetch, we might need to be more selective or rely on the individual processors' needs.
+          // For now, processAllReferences's internal pre-fetch logic is the primary source for main refs.
+          const allNcbiIdsToPreFetch = { pmid: new Set(), pmcid: new Set(), doi: new Set() };
+
+          // The pre-collection logic inside processAllReferences will populate this for the *main references*.
+          // Other processors (CitedBy, SimilarArticles) will use item_content_checker, which can extract IDs if needed,
+          // and those will hit the API if not already in runCache/ncbiApiCache.
+
+          // --- Step 2: Populate runCache using global ncbiApiCache and then NCBI API ---
+          // This step is primarily for IDs collected by processAllReferences for the main reference list.
+          // However, the API handler itself is robust and can be called by other processors too.
+          // The `allNcbiIdsToPreFetch` will be populated by the first pass of `processAllReferences`
+          // before it does its main loop. This is a bit intertwined.
+          // Let's ensure `processAllReferences` does its pre-collection first.
+
+          // Initial scan for pre-fetching (this part of processAllReferences needs to run first)
+          // We'll call a modified version or extract the pre-collection part.
+          // For simplicity, let's assume processAllReferences handles its own pre-fetching internally for now.
+          // The runCache will be populated progressively.
+
+          // --- Step 3: Process each reference item using the populated runCache (for popup) ---
+          const { collectedMdpiReferences: mainCollectedRefs, mdpiFoundInRefs: mainMdpiFound } = await processAllReferences(runCache, settings);
+          // console.log("[MDPI Filter CS] Main references processed. MDPI found:", mainMdpiFound, "Collected:", mainCollectedRefs.length);
+
+          // --- Step 4: Process "Cited By" entries (styles in place, does not contribute to popup count) ---
+          if (window.MDPIFilterCitedBy && window.MDPIFilterCitedBy.Processor && typeof window.MDPIFilterCitedBy.Processor.processEntries === 'function') {
+            // console.log("[MDPI Filter CS] Processing 'Cited By' entries...");
+            await window.MDPIFilterCitedBy.Processor.processEntries(runCache, settings);
+          }
+
+          // --- Step 5: Process "Similar Articles" entries (styles in place, does not contribute to popup count) ---
+          if (window.MDPIFilterSimilarArticles && window.MDPIFilterSimilarArticles.Processor && typeof window.MDPIFilterSimilarArticles.Processor.processEntries === 'function') {
+            // console.log("[MDPI Filter CS] Processing 'Similar Articles' entries...");
+            await window.MDPIFilterSimilarArticles.Processor.processEntries(runCache, settings);
+          }
+
+          // --- Step 6: Style inline footnotes (does not contribute to popup count) ---
+          if (window.MDPIFilterUtils && typeof window.MDPIFilterUtils.styleInlineFootnotes === 'function') {
+            // console.log("[MDPI Filter CS] Styling inline footnotes...");
+            window.MDPIFilterUtils.styleInlineFootnotes(settings.mode, MDPI_DOI, MDPI_DOMAIN, runCache);
+          }
+
+          // --- Step 7: Update popup with data from main references only ---
+          updatePopupData(mainCollectedRefs, mainCollectedRefs.length);
+          // console.log("[MDPI Filter CS] runAll finished. Popup updated.");
+    }
+
+    function initializeOrReRun() {
+      console.log("[MDPI Filter CS] >>> initializeOrReRun function entered."); 
+      if (!chrome.runtime?.id) {
+        console.warn('[MDPI Filter CS] initializeOrReRun: Extension context invalidated. Aborting.');
+        return;
+      }
+
+      const currentHostname = window.location.hostname;
+      const currentPathname = window.location.pathname;
+
+      const searchConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
+
+      // Wiley: If accordion is present and closed, click and wait for <ul>
+      if (currentHostname.includes('onlinelibrary.wiley.com')) {
+        const accordionControl = document.querySelector('div.article-accordion .accordion__control[aria-expanded="false"]');
+        if (accordionControl) {
+          accordionControl.click();
+          // Wait for <ul> to appear (max 2s)
+          let waited = 0;
+          const interval = setInterval(() => {
+            const ul = document.querySelector('div.article-accordion ul.rlist.separator');
+            if (ul || waited > 2000) {
+              clearInterval(interval);
+              runAll();
+              setupMainObserver();
+            }
+            waited += 100;
+          }, 100);
+          return;
+        }
+      }
+
+      runAll();
+      setupMainObserver();
+
+      function setupMainObserver() {
+        if (mainObserverInstance) mainObserverInstance.disconnect();
+        mainObserverInstance = new MutationObserver((mutationsList, observer) => {
+          if (!(chrome.runtime && chrome.runtime.id)) {
+            console.warn('[MDPI Filter] Main observer: Extension context invalidated. Skipping debouncedRunAll.');
+            if(mainObserverInstance) mainObserverInstance.disconnect();
             return;
           }
-          // console.log("[MDPI Filter CS] runAll triggered.");
-
-          const currentHostname = window.location.hostname;
-          const currentPathname = window.location.pathname;
-
-          const searchConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
-
-          if (searchConfig) {
-            // console.log("[MDPI Filter CS] Search engine page detected. Config:", searchConfig);
-            await processSearchEngineResults(searchConfig); // Pass the config and await
-          } else {
-            // console.log("[MDPI Filter CS] Not a search engine page or no specific config. Processing all references.");
-            await processAllReferences(new Map()); // Pass a new Map instance and await
-          }
-        }
-
-        function initializeOrReRun() {
-          console.log("[MDPI Filter CS] >>> initializeOrReRun function entered."); 
-          if (!chrome.runtime?.id) {
-            console.warn('[MDPI Filter CS] initializeOrReRun: Extension context invalidated. Aborting.');
-            return;
-          }
-
-          const currentHostname = window.location.hostname;
-          const currentPathname = window.location.pathname;
-
-          const searchConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
-
-          // Wiley: If accordion is present and closed, click and wait for <ul>
-          if (currentHostname.includes('onlinelibrary.wiley.com')) {
-            const accordionControl = document.querySelector('div.article-accordion .accordion__control[aria-expanded="false"]');
-            if (accordionControl) {
-              accordionControl.click();
-              // Wait for <ul> to appear (max 2s)
-              let waited = 0;
-              const interval = setInterval(() => {
-                const ul = document.querySelector('div.article-accordion ul.rlist.separator');
-                if (ul || waited > 2000) {
-                  clearInterval(interval);
-                  runAll();
-                  setupMainObserver();
-                }
-                waited += 100;
-              }, 100);
-              return;
-            }
-          }
-
-          runAll();
-          setupMainObserver();
-
-          function setupMainObserver() {
-            if (mainObserverInstance) mainObserverInstance.disconnect();
-            mainObserverInstance = new MutationObserver((mutationsList, observer) => {
-              if (!(chrome.runtime && chrome.runtime.id)) {
-                console.warn('[MDPI Filter] Main observer: Extension context invalidated. Skipping debouncedRunAll.');
-                if(mainObserverInstance) mainObserverInstance.disconnect();
-                return;
-              }
-              debouncedRunAll();
-            });
-            mainObserverInstance.observe(document.documentElement, {
-              childList: true,
-              subtree: true
-            });
-          }
-        }
-
-        // --- Message Listener for Scrolling ---
-        if (chrome.runtime && chrome.runtime.onMessage) {
-          chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-            // Accept both scrollToRef and scrollToRefOnPage for compatibility
-            if ((msg.type === 'scrollToRefOnPage' || msg.type === 'scrollToRef') && msg.refId) {
-              // --- Wiley: Expand References Accordion if Needed ---
-              if (window.location.hostname.includes('onlinelibrary.wiley.com')) {
-                // Find the accordion control for "References"
-                const accordionControls = document.querySelectorAll('div.article-accordion .accordion__control[aria-expanded="false"]');
-                for (const control of accordionControls) {
-                  const titleElement = control.querySelector('.section__title');
-                  if (titleElement && titleElement.textContent.trim().toLowerCase() === 'references') {
-                    control.click();
-                    // Wait for the accordion to expand before scrolling
-                    setTimeout(() => {
-                      const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
-                      if (refElem) {
-                        refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        refElem.classList.add('mdpi-ref-scroll-highlight');
-                        setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
-                      }
-                    }, 400); // 400ms should be enough for the animation
-                    sendResponse({ status: 'expanded-and-scrolled' });
-                    return true;
-                  }
-                }
-              }
-              // --- Default: Just Scroll ---
-              const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
-              if (refElem) {
-                refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                refElem.classList.add('mdpi-ref-scroll-highlight');
-                setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
-                sendResponse({ status: 'scrolled' });
-              } else {
-                sendResponse({ status: 'not-found' });
-              }
-              return true;
-            }
-            return false; 
-          });
-        } else {
-          console.warn("[MDPI Filter CS] chrome.runtime.onMessage not available. Scrolling from popup will not work.");
-        }
-
-        // --- Add highlight style for scroll feedback ---
-        (function addMdpiScrollHighlightStyle() {
-          if (!document.getElementById('mdpi-ref-scroll-highlight-style')) {
-            const style = document.createElement('style');
-            style.id = 'mdpi-ref-scroll-highlight-style';
-            style.textContent = `
-              .mdpi-ref-scroll-highlight {
-                outline: 3px solid #E2211C !important;
-                background: #ffe0e0 !important;
-                transition: outline 0.2s, background 0.2s;
-              }
-            `;
-            document.head.appendChild(style);
-          }
-        })();
-
-        // --- Initial Execution ---
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', () => {
-            if (!chrome.runtime?.id) {
-              console.warn('[MDPI Filter CS] DOMContentLoaded: Extension context invalidated. Skipping initial run.');
-              return;
-            }
-            initializeOrReRun();
-          });
-        } else {
-          if (!chrome.runtime?.id) {
-            console.warn('[MDPI Filter CS] Document ready: Extension context invalidated. Skipping initial run.');
-          } else {
-            initializeOrReRun();
-          }
-        }
-
-        // Listen for force resend request from popup
-        chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-          if (msg && msg.type === 'forceResendMdpiReferences') {
-            if (typeof sendUpdateToBackground === 'function') {
-              sendUpdateToBackground();
-              sendResponse({ status: 'resent' });
-            } else {
-              sendResponse({ status: 'no-func' });
-            }
-            return true;
-          }
-          // ...other listeners if any...
+          debouncedRunAll();
         });
+        mainObserverInstance.observe(document.documentElement, {
+          childList: true,
+          subtree: true
+        });
+      }
+    }
+
+    // --- Message Listener for Scrolling ---
+    if (chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        // Accept both scrollToRef and scrollToRefOnPage for compatibility
+        if ((msg.type === 'scrollToRefOnPage' || msg.type === 'scrollToRef') && msg.refId) {
+          // --- Wiley: Expand References Accordion if Needed ---
+          if (window.location.hostname.includes('onlinelibrary.wiley.com')) {
+            // Find the accordion control for "References"
+            const accordionControls = document.querySelectorAll('div.article-accordion .accordion__control[aria-expanded="false"]');
+            for (const control of accordionControls) {
+              const titleElement = control.querySelector('.section__title');
+              if (titleElement && titleElement.textContent.trim().toLowerCase() === 'references') {
+                control.click();
+                // Wait for the accordion to expand before scrolling
+                setTimeout(() => {
+                  const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+                  if (refElem) {
+                    refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    refElem.classList.add('mdpi-ref-scroll-highlight');
+                    setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
+                  }
+                }, 400); // 400ms should be enough for the animation
+                sendResponse({ status: 'expanded-and-scrolled' });
+                return true;
+              }
+            }
+          }
+          // --- Default: Just Scroll ---
+          const refElem = document.querySelector(`[data-mdpi-filter-ref-id="${msg.refId}"]`);
+          if (refElem) {
+            refElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            refElem.classList.add('mdpi-ref-scroll-highlight');
+            setTimeout(() => refElem.classList.remove('mdpi-ref-scroll-highlight'), 1500);
+            sendResponse({ status: 'scrolled' });
+          } else {
+            sendResponse({ status: 'not-found' });
+          }
+          return true;
+        }
+        return false; 
       });
+    } else {
+      console.warn("[MDPI Filter CS] chrome.runtime.onMessage not available. Scrolling from popup will not work.");
+    }
+
+    // --- Add highlight style for scroll feedback ---
+    (function addMdpiScrollHighlightStyle() {
+      if (!document.getElementById('mdpi-ref-scroll-highlight-style')) {
+        const style = document.createElement('style');
+        style.id = 'mdpi-ref-scroll-highlight-style';
+        style.textContent = `
+          .mdpi-ref-scroll-highlight {
+            outline: 3px solid #E2211C !important;
+            background: #ffe0e0 !important;
+            transition: outline 0.2s, background 0.2s;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    })();
+
+    // --- Initial Execution ---
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (!chrome.runtime?.id) {
+          console.warn('[MDPI Filter CS] DOMContentLoaded: Extension context invalidated. Skipping initial run.');
+          return;
+        }
+        initializeOrReRun();
+      });
+    } else {
+      if (!chrome.runtime?.id) {
+        console.warn('[MDPI Filter CS] Document ready: Extension context invalidated. Skipping initial run.');
+      } else {
+        initializeOrReRun();
+      }
+    }
+
+    // Listen for force resend request from popup
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (msg && msg.type === 'forceResendMdpiReferences') {
+        if (typeof sendUpdateToBackground === 'function') {
+          sendUpdateToBackground();
+          sendResponse({ status: 'resent' });
+        } else {
+          sendResponse({ status: 'no-func' });
+        }
+        return true;
+      }
+      // ...other listeners if any...
+    });
+  });
     } else {
       console.warn("[MDPI Filter CS] Extension context invalidated before storage access. Main script logic will not execute for this frame.");
     }

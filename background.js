@@ -63,12 +63,15 @@ async function injectModules(tabId, triggerSource = "unknown") {
     'content/inline_footnote_styler.js',
     'content/cited_by_selectors.js',
     'content/cited_by_styler.js',
-    'content/cited_by_processor.js',
+    'content/similar_articles_selectors.js', // New
+    'content/similar_articles_styler.js',   // New
     'content/link_extraction_selectors.js',
     'content/link_extractor.js',
     'content/item_content_checker.js',
     'content/reference_id_extractor.js',
-    'content/ncbi_api_handler.js', // Added new module
+    'content/ncbi_api_handler.js',
+    'content/cited_by_processor.js',
+    'content/similar_articles_processor.js', // New
     'content/content_script.js'
   ];
   try {

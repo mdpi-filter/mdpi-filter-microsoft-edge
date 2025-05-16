@@ -20,17 +20,16 @@ window.MDPIFilterDomains = {
   googleWeb: {
     host: 'www.google.com', // Should match an entry or be covered by an entry in searchEngineDomains
     path: /^\/search/,
-    // itemSelector targets standard result blocks (MjjYud not containing an image carousel)
-    // AND individual image items within a carousel (div[jsname="qQjpJ"] inside div#iur).
-    // div#iur is a common container for the image grid in Google search.
-    itemSelector: 'div.MjjYud:not(:has(div#iur)), div#iur div[jsname="qQjpJ"]',
+    // itemSelector now targets individual image items OR specific standard result content blocks.
+    itemSelector: 'div#iur div[jsname="qQjpJ"], div.N54PNb, div.AP7Wnd, div.VTuCfe, div.VwiC3b, div.maxWxw, div.ULSxyf',
     // General link selector to find MDPI links within the item.
     linkSelector: 'a[href*="mdpi.com"]',
     useNcbiApi: true, // Enable NCBI API checks
     // highlightTargetSelector for standard results.
-    // For image items (which will be div[jsname="qQjpJ"]), these selectors should not match,
+    // For image items (div[jsname="qQjpJ"]), these selectors should not match,
     // causing the item itself to become the highlightTarget.
-    // List common selectors for the main content block of a standard Google search result.
+    // For standard items that are now also the itemSelector (e.g. div.N54PNb),
+    // querySelector will find itself or a specific child if applicable (e.g., within div.ULSxyf).
     highlightTargetSelector: 'div.N54PNb, div.AP7Wnd, div.VTuCfe, div.VwiC3b, div.maxWxw, div.ULSxyf div.N54PNb'
   },
 

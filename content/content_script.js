@@ -256,25 +256,19 @@ if (!window.mdpiFilterInjected) {
           // Use MDPIFilterReferenceIdExtractor to get/generate an internal ID (e.g., "mdpi-ref-X")
           // This also sets 'data-mdpi-filter-ref-id' on the item.
           const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(item, refIdCounter);
-          refIdCounter = updatedRefIdCounter; // Update the global counter for the next item
-
+          refIdCounter = updatedRefIdCounter;
           const textContent = item.textContent || '';
           const primaryLink = window.MDPIFilterLinkExtractor.extractPrimaryLink(item, window.MDPIFilterLinkExtractionSelectors);
 
           // Determine the ID to be used for linking inline footnotes.
-          // This should be the actual DOM ID of the list item (e.g., "en37") if it exists,
-          // as this is what inline <a> tags' href attributes will typically point to.
-          const actualListItemDomId = item.id; // e.g., "en37" for ods.od.nih.gov
-
+          // Prefer item.id, then data-bib-id, then fallback to extractedId.
+          const actualListItemDomId = item.id || item.getAttribute('data-bib-id') || extractedId;
           return {
-            id: extractedId, // The internal ID, e.g., "mdpi-ref-36". Used for data-mdpi-filter-ref-id, popup interaction.
+            id: extractedId,
             text: sanitize(textContent.substring(0, 250) + (textContent.length > 250 ? '...' : '')),
             fullText: textContent,
             primaryLink: primaryLink,
-            // This listItemDomId is passed to generateInlineFootnoteSelectors.
-            // It must be the ID that inline footnotes actually link to (e.g., "en37").
-            // Fallback to extractedId if item.id is not available, though this might not always work for linking.
-            listItemDomId: actualListItemDomId || extractedId
+            listItemDomId: actualListItemDomId
           };
         };
 

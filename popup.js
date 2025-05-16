@@ -8,6 +8,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const referencesPlaceholder = document.getElementById('referencesPlaceholder'); // The static <li>
   const referencesCountSpan = document.getElementById('referencesCount');
 
+  // --- Settings Panel Toggle ---
+  const settingsIcon = document.getElementById('settingsIcon');
+  const settingsPanel = document.getElementById('settingsPanel');
+
+  settingsIcon.addEventListener('click', () => {
+    settingsPanel.classList.toggle('open');
+  });
+
+  // Optionally, close settings panel when clicking outside
+  document.addEventListener('mousedown', (e) => {
+    if (
+      settingsPanel.classList.contains('open') &&
+      !settingsPanel.contains(e.target) &&
+      e.target !== settingsIcon &&
+      !settingsIcon.contains(e.target)
+    ) {
+      settingsPanel.classList.remove('open');
+    }
+  });
+
   // --- Load Mode Setting ---
   chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
     radios.forEach(r => r.checked = (r.value === mode));

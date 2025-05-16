@@ -7,19 +7,28 @@
 </head>
 <body>
   <div class="container">
-    <h1>MDPI Filter</h1>
-    <p>Select how MDPI results are handled on search sites:</p>
-    <label class="radio">
-      <input type="radio" name="mode" value="highlight">
-      <span>Highlight MDPI results</span>
-    </label>
-    <label class="radio">
-      <input type="radio" name="mode" value="hide">
-      <span>Hide MDPI results</span>
-    </label>
-    <button id="save">Save</button>
-    <div id="status"></div>
-    <hr class="separator">
+    <!-- Settings Icon -->
+    <button id="settingsIcon" title="Settings" aria-label="Settings">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="11" r="9" stroke="#36406B" stroke-width="2"/>
+        <path d="M11 7V11L13.5 13.5" stroke="#36406B" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <!-- Settings Panel (hidden by default) -->
+    <div id="settingsPanel" class="settings-panel">
+      <p class="settings-title">Select how MDPI results are handled on search sites:</p>
+      <label class="radio">
+        <input type="radio" name="mode" value="highlight">
+        <span>Highlight MDPI results</span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="mode" value="hide">
+        <span>Hide MDPI results</span>
+      </label>
+      <button id="save">Save</button>
+      <div id="status"></div>
+      <hr class="separator">
+    </div>
 
     <!-- Section for MDPI References -->
     <h2><span id="referencesCount">Loading</span> MDPI References Found:</h2>

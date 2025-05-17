@@ -24,6 +24,25 @@ const backgroundDebouncePerTab = (func, wait) => {
 // --- Data Store for References ---
 const tabReferenceData = {}; // { tabId: [references] }
 
+// --- Helper: Deduplicate references by DOI or sanitized text ---
+function deduplicateReferences(referencesArray) {
+  const seen = new Set();
+  const deduped = [];
+  for (const ref of referencesArray) {
+    let key = '';
+    if (ref.doi) {
+      key = ref.doi.trim().toLowerCase();
+    } else if (ref.text) {
+      key = ref.text.replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      deduped.push(ref);
+    }
+  }
+  return deduped;
+}
+
 async function injectModules(tabId, triggerSource = "unknown") {
   console.log(`[MDPI Filter BG] injectModules called for tab ${tabId} by ${triggerSource}`);
   // --- Ensure the guard variable is reset ---
@@ -151,14 +170,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (isMdpiUpdateMessage && sender.tab?.id) {
     const tabId = sender.tab.id;
     const data = msg.data || {};
-    const count = data.badgeCount ?? 0;
-    const references = data.references || []; // Ensure references is an array
-
+    // --- Deduplicate references before storing and counting ---
+    const references = Array.isArray(data.references) ? deduplicateReferences(data.references) : [];
+    const count = references.length;
     // Update badge
     chrome.action.setBadgeText({ text: count > 0 ? String(count) : '', tabId: tabId });
-    chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId: tabId }); // MDPI Red
-
-    // Store references
+    chrome.action.setBadgeBackgroundColor({ color: '#E2211C', tabId: tabId });
+    // Store deduplicated references
     tabReferenceData[tabId] = references;
     // console.log(`[MDPI Filter BG] Updated references for tab ${tabId}. Count: ${count}. Refs:`, references);
     // console.log(`[MDPI Filter BG] tabReferenceData for tab ${tabId} after update:`, tabReferenceData[tabId]);
@@ -177,7 +195,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const activeTabId = tabs[0].id;
         const refsForTab = tabReferenceData[activeTabId] || [];
         // console.log(`[MDPI Filter BG] Popup requested references for tab ${activeTabId}. Sending ${refsForTab.length} refs:`, refsForTab);
-        sendResponse({ references: refsForTab });
+        sendResponse({ references: deduplicateReferences(refsForTab) });
       } else {
         // console.warn("[MDPI Filter BG] getMdpiReferences: No active tab found or tabs array empty.");
         sendResponse({ error: "No active tab found", references: [] });

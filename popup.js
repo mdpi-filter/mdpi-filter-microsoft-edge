@@ -102,7 +102,28 @@ ${currentTabUrl}
 
   // --- Load and Display References ---
   function displayReferences(referencesArray, isLoading = false) {
-    const validReferences = Array.isArray(referencesArray) ? referencesArray : [];
+    // --- DEDUPLICATE REFERENCES ---
+    // Use DOI if available, else fallback to sanitized text as key
+    const seen = new Set();
+    const dedupedReferences = [];
+    if (Array.isArray(referencesArray)) {
+      for (const ref of referencesArray) {
+        // Try to use DOI as a unique key if present
+        let key = '';
+        if (ref.doi) {
+          key = ref.doi.trim().toLowerCase();
+        } else if (ref.text) {
+          key = ref.text.replace(/\s+/g, ' ').trim().toLowerCase();
+        } else if (typeof ref === 'string') {
+          key = ref.replace(/\s+/g, ' ').trim().toLowerCase();
+        }
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          dedupedReferences.push(ref);
+        }
+      }
+    }
+    const validReferences = dedupedReferences;
     const count = validReferences.length;
 
     // Update count or status text

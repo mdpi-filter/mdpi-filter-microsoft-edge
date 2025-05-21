@@ -19,6 +19,9 @@
     if (!idToUse) {
       idToUse = `mdpi-ref-${nextRefIdCounter++}`;
       itemElement.dataset.mdpiFilterRefId = idToUse; // Set the attribute on the item
+      console.log(`[MDPI Filter RefIdExtractor] Assigned NEW data-mdpi-filter-ref-id='${idToUse}' to:`, itemElement);
+    } else {
+      console.log(`[MDPI Filter RefIdExtractor] Reused EXISTING data-mdpi-filter-ref-id='${idToUse}' for:`, itemElement);
     }
 
     return {

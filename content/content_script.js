@@ -144,39 +144,54 @@ if (!window.mdpiFilterInjected) {
         // This function will be responsible for updating the global collectedMdpiReferences
         // and then calling sendUpdateToBackground.
         function updatePopupData(newCollectedReferences, count) {
-            // Directly update the global/module-scoped collectedMdpiReferences
-            // This was missing, leading to the popup not getting updated correctly.
-            // The `collectedMdpiReferences` variable used by sendUpdateToBackground
-            // needs to be the one at the higher scope.
-            // However, processAllReferences returns its own list.
-            // So, the caller of processAllReferences (runAll) should handle this.
-            // This function is now more about sending the data.
+          // Log the raw references array before deduplication
+          console.log('[MDPI Filter CS] updatePopupData: Raw collected references:', JSON.parse(JSON.stringify(newCollectedReferences)));
 
-            console.log(`[MDPI Filter CS] updatePopupData: Attempting to send 'mdpiUpdate' to background. Count: ${count}`);
-            if (!chrome.runtime || !chrome.runtime.id) {
-                console.error('[MDPI Filter CS] CRITICAL: chrome.runtime.id is not available in updatePopupData.');
-                return;
+          // Log all reference elements and their data-mdpi-filter-ref-id
+          newCollectedReferences.forEach((ref, idx) => {
+            console.log(`[MDPI Filter CS] Reference[${idx}]:`, ref);
+          });
+
+          // Log deduplication process
+          const seenIds = new Set();
+          const deduped = [];
+          for (const ref of newCollectedReferences) {
+            if (ref.id && !seenIds.has(ref.id)) {
+              seenIds.add(ref.id);
+              deduped.push(ref);
+            } else if (ref.id) {
+              console.warn('[MDPI Filter CS] Duplicate reference detected:', ref.id, ref);
             }
-            const dataToSend = {
-                badgeCount: count,
-                references: newCollectedReferences.map(ref => ({
-                    id: ref.id,
-                    text: ref.text,
-                    number: ref.number,
-                    listItemDomId: ref.listItemDomId
-                }))
-            };
-            try {
-                chrome.runtime.sendMessage({ type: 'mdpiUpdate', data: dataToSend }, response => {
-                    if (chrome.runtime.lastError) {
-                        console.error('[MDPI Filter CS] Error sending mdpiUpdate from updatePopupData:', chrome.runtime.lastError.message);
-                    } else {
-                        // console.log('[MDPI Filter CS] mdpiUpdate successfully sent from updatePopupData. Response:', response);
-                    }
-                });
-            } catch (e) {
-                console.error('[MDPI Filter CS] Exception sending mdpiUpdate from updatePopupData:', e);
-            }
+          }
+          console.log('[MDPI Filter CS] updatePopupData: Deduped references:', JSON.parse(JSON.stringify(deduped)));
+
+          // Log the count being sent to background
+          console.log(`[MDPI Filter CS] updatePopupData: Attempting to send 'mdpiUpdate' to background. Count: ${deduped.length}`);
+
+          if (!chrome.runtime || !chrome.runtime.id) {
+              console.error('[MDPI Filter CS] CRITICAL: chrome.runtime.id is not available in updatePopupData.');
+              return;
+          }
+          const dataToSend = {
+              badgeCount: count,
+              references: deduped.map(ref => ({
+                  id: ref.id,
+                  text: ref.text,
+                  number: ref.number,
+                  listItemDomId: ref.listItemDomId
+              }))
+          };
+          try {
+              chrome.runtime.sendMessage({ type: 'mdpiUpdate', data: dataToSend }, response => {
+                  if (chrome.runtime.lastError) {
+                      console.error('[MDPI Filter CS] Error sending mdpiUpdate from updatePopupData:', chrome.runtime.lastError.message);
+                  } else {
+                      // console.log('[MDPI Filter CS] mdpiUpdate successfully sent from updatePopupData. Response:', response);
+                  }
+              });
+          } catch (e) {
+              console.error('[MDPI Filter CS] Exception sending mdpiUpdate from updatePopupData:', e);
+          }
         }
 
         // --- Helper Function Definitions ---

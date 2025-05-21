@@ -102,6 +102,7 @@ ${currentTabUrl}
 
   // --- Load and Display References ---
   function displayReferences(referencesArray, isLoading = false) {
+    console.log('[MDPI Filter Popup] displayReferences called. Received:', referencesArray);
     // --- DEDUPLICATE REFERENCES ---
     // Use DOI if available, else fallback to sanitized text as key
     const seen = new Set();
@@ -181,6 +182,7 @@ ${currentTabUrl}
     const clickedLi = event.target.closest('li[data-ref-id]');
     if (clickedLi) {
       const refId = clickedLi.dataset.refId;
+      console.log('[MDPI Filter Popup] User clicked reference with refId:', refId);
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs && tabs.length > 0 && tabs[0].id != null) {
           chrome.runtime.sendMessage({ type: 'scrollToRef', refId: refId, tabId: tabs[0].id }, (response) => {

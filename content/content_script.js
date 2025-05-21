@@ -119,6 +119,24 @@ if (!window.mdpiFilterInjected) {
     };
     // ---
 
+    // MODIFIED extractReferenceData to accept the pre-assigned extractedId
+    const extractReferenceData = (item, assignedExtractedId) => {
+      // item.dataset.mdpiFilterRefId should be == assignedExtractedId if set by extractInternalScrollId
+      const textContent = item.textContent || '';
+      const primaryLink = window.MDPIFilterLinkExtractor.extractPrimaryLink(item, window.MDPIFilterLinkExtractionSelectors);
+
+      // Determine the ID to be used for linking inline footnotes.
+      // Prefer item.id, then data-bib-id, then fallback to assignedExtractedId.
+      const actualListItemDomId = item.id || item.getAttribute('data-bib-id') || assignedExtractedId;
+      return {
+        id: assignedExtractedId, // This is the mdpi-ref-X
+        text: sanitize(textContent.substring(0, 250) + (textContent.length > 250 ? '...' : '')),
+        fullText: textContent,
+        primaryLink: primaryLink,
+        listItemDomId: actualListItemDomId
+      };
+    };
+
     if (chrome.runtime && chrome.runtime.id) {
       chrome.storage.sync.get({ mode: 'highlight' }, (retrievedStorageSettings) => {
         if (chrome.runtime.lastError) {
@@ -515,9 +533,9 @@ if (!window.mdpiFilterInjected) {
 
         async function processAllReferences(runCache, settingsToUse) { // settingsToUse is currentRunSettings
           // console.log("[MDPI Filter CS] processAllReferences called.");
-          let collectedMdpiReferences = []; // FIX: Was const, changed to let
+          let collectedMdpiReferences = []; 
           let mdpiFoundInRefs = false;
-          const uniqueMdpiRefsForThisRun = new Map();
+          const uniqueMdpiRefsForThisRun = new Map(); // Key: contentKey, Value: refData object
 
           const referenceListSelectors = window.MDPIFilterReferenceSelectors;
           if (!referenceListSelectors) {
@@ -526,7 +544,6 @@ if (!window.mdpiFilterInjected) {
 
           let allPotentialReferenceItems = Array.from(document.querySelectorAll(referenceListSelectors));
 
-          // Filter out items that are descendants of other items in the list to avoid processing nested matches
           allPotentialReferenceItems = allPotentialReferenceItems.filter(item => {
             return !allPotentialReferenceItems.some(otherItem => otherItem !== item && otherItem.contains(item));
           });
@@ -535,17 +552,12 @@ if (!window.mdpiFilterInjected) {
           if (window.location.hostname.includes('europepmc.org') &&
               (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
               !window.location.pathname.startsWith('/search')) {
-            allPotentialReferenceItems = allPotentialReferenceItems.filter(item => {
-              const inSimilarArticles = item.closest('div#similar-articles');
-              const inImpactSection = item.closest('div#impact');
-              return !inSimilarArticles && !inImpactSection;
-            });
+            allPotentialReferenceItems = allPotentialReferenceItems.filter(item => !item.closest('div.references-similar-articles-container'));
           }
 
           const referenceItems = allPotentialReferenceItems;
 
           if (referenceItems.length === 0) {
-            // updatePopupData([], 0); // Caller (runAll) will handle final update.
             return { collectedMdpiReferences, mdpiFoundInRefs };
           }
 
@@ -564,31 +576,36 @@ if (!window.mdpiFilterInjected) {
             if (pmcidTextMatch) pmcidTextMatch.forEach(m => allNcbiIdsToPreFetch.pmcid.add(m));
 
             links.forEach(link => {
-              if (link.href) {
-                const pmidLinkMatch = link.href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
-                if (pmidLinkMatch && pmidLinkMatch[1]) allNcbiIdsToPreFetch.pmid.add(pmidLinkMatch[1]);
-                const pmcidLinkMatch = link.href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
-                if (pmcidLinkMatch && pmcidLinkMatch[1]) allNcbiIdsToPreFetch.pmcid.add(pmcidLinkMatch[1]);
-                
-                const doiInLink = window.MDPIFilterItemContentChecker.extractDoiFromLinkInternal ? window.MDPIFilterItemContentChecker.extractDoiFromLinkInternal(link.href) : null;
-                if (doiInLink && !doiInLink.startsWith(settingsToUse.mdpiDoiPrefix)) { // Use settingsToUse
-                    allNcbiIdsToPreFetch.doi.add(doiInLink);
+              const href = link.href || "";
+              if (href.includes("ncbi.nlm.nih.gov/pubmed/")) {
+                const pmidMatch = href.match(/\/pubmed\/(\d+)/);
+                if (pmidMatch && pmidMatch[1]) allNcbiIdsToPreFetch.pmid.add(pmidMatch[1]);
+              }
+              if (href.includes("ncbi.nlm.nih.gov/pmc/articles/PMC")) {
+                const pmcMatch = href.match(/\/(PMC\d+)/);
+                if (pmcMatch && pmcMatch[1]) allNcbiIdsToPreFetch.pmcid.add(pmcMatch[1]);
+              }
+              if (href.includes("doi.org/10.")) {
+                const doiMatch = href.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
+                if (doiMatch && doiMatch[1] && !doiMatch[1].startsWith(settingsToUse.mdpiDoiPrefix)) {
+                    allNcbiIdsToPreFetch.doi.add(doiMatch[1].split('#')[0].split('?')[0].trim());
                 }
               }
             });
             const doiTextPattern = /\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/gi;
             let doiMatch;
             while((doiMatch = doiTextPattern.exec(itemText)) !== null) {
-                if (doiMatch[1] && !doiMatch[1].startsWith(settingsToUse.mdpiDoiPrefix)) { // Use settingsToUse
-                    allNcbiIdsToPreFetch.doi.add(doiMatch[1]);
+                if (doiMatch[1] && !doiMatch[1].startsWith(settingsToUse.mdpiDoiPrefix)) {
+                    allNcbiIdsToPreFetch.doi.add(doiMatch[1].split('#')[0].split('?')[0].trim());
                 }
             }
           });
 
           const idsForAPICall = { pmid: [], pmcid: [], doi: [] };
-          allNcbiIdsToPreFetch.pmid.forEach(id => { if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.pmid.push(id); });
-          allNcbiIdsToPreFetch.pmcid.forEach(id => { if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.pmcid.push(id); });
-          allNcbiIdsToPreFetch.doi.forEach(id => { if (ncbiApiCache.has(id)) runCache.set(id, ncbiApiCache.get(id)); else idsForAPICall.doi.push(id); });
+          allNcbiIdsToPreFetch.pmid.forEach(id => { if (!ncbiApiCache.has(id)) idsForAPICall.pmid.push(id); else runCache.set(id, ncbiApiCache.get(id)); });
+          allNcbiIdsToPreFetch.pmcid.forEach(id => { if (!ncbiApiCache.has(id)) idsForAPICall.pmcid.push(id); else runCache.set(id, ncbiApiCache.get(id)); });
+          allNcbiIdsToPreFetch.doi.forEach(id => { if (!ncbiApiCache.has(id)) idsForAPICall.doi.push(id); else runCache.set(id, ncbiApiCache.get(id)); });
+
 
           if (idsForAPICall.pmid.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmid, 'pmid', runCache, ncbiApiCache);
           if (idsForAPICall.pmcid.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmcid, 'pmcid', runCache, ncbiApiCache);
@@ -596,36 +613,78 @@ if (!window.mdpiFilterInjected) {
 
           let localRefIdCounter = refIdCounter;
           for (const itemElement of referenceItems) {
-            const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(itemElement, localRefIdCounter);
-            localRefIdCounter = updatedRefIdCounter;
-
-            const isMdpi = isMdpiItemByContent(itemElement, runCache); // isMdpiItemByContent uses currentRunSettings internally
+            const isMdpi = isMdpiItemByContent(itemElement, runCache);
             citationProcessCache.set(itemElement, isMdpi);
 
             if (isMdpi) {
-              mdpiFoundInRefs = true; // Set this flag
-              styleRef(itemElement, extractedId); // styleRef uses currentRunSettings.mode
-              const refData = extractReferenceData(itemElement);
-              if (refData && !uniqueMdpiRefsForThisRun.has(refData.id)) {
-                uniqueMdpiRefsForThisRun.set(refData.id, refData);
+              mdpiFoundInRefs = true;
+
+              let contentKey = '';
+              const itemTextContent = itemElement.textContent || "";
+
+              let finalDoi = null;
+              const primaryLinkContent = window.MDPIFilterLinkExtractor.extractPrimaryLink(itemElement, window.MDPIFilterLinkExtractionSelectors);
+              if (primaryLinkContent) {
+                const doiMatch = primaryLinkContent.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
+                if (doiMatch && doiMatch[1]) {
+                  finalDoi = doiMatch[1].trim().toLowerCase();
+                }
               }
-              let idForFootnoteLinking = itemElement.id || itemElement.getAttribute('data-bib-id') || extractedId;
-              const footnoteSelectors = window.MDPIFilterUtils.generateInlineFootnoteSelectors(idForFootnoteLinking);
-              if (footnoteSelectors) {
-                try {
-                  const footnotes = document.querySelectorAll(footnoteSelectors);
-                  footnotes.forEach(footnote => {
-                    window.MDPIFilterUtils.styleInlineFootnotes(footnote, extractedId, itemElement, settingsToUse.mode); // Pass mode
-                  });
-                } catch (e) { /* console.warn */ }
+              if (!finalDoi) {
+                const doiTextMatch = itemTextContent.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
+                if (doiTextMatch && doiTextMatch[1]) {
+                    finalDoi = doiTextMatch[1].trim().toLowerCase();
+                }
+              }
+
+              if (finalDoi) {
+                contentKey = `doi:${finalDoi}`;
+              } else {
+                if (itemElement.id && (itemElement.id.startsWith('sref') || itemElement.id.startsWith('bib') || itemElement.id.startsWith('CR') || /^(B\d+|R\d+)$/.test(itemElement.id))) {
+                    contentKey = `domid:${itemElement.id}`;
+                } else {
+                  const textForHashing = sanitize(itemTextContent.substring(0, 200).replace(/\s+/g, ' ').trim().toLowerCase());
+                  if (textForHashing) {
+                    contentKey = `text:${textForHashing}`;
+                  }
+                }
+              }
+
+              if (!contentKey) {
+                const itemPreviewForLog = (itemElement.textContent || "").substring(0, 70).trim().replace(/\s+/g, ' ');
+                console.warn(`[MDPI Filter CS] Could not generate contentKey for MDPI item: "${itemPreviewForLog}...". Styling with transient ID.`, itemElement.outerHTML.substring(0,200));
+                const { extractedId: tempStyleId, updatedRefIdCounter: tempCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(itemElement, localRefIdCounter);
+                localRefIdCounter = tempCounter;
+                styleRef(itemElement, tempStyleId, null); // Style it, but it won't be in the popup list.
+                continue; 
+              }
+
+              if (!uniqueMdpiRefsForThisRun.has(contentKey)) {
+                const { extractedId: currentItemExtractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(itemElement, localRefIdCounter);
+                localRefIdCounter = updatedRefIdCounter;
+
+                const refData = extractReferenceData(itemElement, currentItemExtractedId);
+
+                uniqueMdpiRefsForThisRun.set(contentKey, refData);
+                styleRef(itemElement, currentItemExtractedId, null);
+              } else {
+                const originalRefData = uniqueMdpiRefsForThisRun.get(contentKey);
+                itemElement.dataset.mdpiFilterRefId = originalRefData.id; 
+                styleRef(itemElement, originalRefData.id, null);
               }
             } else {
-              itemElement.classList.remove('mdpi-highlighted-reference', 'mdpi-hidden-reference');
-              itemElement.style.backgroundColor = ''; itemElement.style.border = ''; itemElement.style.padding = ''; itemElement.style.display = '';
+              if (itemElement.dataset.mdpiFilterRefId) {
+                itemElement.classList.remove('mdpi-highlighted-reference', 'mdpi-hidden-reference');
+                let target = itemElement; 
+                target.style.borderLeft = '';
+                target.style.paddingLeft = '';
+                target.style.backgroundColor = '';
+                target.style.display = ''; 
+              }
             }
           }
           refIdCounter = localRefIdCounter;
-          collectedMdpiReferences = Array.from(uniqueMdpiRefsForThisRun.values()); // Assign to local `let` variable
+          collectedMdpiReferences = Array.from(uniqueMdpiRefsForThisRun.values());
           // console.log(`[MDPI Filter CS] processAllReferences FINISHED. Collected MDPI references count: ${collectedMdpiReferences.length}`);
           return { collectedMdpiReferences, mdpiFoundInRefs };
         }

@@ -185,10 +185,11 @@ ${currentTabUrl}
       console.log('[MDPI Filter Popup] User clicked reference with refId:', refId);
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs && tabs.length > 0 && tabs[0].id != null) {
+          // Log the tabId and refId being sent
+          console.log('[MDPI Filter Popup] Sending scrollToRef message:', { refId, tabId: tabs[0].id });
           chrome.runtime.sendMessage({ type: 'scrollToRef', refId: refId, tabId: tabs[0].id }, (response) => {
-            if (chrome.runtime.lastError) {
-              console.error('[MDPI Filter Popup] Error sending scrollToRef:', chrome.runtime.lastError.message);
-            }
+            // Log the response from the content script
+            console.log('[MDPI Filter Popup] scrollToRef response:', response);
           });
         }
       });

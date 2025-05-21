@@ -830,10 +830,52 @@ if (!window.mdpiFilterInjected) {
               }
               return true;
             }
+            if (msg.type === 'scrollToRef' && msg.refId) {
+              const refId = msg.refId;
+              console.log('[MDPI Filter CS] Received scrollToRef for refId:', refId);
+
+              // Try to find the element by data-mdpi-filter-ref-id
+              let target = document.querySelector(`[data-mdpi-filter-ref-id="${refId}"]`);
+              if (!target) {
+                // Try fallback by id
+                target = document.getElementById(refId);
+              }
+
+              // Log all current data-mdpi-filter-ref-id values for debugging
+              const allRefIds = Array.from(document.querySelectorAll('[data-mdpi-filter-ref-id]')).map(el => el.getAttribute('data-mdpi-filter-ref-id'));
+              console.log('[MDPI Filter CS] All current data-mdpi-filter-ref-id values in DOM:', allRefIds);
+
+              if (target) {
+                console.log('[MDPI Filter CS] Found target for scrollToRef:', target);
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Optionally highlight
+                target.classList.add('mdpi-scroll-highlight');
+                setTimeout(() => target.classList.remove('mdpi-scroll-highlight'), 1500);
+                sendResponse({ status: 'success', message: 'Scrolled to reference.' });
+              } else {
+                console.warn('[MDPI Filter CS] Could not find element for refId:', refId);
+                sendResponse({ status: 'error', message: 'Reference element not found.', allRefIds });
+              }
+              return true; // Indicate async response
+            }
             return false; 
           });
         } else {
           console.warn("[MDPI Filter CS] chrome.runtime.onMessage not available. Scrolling from popup will not work.");
+        }
+
+        // --- Add MutationObserver logging for reference list changes ---
+        if (typeof MutationObserver !== 'undefined') {
+          const refListObserver = new MutationObserver((mutationsList) => {
+            for (const mutation of mutationsList) {
+              if (mutation.type === 'childList') {
+                const allRefIds = Array.from(document.querySelectorAll('[data-mdpi-filter-ref-id]')).map(el => el.getAttribute('data-mdpi-filter-ref-id'));
+                console.log('[MDPI Filter CS] MutationObserver: Reference list changed. Current data-mdpi-filter-ref-id values:', allRefIds);
+              }
+            }
+          });
+          // Observe the whole document for changes to reference items
+          refListObserver.observe(document.body, { childList: true, subtree: true });
         }
 
         // --- Add highlight style for scroll feedback ---

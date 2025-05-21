@@ -183,6 +183,25 @@ ${currentTabUrl}
     if (clickedLi) {
       const refId = clickedLi.dataset.refId;
       console.log('[MDPI Filter Popup] User clicked reference with refId:', refId);
+
+      // Add this debug code to check if the element exists in the page
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs && tabs.length > 0 && tabs[0].id != null) {
+          chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: (refId) => {
+              const el = document.querySelector(`[data-mdpi-filter-ref-id="${refId}"]`);
+              if (el) {
+                console.log('[MDPI Filter DEBUG] Found element for refId:', refId, el);
+              } else {
+                console.warn('[MDPI Filter DEBUG] No element found for refId:', refId);
+              }
+            },
+            args: [refId]
+          });
+        }
+      });
+
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs && tabs.length > 0 && tabs[0].id != null) {
           // Log the tabId and refId being sent

@@ -931,3 +931,22 @@ if (!window.mdpiFilterInjected) {
     }
   }
 }
+
+// Add this function in your content_script.js (after updatePopupData or similar place)
+function logCurrentRefIds() {
+  const allRefs = document.querySelectorAll('[data-mdpi-filter-ref-id]');
+  console.log('[MDPI Filter DEBUG] Current elements with data-mdpi-filter-ref-id:');
+  allRefs.forEach(el => {
+    console.log('  ', el.getAttribute('data-mdpi-filter-ref-id'), el);
+  });
+}
+
+// Call this function after your main reference processing logic, e.g., after you assign IDs or after updatePopupData runs
+logCurrentRefIds();
+
+// In your MutationObserver callback (where you process new/changed reference elements)
+function mutationCallback(mutationsList, observer) {
+  // ...existing code...
+  logCurrentRefIds(); // Log after processing mutations
+  // ...existing code...
+}

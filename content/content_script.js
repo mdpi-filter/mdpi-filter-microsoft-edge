@@ -162,34 +162,28 @@ if (!window.mdpiFilterInjected) {
         // This function will be responsible for updating the global collectedMdpiReferences
         // and then calling sendUpdateToBackground.
         function updatePopupData(newCollectedReferences, count) {
-          console.log('[MDPI Filter CS] updatePopupData: Raw references:', newCollectedReferences);
-          // --- DEDUPLICATE REFERENCES BEFORE SENDING TO BACKGROUND ---
+          console.log(`[MDPI Filter CS] updatePopupData: raw count = ${newCollectedReferences.length}`);
+
+          // --- DEDUPE BY ref.id ---
           const seen = new Set();
-          const deduped = [];
-          for (const ref of newCollectedReferences) {
-            let key = '';
-            if (ref.doi) {
-              key = ref.doi.trim().toLowerCase();
-            } else if (ref.text) {
-              key = ref.text.replace(/\s+/g, ' ').trim().toLowerCase();
-            }
-            if (key && !seen.has(key)) {
-              seen.add(key);
-              deduped.push(ref);
+          const uniqueRefs = [];
+          for (const r of newCollectedReferences) {
+            if (!seen.has(r.id)) {
+              seen.add(r.id);
+              uniqueRefs.push(r);
             }
           }
-          // Log for debugging
-          console.log('[MDPI Filter CS] updatePopupData: Deduped references:', deduped);
+          const dedupedCount = uniqueRefs.length;
+          console.log(`[MDPI Filter CS] updatePopupData: de-duped  count = ${dedupedCount}`);
 
-          // Send only deduped references to background
-          chrome.runtime.sendMessage({
-            type: 'mdpiUpdate',
-            data: {
-              references: deduped
+          // now send only the unique list
+          chrome.runtime.sendMessage(
+            { type: 'mdpiUpdate', data: { count: dedupedCount, references: uniqueRefs } },
+            response => {
+              // optional: handle response
+              // console.log('[MDPI Filter CS] updatePopupData response:', response);
             }
-          }, (response) => {
-            // ...existing response handling...
-          });
+          );
         }
 
         // --- Helper Function Definitions ---

@@ -144,54 +144,34 @@ if (!window.mdpiFilterInjected) {
         // This function will be responsible for updating the global collectedMdpiReferences
         // and then calling sendUpdateToBackground.
         function updatePopupData(newCollectedReferences, count) {
-          // Log the raw references array before deduplication
-          console.log('[MDPI Filter CS] updatePopupData: Raw collected references:', JSON.parse(JSON.stringify(newCollectedReferences)));
-
-          // Log all reference elements and their data-mdpi-filter-ref-id
-          newCollectedReferences.forEach((ref, idx) => {
-            console.log(`[MDPI Filter CS] Reference[${idx}]:`, ref);
-          });
-
-          // Log deduplication process
-          const seenIds = new Set();
+          console.log('[MDPI Filter CS] updatePopupData: Raw references:', newCollectedReferences);
+          // --- DEDUPLICATE REFERENCES BEFORE SENDING TO BACKGROUND ---
+          const seen = new Set();
           const deduped = [];
           for (const ref of newCollectedReferences) {
-            if (ref.id && !seenIds.has(ref.id)) {
-              seenIds.add(ref.id);
+            let key = '';
+            if (ref.doi) {
+              key = ref.doi.trim().toLowerCase();
+            } else if (ref.text) {
+              key = ref.text.replace(/\s+/g, ' ').trim().toLowerCase();
+            }
+            if (key && !seen.has(key)) {
+              seen.add(key);
               deduped.push(ref);
-            } else if (ref.id) {
-              console.warn('[MDPI Filter CS] Duplicate reference detected:', ref.id, ref);
             }
           }
-          console.log('[MDPI Filter CS] updatePopupData: Deduped references:', JSON.parse(JSON.stringify(deduped)));
+          // Log for debugging
+          console.log('[MDPI Filter CS] updatePopupData: Deduped references:', deduped);
 
-          // Log the count being sent to background
-          console.log(`[MDPI Filter CS] updatePopupData: Attempting to send 'mdpiUpdate' to background. Count: ${deduped.length}`);
-
-          if (!chrome.runtime || !chrome.runtime.id) {
-              console.error('[MDPI Filter CS] CRITICAL: chrome.runtime.id is not available in updatePopupData.');
-              return;
-          }
-          const dataToSend = {
-              badgeCount: count,
-              references: deduped.map(ref => ({
-                  id: ref.id,
-                  text: ref.text,
-                  number: ref.number,
-                  listItemDomId: ref.listItemDomId
-              }))
-          };
-          try {
-              chrome.runtime.sendMessage({ type: 'mdpiUpdate', data: dataToSend }, response => {
-                  if (chrome.runtime.lastError) {
-                      console.error('[MDPI Filter CS] Error sending mdpiUpdate from updatePopupData:', chrome.runtime.lastError.message);
-                  } else {
-                      // console.log('[MDPI Filter CS] mdpiUpdate successfully sent from updatePopupData. Response:', response);
-                  }
-              });
-          } catch (e) {
-              console.error('[MDPI Filter CS] Exception sending mdpiUpdate from updatePopupData:', e);
-          }
+          // Send only deduped references to background
+          chrome.runtime.sendMessage({
+            type: 'mdpiUpdate',
+            data: {
+              references: deduped
+            }
+          }, (response) => {
+            // ...existing response handling...
+          });
         }
 
         // --- Helper Function Definitions ---

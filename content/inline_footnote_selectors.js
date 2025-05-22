@@ -32,7 +32,10 @@
       `a[data-rid="${refId}"]`,
       `a[data-bris-rid="${refId}"]`,
       // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<ID>)
-      `a[data-test="citation-ref"][href$="#ref-${refId}"]`
+      `a[data-test="citation-ref"][href$="#ref-${refId}"]`,
+      // ADDED FOR CELL.COM and similar sites
+      `a[id="body-ref-${refId}"]`, // Matches <a id="body-ref-sref6"> for listItemDomId "sref6"
+      `a[aria-controls="${refId}"]`  // Matches <a aria-controls="sref6"> for listItemDomId "sref6"
     ];
 
     const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35" or "ref-CR35"
@@ -64,7 +67,10 @@
       `sup a[data-rid="${refId}"]`,
       `sup a[data-bris-rid="${refId}"]`,
       // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<ID> within a sup)
-      `sup a[data-test="citation-ref"][href$="#ref-${refId}"]`
+      `sup a[data-test="citation-ref"][href$="#ref-${refId}"]`,
+      // ADDED FOR CELL.COM and similar sites (for cases where sup might be the target with these attributes)
+      `sup a[id="body-ref-${refId}"]`,
+      `sup a[aria-controls="${refId}"]`
     ];
      if (numericRefIdPart) {
         supParentSelectors.push(`sup a[href="#${numericRefIdPart}"]`);

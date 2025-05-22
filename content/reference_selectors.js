@@ -4,7 +4,9 @@ window.MDPIFilterReferenceSelectors = [
   'div.References p.ReferencesCopy1',
   'li.html-x',
   'li.html-xx',
-  'div.citation',
+  // Replace generic 'div.citation' with more specific versions
+  'li div.citation', // For div.citation directly inside an li
+  'div[role="listitem"] div.citation', // For div.citation inside a div with role="listitem" (e.g., Cell.com)
   'div.reference',
   'li.separated-list-item',
   'li[id^="CR"]', // Springer

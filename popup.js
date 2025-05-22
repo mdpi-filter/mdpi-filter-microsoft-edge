@@ -184,32 +184,84 @@ ${currentTabUrl}
       const refId = clickedLi.dataset.refId;
       console.log('[MDPI Filter Popup] User clicked reference with refId:', refId);
 
-      // Add this debug code to check if the element exists in the page
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs && tabs.length > 0 && tabs[0].id != null) {
+        if (tabs.length > 0 && tabs[0].id) {
+          const tabId = tabs[0].id;
+          // First, check if the element exists
           chrome.scripting.executeScript({
-            target: { tabId: tabs[0].id },
-            func: (refId) => {
-              const el = document.querySelector(`[data-mdpi-filter-ref-id="${refId}"]`);
-              if (el) {
-                console.log('[MDPI Filter DEBUG] Found element for refId:', refId, el);
-              } else {
-                console.warn('[MDPI Filter DEBUG] No element found for refId:', refId);
-              }
+            target: { tabId: tabId, allFrames: true },
+            func: (id) => {
+              const element = document.querySelector(`[data-mdpi-filter-ref-id="${id}"]`);
+              // This log helps confirm the element is found by the selector
+              console.log(`[MDPI Filter DEBUG] Existence check for refId: ${id}`, element ? 'Found' : 'Not Found', element);
+              return !!element;
             },
             args: [refId]
-          });
-        }
-      });
+          }, (existenceResults) => {
+            if (chrome.runtime.lastError) {
+              console.error('[MDPI Filter Popup] Error checking element existence:', chrome.runtime.lastError.message);
+              return;
+            }
 
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs && tabs.length > 0 && tabs[0].id != null) {
-          // Log the tabId and refId being sent
-          console.log('[MDPI Filter Popup] Sending scrollToRef message:', { refId, tabId: tabs[0].id });
-          chrome.runtime.sendMessage({ type: 'scrollToRef', refId: refId, tabId: tabs[0].id }, (response) => {
-            // Log the response from the content script
-            console.log('[MDPI Filter Popup] scrollToRef response:', response);
+            // Check if any frame reported the element exists
+            const elementExistsInAnyFrame = existenceResults && existenceResults.some(frameResult => frameResult && frameResult.result === true);
+
+            if (elementExistsInAnyFrame) {
+              console.log(`[MDPI Filter Popup] Element with refId ${refId} EXISTS in at least one frame. Proceeding to scroll.`);
+              
+              chrome.scripting.executeScript({
+                target: { tabId: tabId, allFrames: true },
+                func: (id) => {
+                  const elementToScroll = document.querySelector(`[data-mdpi-filter-ref-id="${id}"]`);
+                  if (elementToScroll) {
+                    const rect = elementToScroll.getBoundingClientRect();
+                    const computedStyle = window.getComputedStyle(elementToScroll);
+                    
+                    console.log(`[MDPI Filter DEBUG] Attempting to scroll to element for ${id}:`, 
+                      elementToScroll, 
+                      `OffsetParent:`, elementToScroll.offsetParent,
+                      `BoundingClientRect: { top: ${rect.top}, left: ${rect.left}, width: ${rect.width}, height: ${rect.height} }`,
+                      `ComputedStyle: { display: ${computedStyle.display}, visibility: ${computedStyle.visibility}, opacity: ${computedStyle.opacity} }`,
+                      `ScrollValues: { scrollWidth: ${elementToScroll.scrollWidth}, scrollHeight: ${elementToScroll.scrollHeight}, clientWidth: ${elementToScroll.clientWidth}, clientHeight: ${elementToScroll.clientHeight} }`
+                    );
+
+                    if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden' || rect.width === 0 || rect.height === 0 || computedStyle.opacity === '0') {
+                      console.warn(`[MDPI Filter DEBUG] Element ${id} may not be effectively visible or has no dimensions. Scroll might fail or not be noticeable. Display: ${computedStyle.display}, Visibility: ${computedStyle.visibility}, Opacity: ${computedStyle.opacity}, Width: ${rect.width}, Height: ${rect.height}`);
+                    }
+
+                    elementToScroll.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Temporarily highlight the scrolled element
+                    elementToScroll.classList.add('mdpi-ref-scroll-highlight');
+                    // Ensure previous styles are not interfering too much with visibility
+                    elementToScroll.style.outline = '3px solid orange'; // More prominent temporary highlight
+                    
+                    setTimeout(() => {
+                      elementToScroll.classList.remove('mdpi-ref-scroll-highlight');
+                      elementToScroll.style.outline = ''; // Clear outline
+                    }, 2500); // Increased duration for visibility
+                    return true; // Signifies scroll attempt was made
+                  }
+                  // This console.warn will execute in the content script context if the element is not found in a particular frame
+                  console.warn(`[MDPI Filter DEBUG] Element with ID ${id} not found during scroll attempt in this frame.`);
+                  return false;
+                },
+                args: [refId]
+              }, (scrollResults) => {
+                if (chrome.runtime.lastError) {
+                  console.error('[MDPI Filter Popup] Error during scroll execution:', chrome.runtime.lastError.message);
+                } else if (scrollResults && scrollResults.some(frameResult => frameResult && frameResult.result === true)) {
+                  console.log(`[MDPI Filter Popup] Successfully initiated scroll for element with refId ${refId} in at least one frame.`);
+                } else {
+                  console.warn(`[MDPI Filter Popup] Could not scroll to element with refId ${refId}. Element might not be visible, scrollable, or found in any frame during the scroll attempt itself.`);
+                }
+              });
+            } else {
+              console.warn(`[MDPI Filter Popup] Element with refId ${refId} DOES NOT EXIST or not found in any frame during pre-scroll check.`);
+            }
           });
+        } else {
+          console.error("[MDPI Filter Popup] Could not get active tab ID.");
         }
       });
     }

@@ -6,7 +6,7 @@ window.MDPIFilterReferenceSelectors = [
   'li.html-xx',
   // Replace generic 'div.citation' with more specific versions
   'li div.citation', // For div.citation directly inside an li
-  'div[role="listitem"] div.citation', // For div.citation inside a div with role="listitem" (e.g., Cell.com)
+  'div[role="listitem"][data-has="label"] div.citation', // For div.citation inside a div with role="listitem" (e.g., Cell.com), now more specific
   'div.reference',
   'li.separated-list-item',
   'li[id^="CR"]', // Springer

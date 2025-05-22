@@ -8,7 +8,7 @@ window.MDPIFilterReferenceSelectors = [
   'li div.citation', // For div.citation directly inside an li
   'div[role="listitem"][data-has="label"] div.citation', // For div.citation inside a div with role="listitem" (e.g., Cell.com), now more specific
   'div.reference',
-  'li.separated-list-item',
+  'li.separated-list-item:not(:has(div[id^="article--impact--citation-"]))',
   'li[id^="CR"]', // Springer
   'li[id^="cit"]', // TandF and similar (e.g., id="cit0008")
   'li[id^="ref-"]', // Generic

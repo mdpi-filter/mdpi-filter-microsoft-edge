@@ -193,7 +193,7 @@ ${currentTabUrl}
             func: (id) => {
               const element = document.querySelector(`[data-mdpi-filter-ref-id="${id}"]`);
               // This log helps confirm the element is found by the selector
-              console.log(`[MDPI Filter DEBUG] Existence check for refId: ${id}`, element ? 'Found' : 'Not Found', element);
+              console.log(`[MDPI Filter DEBUG] Existence check for refId: ${id}`, element ? 'Found' : 'Not Found', element ? element.outerHTML.substring(0, 200) : null);
               return !!element;
             },
             args: [refId]
@@ -217,13 +217,40 @@ ${currentTabUrl}
                     const rect = elementToScroll.getBoundingClientRect();
                     const computedStyle = window.getComputedStyle(elementToScroll);
                     
-                    console.log(`[MDPI Filter DEBUG] Attempting to scroll to element for ${id}:`, 
-                      elementToScroll, 
-                      `OffsetParent:`, elementToScroll.offsetParent,
-                      `BoundingClientRect: { top: ${rect.top}, left: ${rect.left}, width: ${rect.width}, height: ${rect.height} }`,
-                      `ComputedStyle: { display: ${computedStyle.display}, visibility: ${computedStyle.visibility}, opacity: ${computedStyle.opacity} }`,
-                      `ScrollValues: { scrollWidth: ${elementToScroll.scrollWidth}, scrollHeight: ${elementToScroll.scrollHeight}, clientWidth: ${elementToScroll.clientWidth}, clientHeight: ${elementToScroll.clientHeight} }`
-                    );
+                    let logMessage = `[MDPI Filter DEBUG] Attempting to scroll to element for ${id}: ${elementToScroll.tagName}#${elementToScroll.id}.${elementToScroll.className}\n`;
+                    logMessage += `  OffsetParent: ${elementToScroll.offsetParent ? elementToScroll.offsetParent.tagName : 'null'}\n`;
+                    logMessage += `  BoundingClientRect: { top: ${rect.top}, left: ${rect.left}, width: ${rect.width}, height: ${rect.height} }\n`;
+                    logMessage += `  ComputedStyle: { display: ${computedStyle.display}, visibility: ${computedStyle.visibility}, opacity: ${computedStyle.opacity}, position: ${computedStyle.position} }\n`;
+                    logMessage += `  ScrollValues: { scrollWidth: ${elementToScroll.scrollWidth}, scrollHeight: ${elementToScroll.scrollHeight}, clientWidth: ${elementToScroll.clientWidth}, clientHeight: ${elementToScroll.clientHeight} }\n`;
+                    
+                    let current = elementToScroll;
+                    const ancestorPath = [];
+                    let depth = 0;
+                    while(current && current !== document.body && depth < 10) { // Limit depth to avoid excessive logging
+                      const style = window.getComputedStyle(current);
+                      const currentRect = current.getBoundingClientRect();
+                      ancestorPath.push({
+                        tagName: current.tagName,
+                        id: current.id,
+                        class: current.className,
+                        display: style.display,
+                        visibility: style.visibility,
+                        opacity: style.opacity,
+                        position: style.position,
+                        width: currentRect.width, 
+                        height: currentRect.height,
+                        offsetWidth: current.offsetWidth,
+                        offsetHeight: current.offsetHeight,
+                        offsetParent: current.offsetParent ? current.offsetParent.tagName : 'null'
+                      });
+                      if (style.display === 'none' || style.visibility === 'hidden' || currentRect.width === 0 || currentRect.height === 0) {
+                        logMessage += `  WARNING: Ancestor ${current.tagName}${current.id ? '#'+current.id : ''} might be hiding the element. Display: ${style.display}, Visibility: ${style.visibility}, Width: ${currentRect.width}, Height: ${currentRect.height}\n`;
+                      }
+                      current = current.parentElement;
+                      depth++;
+                    }
+                    logMessage += `  Ancestor Path (first ${ancestorPath.length}): ${JSON.stringify(ancestorPath, null, 1)}\n`;
+                    console.log(logMessage);
 
                     if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden' || rect.width === 0 || rect.height === 0 || computedStyle.opacity === '0') {
                       console.warn(`[MDPI Filter DEBUG] Element ${id} may not be effectively visible or has no dimensions. Scroll might fail or not be noticeable. Display: ${computedStyle.display}, Visibility: ${computedStyle.visibility}, Opacity: ${computedStyle.opacity}, Width: ${rect.width}, Height: ${rect.height}`);
@@ -231,19 +258,17 @@ ${currentTabUrl}
 
                     elementToScroll.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     
-                    // Temporarily highlight the scrolled element
                     elementToScroll.classList.add('mdpi-ref-scroll-highlight');
-                    // Ensure previous styles are not interfering too much with visibility
-                    elementToScroll.style.outline = '3px solid orange'; // More prominent temporary highlight
+                    elementToScroll.style.outline = '3px solid orange'; 
                     
                     setTimeout(() => {
                       elementToScroll.classList.remove('mdpi-ref-scroll-highlight');
-                      elementToScroll.style.outline = ''; // Clear outline
-                    }, 2500); // Increased duration for visibility
-                    return true; // Signifies scroll attempt was made
+                      elementToScroll.style.outline = ''; 
+                    }, 2500); 
+                    return true; 
                   }
-                  // This console.warn will execute in the content script context if the element is not found in a particular frame
-                  console.warn(`[MDPI Filter DEBUG] Element with ID ${id} not found during scroll attempt in this frame.`);
+                  // This console.log will execute in the content script context if the element is not found in a particular frame
+                  console.log(`[MDPI Filter DEBUG] Element with ID ${id} not found during scroll attempt in this frame.`);
                   return false;
                 },
                 args: [refId]
@@ -253,11 +278,11 @@ ${currentTabUrl}
                 } else if (scrollResults && scrollResults.some(frameResult => frameResult && frameResult.result === true)) {
                   console.log(`[MDPI Filter Popup] Successfully initiated scroll for element with refId ${refId} in at least one frame.`);
                 } else {
-                  console.warn(`[MDPI Filter Popup] Could not scroll to element with refId ${refId}. Element might not be visible, scrollable, or found in any frame during the scroll attempt itself.`);
+                  console.warn(`[MDPI Filter Popup] Could not scroll to element with refId ${refId}. Element might not be visible, scrollable, or found in any frame during the scroll attempt itself. See content script logs for details from specific frames.`);
                 }
               });
             } else {
-              console.warn(`[MDPI Filter Popup] Element with refId ${refId} DOES NOT EXIST or not found in any frame during pre-scroll check.`);
+              console.warn(`[MDPI Filter Popup] Element with refId ${refId} DOES NOT EXIST or not found in any frame during pre-scroll check. See content script logs for details from specific frames.`);
             }
           });
         } else {

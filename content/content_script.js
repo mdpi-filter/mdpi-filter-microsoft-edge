@@ -631,18 +631,26 @@ if (!window.mdpiFilterInjected) {
           let mdpiFoundInRefs = false;
           const uniqueMdpiRefsForThisRun = new Map(); // Key: contentKey, Value: refData object
 
-          const referenceListSelectors = window.MDPIFilterReferenceSelectors;
-          if (!referenceListSelectors) {
+          const referenceSelectorString = window.MDPIFilterReferenceSelectors;
+          if (!referenceSelectorString) {
+            console.error("[MDPI Filter CS] MDPIFilterReferenceSelectors is not defined. Cannot process references.");
             return { collectedMdpiReferences, mdpiFoundInRefs };
           }
 
-          let allPotentialReferenceItems = Array.from(document.querySelectorAll(referenceListSelectors));
+          let allPotentialReferenceItems = Array.from(document.querySelectorAll(referenceSelectorString));
 
+          // **** IMPORTANT FILTER: Exclude items within EuropePMC "article citations" ****
+          // This ensures they are not processed as main references.
+          allPotentialReferenceItems = allPotentialReferenceItems.filter(item => !item.closest('div#article-citations'));
+          // **** END OF IMPORTANT FILTER ****
+
+          // Filter out nested reference items (items that are children of other identified reference items)
           allPotentialReferenceItems = allPotentialReferenceItems.filter(item => {
             return !allPotentialReferenceItems.some(otherItem => otherItem !== item && otherItem.contains(item));
           });
 
-
+          // Specific filter for EuropePMC article pages to exclude "Similar Articles" section
+          // from being treated as main references.
           if (window.location.hostname.includes('europepmc.org') &&
               (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
               !window.location.pathname.startsWith('/search')) {
@@ -652,8 +660,10 @@ if (!window.mdpiFilterInjected) {
           const referenceItems = allPotentialReferenceItems;
 
           if (referenceItems.length === 0) {
+            // console.log("[MDPI Filter CS] No reference items found after filtering.");
             return { collectedMdpiReferences, mdpiFoundInRefs };
           }
+          // console.log(`[MDPI Filter CS] Processing ${referenceItems.length} reference items after initial filtering.`);
 
           if (window.MDPIFilterLinkExtractor && typeof window.MDPIFilterLinkExtractor.resetExpansionFlags === 'function') {
             window.MDPIFilterLinkExtractor.resetExpansionFlags();
@@ -707,77 +717,77 @@ if (!window.mdpiFilterInjected) {
 
           let localRefIdCounter = refIdCounter;
           for (const itemElement of referenceItems) {
-            const isMdpi = isMdpiItemByContent(itemElement, runCache);
-            citationProcessCache.set(itemElement, isMdpi);
+            // If an item was already processed by cited_by_processor or similar_articles_processor, it might have styling.
+            // However, the main reference processor should still assign its own ID if it matches here,
+            // but the earlier filter for 'div#article-citations' should prevent this for those specific items.
+            
+            const isMdpi = isMdpiItemByContent(itemElement, runCache); // runCache is populated by pre-fetch and this function
+            // Cache the result of isMdpiItemByContent for this element to avoid re-computation if other modules check it.
+            // Note: citationProcessCache is a WeakMap, good for DOM elements.
+            citationProcessCache.set(itemElement, isMdpi); // Cache for other modules if they need it
 
             if (isMdpi) {
               mdpiFoundInRefs = true;
+              const refData = extractReferenceData(itemElement); // extractReferenceData assigns/retrieves data-mdpi-filter-ref-id
 
+              // Deduplication logic based on contentKey (DOI or text)
               let contentKey = '';
               const itemTextContent = itemElement.textContent || "";
 
+              // Try to get DOI from the primary link first for a more reliable key
               let finalDoi = null;
-              const primaryLinkContent = window.MDPIFilterLinkExtractor.extractPrimaryLink(itemElement, window.MDPIFilterLinkExtractionSelectors);
-              if (primaryLinkContent) {
-                const doiMatch = primaryLinkContent.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
-                if (doiMatch && doiMatch[1]) {
-                  finalDoi = doiMatch[1].trim().toLowerCase();
-                }
+              if (refData.primaryLink && refData.primaryLink.doi) {
+                finalDoi = refData.primaryLink.doi;
               }
+              // If no DOI from primary link, try to extract from text (more prone to errors but a fallback)
               if (!finalDoi) {
-                const doiTextMatch = itemTextContent.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
-                if (doiTextMatch && doiTextMatch[1]) {
-                    finalDoi = doiTextMatch[1].trim().toLowerCase();
+                const doiMatchInText = itemTextContent.match(MDPI_DOI_REGEX); // General DOI regex, not just MDPI
+                if (doiMatchInText && doiMatchInText[0]) {
+                  finalDoi = doiMatchInText[0];
                 }
               }
 
               if (finalDoi) {
-                contentKey = `doi:${finalDoi}`;
+                contentKey = `doi:${finalDoi.toLowerCase()}`;
               } else {
-                if (itemElement.id && (itemElement.id.startsWith('sref') || itemElement.id.startsWith('bib') || itemElement.id.startsWith('CR') || /^(B\d+|R\d+)$/.test(itemElement.id))) {
-                    contentKey = `domid:${itemElement.id}`;
-                } else {
-                  const textForHashing = sanitize(itemTextContent.substring(0, 200).replace(/\s+/g, ' ').trim().toLowerCase());
-                  if (textForHashing) {
-                    contentKey = `text:${textForHashing}`;
-                  }
-                }
+                // Fallback to sanitized text if no DOI found
+                contentKey = `text:${sanitize(itemTextContent.substring(0, 100).toLowerCase().replace(/\s+/g, ''))}`;
               }
 
               if (!contentKey) {
-                const itemPreviewForLog = (itemElement.textContent || "").substring(0, 70).trim().replace(/\s+/g, ' ');
-                console.warn(`[MDPI Filter CS] Could not generate contentKey for MDPI item: "${itemPreviewForLog}...". Styling with transient ID.`, itemElement.outerHTML.substring(0,200));
-                const { extractedId: tempStyleId, updatedRefIdCounter: tempCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(itemElement, localRefIdCounter);
-                localRefIdCounter = tempCounter;
-                styleRef(itemElement, tempStyleId, null); // Style it, but it won't be in the popup list.
-                continue; 
+                // If still no key, use the assigned refId as a last resort (less ideal for deduplication across runs)
+                contentKey = `id:${refData.id}`;
               }
-
+              
               if (!uniqueMdpiRefsForThisRun.has(contentKey)) {
-                const { extractedId: currentItemExtractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(itemElement, localRefIdCounter);
-                localRefIdCounter = updatedRefIdCounter;
-
-                const refData = extractReferenceData(itemElement, currentItemExtractedId);
-
-                uniqueMdpiRefsForThisRun.set(contentKey, refData);
-                styleRef(itemElement, currentItemExtractedId, null);
+                styleRef(itemElement, refData.id, null); // Apply styling (config is null for non-search pages)
+                uniqueMdpiRefsForThisRun.set(contentKey, { ...refData, number: 0 }); // Number will be assigned later
+                // console.log(`[MDPI Filter CS] Added MDPI ref (key: ${contentKey}):`, refData.text.substring(0,50));
               } else {
-                const originalRefData = uniqueMdpiRefsForThisRun.get(contentKey);
-                itemElement.dataset.mdpiFilterRefId = originalRefData.id; 
-                styleRef(itemElement, originalRefData.id, null);
+                // console.log(`[MDPI Filter CS] Duplicate MDPI ref skipped (key: ${contentKey}):`, refData.text.substring(0,50));
+                // Ensure even duplicates get the refId attribute for consistency if needed by other parts,
+                // but styleRef might have already been called if it was the first instance.
+                // This ensures that if a duplicate is encountered, it still has the ID.
+                if (!itemElement.dataset.mdpiFilterRefId) {
+                    itemElement.dataset.mdpiFilterRefId = uniqueMdpiRefsForThisRun.get(contentKey).id;
+                }
+                 // And ensure it's styled if it's an MDPI item, even if a duplicate for collection purposes
+                styleRef(itemElement, uniqueMdpiRefsForThisRun.get(contentKey).id, null);
               }
             } else {
+              // Non-MDPI reference item
               if (itemElement.dataset.mdpiFilterRefId) {
+                // If it was previously marked (e.g. by a mutation that made it non-MDPI), clear styling
                 itemElement.classList.remove('mdpi-highlighted-reference', 'mdpi-hidden-reference');
-                let target = itemElement; 
-                target.style.borderLeft = '';
-                target.style.paddingLeft = '';
-                target.style.backgroundColor = '';
-                target.style.display = ''; 
+                itemElement.style.borderLeft = '';
+                itemElement.style.paddingLeft = '';
+                itemElement.style.backgroundColor = '';
+                itemElement.style.display = '';
+                // console.log(`[MDPI Filter CS] Cleared styling for non-MDPI ref:`, itemElement.dataset.mdpiFilterRefId);
               }
             }
           }
-          refIdCounter = localRefIdCounter;
+          refIdCounter = localRefIdCounter; // Persist the counter state
           collectedMdpiReferences = Array.from(uniqueMdpiRefsForThisRun.values());
           // console.log(`[MDPI Filter CS] processAllReferences FINISHED. Collected MDPI references count: ${collectedMdpiReferences.length}`);
           return { collectedMdpiReferences, mdpiFoundInRefs };
@@ -828,7 +838,12 @@ if (!window.mdpiFilterInjected) {
             const { collectedMdpiReferences: mainCollectedRefs, mdpiFoundInRefs: mainMdpiFound } = await processAllReferences(runCache, settingsToUse);
             
             if (window.MDPIFilterCitedBy?.Processor?.processEntries) {
-              await window.MDPIFilterCitedBy.Processor.processEntries(runCache, settingsToUse);
+              // Updated call to pass the checkItemContent function, runCache, and settingsToUse
+              await window.MDPIFilterCitedBy.Processor.processEntries(
+                window.MDPIFilterItemContentChecker.checkItemContent,
+                runCache,
+                settingsToUse
+              );
             }
             if (window.MDPIFilterSimilarArticles?.Processor?.processEntries) {
               await window.MDPIFilterSimilarArticles.Processor.processEntries(runCache, settingsToUse);
@@ -1029,24 +1044,5 @@ if (!window.mdpiFilterInjected) {
     } else {
       console.warn("[MDPI Filter CS] Extension context invalidated before storage access. Main script logic will not execute for this frame.");
     }
-  }
-}
-
-// Add this function in your content_script.js (after updatePopupData or similar place)
-function logCurrentRefIds() {
-  const allRefs = document.querySelectorAll('[data-mdpi-filter-ref-id]');
-  console.log('[MDPI Filter DEBUG] Current elements with data-mdpi-filter-ref-id:');
-  allRefs.forEach(el => {
-    console.log('  ', el.getAttribute('data-mdpi-filter-ref-id'), el);
-  });
-}
-
-// Call this function after your main reference processing logic, e.g., after you assign IDs or after updatePopupData runs
-logCurrentRefIds();
-
-// In your MutationObserver callback (where you process new/changed reference elements)
-function mutationCallback(mutationsList, observer) {
-  // ...existing code...
-  logCurrentRefIds(); // Log after processing mutations
-  // ...existing code...
-}
+  } // End of if (!dependenciesMet) else
+} // End of if (!window.mdpiFilterInjected)

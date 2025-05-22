@@ -8,68 +8,63 @@
   }
 
   const MDPI_RED = '#E2211C';
-  const CITED_BY_BORDER_STYLE = `3px solid ${MDPI_RED}`;
-  const CITED_BY_TEXT_COLOR = MDPI_RED;
+  // Consistent with general reference highlight styling from content_script.js
+  const CITED_BY_HIGHLIGHT_BORDER = `3px solid ${MDPI_RED}`;
+  const CITED_BY_HIGHLIGHT_PADDING = '5px';
+  const CITED_BY_HIGHLIGHT_BG_COLOR = 'rgba(226, 33, 28, 0.05)';
+  const CITED_BY_TEXT_COLOR = MDPI_RED; // For inner text elements if desired
 
   /**
-   * Styles an individual MDPI "Cited By" list item.
-   * This function assumes the item has already been determined to be MDPI.
+   * Styles an individual "Cited By" list item based on whether it's MDPI and the current mode.
    * @param {HTMLElement} item - The "Cited By" list item (e.g., an LI or DIV element).
+   * @param {boolean} isMdpi - Whether the item has been determined to be MDPI.
+   * @param {string} mode - The current operating mode ('highlight' or 'hide').
    */
-  function styleCitedByItem(item) {
+  function styleCitedByItem(item, isMdpi, mode) {
     if (!item) return;
 
-    // Apply a distinct visual style to the "Cited By" item container
-    item.style.borderLeft = CITED_BY_BORDER_STYLE;
-    item.style.paddingLeft = '8px'; // Increased padding for better visual separation
-    item.style.marginLeft = '2px'; // Slight indent if needed
-    item.style.marginBottom = '4px'; // Spacing between items
+    // Clear previous MDPI-specific styling first
+    item.style.borderLeft = '';
+    item.style.paddingLeft = '';
+    item.style.backgroundColor = '';
+    item.style.display = ''; // Reset display
+    item.style.marginLeft = ''; // Reset if previously set by older versions
+    item.style.marginBottom = ''; // Reset if previously set by older versions
+    // TODO: Consider a more robust way to clear inner text styling if it becomes complex,
+    // e.g., by adding/removing a specific class to inner styled elements.
+    // For now, this focuses on the container styling.
 
-    // Attempt to style prominent text elements within the item
-    // Example for ScienceDirect "Cited By" items:
-    if (item.matches && item.matches('li.ListArticleItem')) {
-      const titleH3 = item.querySelector('h3.u-font-serif');
-      if (titleH3) {
-        titleH3.style.color = CITED_BY_TEXT_COLOR;
-        const linkInH3 = titleH3.querySelector('a.anchor-primary');
-        if (linkInH3) {
-          const anchorTextSpan = linkInH3.querySelector('.anchor-text');
-          const linkTextTarget = anchorTextSpan || linkInH3; // Style span or link itself
-          linkTextTarget.style.color = CITED_BY_TEXT_COLOR;
+    delete item.dataset.mdpiFilterCitedByStyled;
+    delete item.dataset.mdpiFilterMode;
+
+    if (isMdpi) {
+      item.dataset.mdpiFilterCitedByStyled = "true";
+      item.dataset.mdpiFilterMode = mode;
+
+      if (mode === 'highlight') {
+        item.style.borderLeft = CITED_BY_HIGHLIGHT_BORDER;
+        item.style.paddingLeft = CITED_BY_HIGHLIGHT_PADDING;
+        item.style.backgroundColor = CITED_BY_HIGHLIGHT_BG_COLOR;
+        item.style.display = ''; // Ensure visible
+
+        // Optional: Apply styling to inner text elements for highlighted MDPI items
+        // This can be adapted from your existing logic or made more specific.
+        // Example for EuropePMC `li.separated-list-item` containing `div.citation > h4.citation-title a`
+        if (item.matches && item.matches('li.separated-list-item')) {
+          const titleLink = item.querySelector('div.citation h4.citation-title a');
+          if (titleLink) {
+            // titleLink.style.color = CITED_BY_TEXT_COLOR; // Uncomment if desired
+          }
         }
-      }
-      // You might also want to style other parts like author lists or journal info if they exist
-      const authors = item.querySelector('.author-list');
-      if (authors) {
-        // authors.style.fontStyle = 'italic'; // Example
-      }
-    }
-    // Example for generic "Cited By" entries:
-    else if (item.matches && item.matches('li.citedByEntry')) {
-      const titleElement = item.querySelector('.title, .article-title, h4, h5, strong'); // Common title/emphasis selectors
-      if (titleElement) {
-        titleElement.style.color = CITED_BY_TEXT_COLOR;
-      }
-      const seriesTitleSpan = item.querySelector('span.seriesTitle'); // e.g., Journal name
-      if (seriesTitleSpan) {
-        seriesTitleSpan.style.color = CITED_BY_TEXT_COLOR;
-        seriesTitleSpan.style.fontWeight = 'bold';
+        // Add other specific selectors if needed, similar to your original styler:
+        // else if (item.matches && item.matches('li.ListArticleItem')) { ... }
+        // else if (item.matches && item.matches('li.citedByEntry')) { ... }
+
+      } else if (mode === 'hide') {
+        item.style.display = 'none';
       }
     }
-    // Fallback: If no specific inner elements are matched, try to color the first link found.
-    else {
-      const primaryLink = item.querySelector('a[href]');
-      if (primaryLink) {
-        primaryLink.style.color = CITED_BY_TEXT_COLOR;
-        // Avoid coloring the entire item.textContent if a link is found and styled.
-      } else {
-         // As a last resort, color the item's text directly, but be cautious.
-         // This might be too broad. Consider if this is desired.
-         // item.style.color = CITED_BY_TEXT_COLOR;
-      }
-    }
-    // Mark that this item has been styled by the "Cited By" styler
-    item.dataset.mdpiFilterCitedByStyled = "true";
+    // If not MDPI, all relevant styles were cleared at the beginning.
   }
 
   window.MDPIFilterCitedBy.Styler.styleItem = styleCitedByItem;

@@ -108,6 +108,7 @@ if (!window.mdpiFilterInjected) {
 
     // let collectedMdpiReferences = []; // This global one will be updated by updatePopupData
     let refIdCounter = 0;
+    let globalCollectedMdpiReferences = []; // To store data for MDPI references for footnote styling
 
     let mainObserverInstance = null;
 
@@ -137,6 +138,76 @@ if (!window.mdpiFilterInjected) {
       };
     };
 
+    // Function to process all references, collect MDPI ones, and style footnotes
+    function refreshMdpiProcessingAndStyling() {
+      // console.log("[MDPI Filter CS] Starting refreshMdpiProcessingAndStyling.");
+      globalCollectedMdpiReferences = []; // Reset for this processing run
+
+      if (!referenceListSelectors) {
+        console.error("[MDPI Filter CS] referenceListSelectors is not defined. Cannot process references.");
+        return;
+      }
+      const referenceItems = document.querySelectorAll(referenceListSelectors);
+      // console.log(`[MDPI Filter CS] Found ${referenceItems.length} potential reference items.`);
+
+      referenceItems.forEach(item => {
+        if (!window.MDPIFilterReferenceIdExtractor || !window.MDPIFilterReferenceIdExtractor.extractInternalScrollId) {
+          console.error("[MDPI Filter CS] MDPIFilterReferenceIdExtractor.extractInternalScrollId is not available.");
+          return;
+        }
+        const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(item, refIdCounter);
+        refIdCounter = updatedRefIdCounter; // Update script-local counter
+
+        if (!window.MDPIFilterItemContentChecker || !window.MDPIFilterItemContentChecker.checkItemContent) {
+          console.error("[MDPI Filter CS] MDPIFilterItemContentChecker.checkItemContent is not available.");
+          return;
+        }
+        if (!window.MDPIFilterCaches || !window.MDPIFilterCaches.citationProcessCache) {
+            console.error("[MDPI Filter CS] MDPIFilterCaches.citationProcessCache is not available.");
+            return;
+        }
+
+        const isMdpi = window.MDPIFilterItemContentChecker.checkItemContent(
+          item,
+          window.MDPIFilterCaches.citationProcessCache,
+          currentRunSettings.mdpiDoiPrefix,
+          currentRunSettings.mdpiDomain
+        );
+
+        if (isMdpi) {
+          const refData = extractReferenceData(item, extractedId);
+          globalCollectedMdpiReferences.push(refData);
+          
+          // TODO: Implement styling/hiding of the reference list item itself based on currentRunSettings.mode
+          // Example:
+          // if (currentRunSettings.mode === 'highlight') {
+          //   item.style.borderLeft = '3px solid #E2211C'; // MDPI Red
+          //   item.style.paddingLeft = '5px';
+          // } else if (currentRunSettings.mode === 'hide') {
+          //   item.style.display = 'none';
+          // }
+        } else {
+          // TODO: Ensure non-MDPI items are reset (e.g., remove border, set display to default)
+          // Example:
+          // item.style.borderLeft = '';
+          // item.style.paddingLeft = '';
+          // item.style.display = '';
+        }
+      });
+
+      // console.log(`[MDPI Filter CS] Collected ${globalCollectedMdpiReferences.length} MDPI references for footnote styling.`);
+
+      if (window.MDPIFilterUtils && window.MDPIFilterUtils.styleInlineFootnotes) {
+        const mdpiColor = '#E2211C'; // MDPI Red, or pull from settings if configurable
+        window.MDPIFilterUtils.styleInlineFootnotes(globalCollectedMdpiReferences, mdpiColor);
+      } else {
+        console.error("[MDPI Filter CS] MDPIFilterUtils.styleInlineFootnotes is not available.");
+      }
+
+      // TODO: Call a function to update the browser action badge with the count
+      // e.g., updateBadgeCount(globalCollectedMdpiReferences.length);
+    }
+
     if (chrome.runtime && chrome.runtime.id) {
       chrome.storage.sync.get({ mode: 'highlight' }, (retrievedStorageSettings) => {
         if (chrome.runtime.lastError) {
@@ -144,7 +215,36 @@ if (!window.mdpiFilterInjected) {
           // currentRunSettings already has defaults
         } else if (retrievedStorageSettings) {
           currentRunSettings.mode = retrievedStorageSettings.mode;
-          // mdpiDomain and mdpiDoiPrefix are fixed for now, but could be added to storage later
+        }
+        // console.log("[MDPI Filter CS] Settings loaded/defaulted. Mode:", currentRunSettings.mode);
+        
+        // Perform initial processing and styling
+        refreshMdpiProcessingAndStyling();
+
+        // TODO: If using a MutationObserver for dynamic content, ensure it's initialized
+        // and its callback also triggers refreshMdpiProcessingAndStyling (possibly debounced).
+        // Example:
+        // const debouncedRefresh = window.debounce(refreshMdpiProcessingAndStyling, 300);
+        // mainObserverInstance = new MutationObserver((mutationsList, observer) => {
+        //   // Add logic to check if mutations are relevant before refreshing
+        //   debouncedRefresh();
+        // });
+        // mainObserverInstance.observe(document.body, { childList: true, subtree: true });
+
+      });
+    } else {
+      // Fallback for environments where chrome.runtime is not available (e.g. testing)
+      console.warn("[MDPI Filter CS] chrome.runtime.id not available. Running with default settings and processing.");
+      refreshMdpiProcessingAndStyling();
+    }
+
+    if (chrome.runtime && chrome.runtime.id) {
+      chrome.storage.sync.get({ mode: 'highlight' }, (retrievedStorageSettings) => {
+        if (chrome.runtime.lastError) {
+          console.error(`[MDPI Filter CS] Error accessing storage: ${chrome.runtime.lastError.message}. Using default settings.`);
+          // currentRunSettings already has defaults
+        } else if (retrievedStorageSettings) {
+          currentRunSettings.mode = retrievedStorageSettings.mode;
         }
 
         if (!(chrome.runtime && chrome.runtime.id)) {

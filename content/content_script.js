@@ -907,7 +907,8 @@ if (!window.mdpiFilterInjected) {
           const activeDomainConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains);
 
           if (activeDomainConfig) {
-            await processSearchEngineResults(activeDomainConfig, settingsToUse); // Pass settingsToUse
+            // FIXED: Use processSearchResults instead of processSearchEngineResults
+            await processSearchResults();
           } else {
             // --- Step 0: Handle page-specific NCBI API check (e.g., on EuropePMC article page) ---
             const isEuropePMCArticlePage = window.location.hostname.includes('europepmc.org') &&

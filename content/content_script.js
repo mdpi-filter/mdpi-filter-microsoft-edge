@@ -121,7 +121,8 @@ if (!window.mdpiFilterInjected) {
     let currentRunSettings = {
         mode: 'highlight', // Default
         mdpiDomain: MDPI_DOMAIN_CONST,
-        mdpiDoiPrefix: MDPI_DOI_CONST
+        mdpiDoiPrefix: MDPI_DOI_CONST,
+        highlightPotentialMdpiSites: true // ADD THIS - Enable potential highlighting by default
     };
     // ---
 
@@ -214,14 +215,18 @@ if (!window.mdpiFilterInjected) {
     }
 
     if (chrome.runtime && chrome.runtime.id) {
-      chrome.storage.sync.get({ mode: 'highlight' }, (retrievedStorageSettings) => {
+      chrome.storage.sync.get({ 
+        mode: 'highlight',
+        highlightPotentialMdpiSites: true // ADD THIS DEFAULT
+      }, (retrievedStorageSettings) => {
         if (chrome.runtime.lastError) {
           console.error(`[MDPI Filter CS] Error accessing storage: ${chrome.runtime.lastError.message}. Using default settings.`);
           // currentRunSettings already has defaults
         } else if (retrievedStorageSettings) {
           currentRunSettings.mode = retrievedStorageSettings.mode;
+          currentRunSettings.highlightPotentialMdpiSites = retrievedStorageSettings.highlightPotentialMdpiSites; // ADD THIS
         }
-        // console.log("[MDPI Filter CS] Settings loaded/defaulted. Mode:", currentRunSettings.mode);
+        console.log("[MDPI Filter CS] Settings loaded/defaulted:", currentRunSettings); // Enhanced log
         
         // Perform initial processing and styling
         refreshMdpiProcessingAndStyling();
@@ -627,11 +632,57 @@ if (!window.mdpiFilterInjected) {
               }
             });
           }
-          isProcessing = false;
+        }
+
+        // Add missing applySearchResultStyling function
+        function applySearchResultStyling(item, activeConfig, type) {
+          let highlightTarget = item;
+          if (activeConfig && activeConfig.highlightTargetSelector) {
+            const targetElement = item.querySelector(activeConfig.highlightTargetSelector);
+            if (targetElement) {
+              highlightTarget = targetElement;
+            }
+          }
+
+          // Remove any existing styling first
+          highlightTarget.classList.remove('mdpi-highlighted-reference', 'mdpi-search-result-highlight', 'mdpi-hidden-reference', 'mdpi-search-result-hidden', 'potential-mdpi-site-highlight');
+          highlightTarget.style.backgroundColor = '';
+          highlightTarget.style.border = '';
+          highlightTarget.style.padding = '';
+          highlightTarget.style.display = '';
+          highlightTarget.style.outline = '';
+          highlightTarget.style.borderLeft = '';
+          highlightTarget.style.paddingLeft = '';
+
+          if (type === 'mdpi') {
+            // Secure MDPI styling (red solid border)
+            highlightTarget.classList.add('mdpi-highlighted-reference');
+            if (activeConfig && (activeConfig.host === 'www.google.com' || activeConfig.isGoogleWeb)) {
+              highlightTarget.style.borderLeft = `3px solid ${mdpiColor}`;
+              highlightTarget.style.paddingLeft = '5px';
+              highlightTarget.style.backgroundColor = 'rgba(226, 33, 28, 0.05)';
+            } else {
+              highlightTarget.style.borderLeft = `3px solid ${mdpiColor}`;
+              highlightTarget.style.paddingLeft = '5px';
+              highlightTarget.style.backgroundColor = 'rgba(226, 33, 28, 0.05)';
+            }
+
+            if (currentRunSettings.mode === 'hide') {
+              highlightTarget.classList.add('mdpi-hidden-reference');
+              highlightTarget.style.display = 'none';
+            }
+          } else if (type === 'potential') {
+            // Potential MDPI styling (yellow dashed border)
+            highlightTarget.classList.add('potential-mdpi-site-highlight');
+            highlightTarget.style.border = '2px dashed #FFA500';
+            highlightTarget.style.borderRadius = '3px';
+            highlightTarget.style.padding = '2px';
+            highlightTarget.style.backgroundColor = 'rgba(255, 255, 153, 0.2)';
+          }
         }
 
         // MODIFIED processSearchResults to handle Google via GoogleContentChecker
-        async function processSearchResults() {
+        async function processSearchResults(runCache, settingsToUse) {
           const currentHostname = window.location.hostname;
           const currentPathname = window.location.pathname;
           const activeConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
@@ -647,6 +698,8 @@ if (!window.mdpiFilterInjected) {
           // Check if this is Google Web search
           const isGoogleWeb = activeConfig.isGoogleWeb === true;
           const googleChecker = isGoogleWeb ? new window.GoogleContentChecker() : null;
+          
+          let mdpiResultsCount = 0; // Initialize counter
 
           for (const item of items) {
             try {
@@ -659,62 +712,55 @@ if (!window.mdpiFilterInjected) {
                 const result = await googleChecker.checkGoogleItem(
                   item, 
                   runCache, 
-                  currentRunSettings.mdpiDoiPrefix, 
-                  currentRunSettings.mdpiDomain, 
+                  settingsToUse.mdpiDoiPrefix, 
+                  settingsToUse.mdpiDomain, 
                   activeConfig, 
-                  currentRunSettings, 
+                  settingsToUse, 
                   window.MDPIFilterCaches.ncbiApiCache
                 );
                 isMdpi = result.isMdpi;
                 isPotential = result.isPotential;
                 details = result.details;
               } else {
-                // Existing checks for non-Google search results
-                isMdpi = isMdpiItemByContent(item, runCache);
-                isPotential = !isMdpi && window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, currentRunSettings.mdpiDoiPrefix, currentRunSettings.mdpiDomain);
+                // Use existing logic for other sites
+                if (activeConfig.htmlContains) {
+                  isMdpi = item.innerHTML.includes(activeConfig.htmlContains);
+                } else if (activeConfig.doiPattern) {
+                  isMdpi = (item.textContent || '').includes(activeConfig.doiPattern);
+                } else if (activeConfig.linkSelector) {
+                  isMdpi = !!item.querySelector(activeConfig.linkSelector);
+                } else {
+                  isMdpi = window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomain);
+                }
               }
 
+              // Apply styling based on results
               if (isMdpi) {
-                styleRef(item, `mdpi-search-${mdpiResultsCount + 1}`, activeConfig);
+                applySearchResultStyling(item, activeConfig, 'mdpi');
                 mdpiResultsCount++;
-              } else if (isPotential) {
-                // Potential MDPI item (not confirmed), apply a different style or none
-                styleRef(item, '', activeConfig); // No specific refId, just apply potential styling if any
-              } else {
-                // Remove highlight if previously set
-                let highlightTarget = item;
-                if (activeConfig && activeConfig.highlightTargetSelector) {
-                  const found = item.querySelector(activeConfig.highlightTargetSelector);
-                  if (found) highlightTarget = found;
-                }
-                highlightTarget.classList.remove('mdpi-highlighted-reference', 'mdpi-search-result-highlight', 'mdpi-hidden-reference', 'mdpi-search-result-hidden');
-                highlightTarget.style.backgroundColor = '';
-                highlightTarget.style.border = '';
-                highlightTarget.style.padding = '';
-                highlightTarget.style.display = '';
-                highlightTarget.style.outline = '';
+              } else if (isPotential && settingsToUse.highlightPotentialMdpiSites) {
+                applySearchResultStyling(item, activeConfig, 'potential');
               }
+
             } catch (error) {
-              console.error("[MDPI Filter CS] Error processing search result item:", error);
+              console.warn('[MDPI Filter CS] Error processing search item:', error);
             }
           }
-        
+
+          // Update badge count
           if (chrome.runtime && chrome.runtime.id) {
             chrome.runtime.sendMessage({
-              type: 'mdpiUpdate', 
+              type: 'mdpiUpdate',
               data: {
-                badgeCount: mdpiResultsCount, 
-                references: [] 
+                badgeCount: mdpiResultsCount,
+                references: []
               }
-            }, response => { 
+            }, response => {
               if (chrome.runtime.lastError) {
-                // console.warn("[MDPI Filter CS] Error sending search result badge update:", chrome.runtime.lastError.message);
-              } else {
-                // console.log("[MDPI Filter CS] Search result badge update sent. Response:", response);
+                console.warn('[MDPI Filter CS] Could not send search result badge update:', chrome.runtime.lastError.message);
               }
             });
           }
-          isProcessing = false;
         }
 
         async function processAllReferences(runCache, settingsToUse) { // settingsToUse is currentRunSettings
@@ -907,8 +953,8 @@ if (!window.mdpiFilterInjected) {
           const activeDomainConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(window.location.hostname, window.location.pathname, domains);
 
           if (activeDomainConfig) {
-            // FIXED: Use processSearchResults instead of processSearchEngineResults
-            await processSearchResults();
+            // FIXED: Pass runCache and settingsToUse to processSearchResults
+            await processSearchResults(runCache, settingsToUse);
           } else {
             // --- Step 0: Handle page-specific NCBI API check (e.g., on EuropePMC article page) ---
             const isEuropePMCArticlePage = window.location.hostname.includes('europepmc.org') &&

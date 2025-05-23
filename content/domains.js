@@ -18,7 +18,9 @@ window.MDPIFilterDomains = {
 
   // Google Web
   googleWeb: {
-    host: 'www.google.com', // Should match an entry or be covered by an entry in searchEngineDomains
+    // host: 'www.google.com', // Old: Too restrictive
+    hostRegex: /^www\.google\.[a-z.]+$/i, // New: Matches www.google.com, www.google.de, www.google.co.uk, etc.
+    isGoogleWeb: true, // New: Specific identifier for Google Web search
     path: /^\/search/,
     // itemSelector targets:
     // 1. Standard result blocks (div.MjjYud) that DO NOT contain an image carousel (div#iur).

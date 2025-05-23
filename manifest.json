@@ -39,6 +39,7 @@
         "content/sanitizer.js",
         "content/domains.js",
         "content/cache_manager.js",
+        "content/google_content_checker.js",
         "content/reference_selectors.js",
         "content/link_extraction_selectors.js",
         "content/link_extractor.js",

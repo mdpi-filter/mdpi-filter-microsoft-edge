@@ -77,6 +77,7 @@ async function injectModules(tabId, triggerSource = "unknown") {
     'content/sanitizer.js',
     'content/utils.js',
     'content/cache_manager.js',
+    'content/google_content_checker.js', // Ensure this is present
     'content/reference_selectors.js',
     'content/inline_footnote_selectors.js',
     'content/inline_footnote_styler.js',

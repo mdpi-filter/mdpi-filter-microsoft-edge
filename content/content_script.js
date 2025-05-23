@@ -77,7 +77,12 @@ if (!window.mdpiFilterInjected) {
   }
   // Add dependency check for the new item content checker
   if (typeof window.MDPIFilterItemContentChecker === 'undefined' || typeof window.MDPIFilterItemContentChecker.checkItemContent !== 'function') {
-    missingDependencies.push("MDPIFilterItemContentChecker (from item_content_checker.js)");
+    missingDependencies.push("MDPIFilterItemContentChecker.checkItemContent (from item_content_checker.js)");
+    dependenciesMet = false;
+  }
+  // Add dependency check for GoogleContentChecker
+  if (typeof window.GoogleContentChecker === 'undefined') {
+    missingDependencies.push("GoogleContentChecker (from google_content_checker.js)");
     dependenciesMet = false;
   }
   if (typeof window.MDPIFilterReferenceIdExtractor === 'undefined' || typeof window.MDPIFilterReferenceIdExtractor.extractInternalScrollId !== 'function') {

@@ -5,8 +5,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const status = document.getElementById('status');
   const reportBtn = document.getElementById('reportIssue');
   const referencesList = document.getElementById('referencesList');
-  const referencesPlaceholder = document.getElementById('referencesPlaceholder'); // The static <li>
+  const referencesPlaceholder = document.getElementById('referencesPlaceholder');
   const referencesCountSpan = document.getElementById('referencesCount');
+
+  // New elements for potential MDPI highlighting settings
+  const highlightPotentialMdpiCheckbox = document.getElementById('highlightPotentialMdpi');
+  const potentialMdpiColorInput = document.getElementById('potentialMdpiColor');
 
   // --- Settings Panel Toggle ---
   const settingsIcon = document.getElementById('settingsIcon');
@@ -29,16 +33,42 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- Load Mode Setting ---
-  chrome.storage.sync.get({ mode: 'highlight' }, ({ mode }) => {
-    radios.forEach(r => r.checked = (r.value === mode));
+  chrome.storage.sync.get({
+    mode: 'highlight',
+    highlightPotentialMdpiSites: false, // Default to false
+    potentialMdpiHighlightColor: '#FFFF99' // Default light yellow (hex for color input)
+  }, (settings) => {
+    if (chrome.runtime.lastError) {
+      console.error("Error loading settings:", chrome.runtime.lastError);
+      return;
+    }
+    radios.forEach(r => r.checked = (r.value === settings.mode));
+    if (highlightPotentialMdpiCheckbox) {
+      highlightPotentialMdpiCheckbox.checked = settings.highlightPotentialMdpiSites;
+    }
+    if (potentialMdpiColorInput) {
+      potentialMdpiColorInput.value = settings.potentialMdpiHighlightColor;
+    }
   });
 
   // --- Save Mode Setting ---
   saveBtn.addEventListener('click', () => {
-    const selected = Array.from(radios).find(r => r.checked).value;
-    chrome.storage.sync.set({ mode: selected }, () => {
-      status.textContent = `Mode set to "${selected}"`;
-      setTimeout(() => status.textContent = '', 2000);
+    const selectedMode = Array.from(radios).find(r => r.checked).value;
+    const highlightPotential = highlightPotentialMdpiCheckbox ? highlightPotentialMdpiCheckbox.checked : false;
+    const potentialColor = potentialMdpiColorInput ? potentialMdpiColorInput.value : '#FFFF99';
+
+    chrome.storage.sync.set({
+      mode: selectedMode,
+      highlightPotentialMdpiSites: highlightPotential,
+      potentialMdpiHighlightColor: potentialColor
+    }, () => {
+      if (chrome.runtime.lastError) {
+        status.textContent = 'Error saving settings.';
+        console.error("Error saving settings:", chrome.runtime.lastError);
+      } else {
+        status.textContent = `Settings saved. Mode: "${selectedMode}". Potential highlighting (Google): ${highlightPotential ? `ON (${potentialColor})` : 'OFF'}.`;
+      }
+      setTimeout(() => status.textContent = '', 3500); // Increased timeout
     });
   });
 

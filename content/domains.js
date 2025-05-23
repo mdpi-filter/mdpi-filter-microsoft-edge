@@ -19,16 +19,16 @@ window.MDPIFilterDomains = {
   // Google Web
   googleWeb: {
     // host: 'www.google.com', // Old: Too restrictive
-    hostRegex: /^www\.google\.[a-z.]+$/i, // New: Matches www.google.com, www.google.de, www.google.co.uk, etc.
-    isGoogleWeb: true, // New: Specific identifier for Google Web search
+    hostRegex: /^www\.google\.[a-z.]+$/i, // Matches www.google.com, www.google.de, www.google.co.uk, etc.
+    isGoogleWeb: true, // Specific identifier for Google Web search
     path: /^\/search/,
     // itemSelector targets:
     // 1. Standard result blocks (div.MjjYud) that DO NOT contain an image carousel (div#iur).
     // 2. Individual image items (div[jsname="qQjpJ"]) within an image carousel (div#iur).
     itemSelector: 'div.MjjYud:not(:has(div#iur)), div#iur div[jsname="qQjpJ"]',
     // General link selector to find MDPI links within the item.
-    linkSelector: 'a[href*="mdpi.com"]',
-    useNcbiApi: true, // Enable NCBI API checks
+    linkSelector: 'a[href*="mdpi.com"]', // Used by GoogleContentChecker if needed, but its primary checks are more robust
+    useNcbiApi: true, // Enable NCBI API checks within GoogleContentChecker
     // highlightTargetSelector for standard results (within div.MjjYud).
     // For image items (div[jsname="qQjpJ"]), these selectors are not expected to match,
     // causing the item itself to become the highlightTarget, which is correct.

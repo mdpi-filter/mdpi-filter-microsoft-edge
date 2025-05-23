@@ -3,10 +3,10 @@ class GoogleContentChecker {
     this.potentialMdpiKeywords = [
       'mdpi',
       'multidisciplinary digital publishing institute',
-      'doi: 10.3390', // Specific MDPI DOI prefix
-      'pmid:', // General keyword, can cause FPs if used for definitive match
-      'pmc article', // General keyword
-      'free pmc article' // General keyword
+      'doi: 10.3390', // This keyword can appear in text
+      'pmid:',
+      'pmc article',
+      'free pmc article'
     ];
   }
 
@@ -34,6 +34,7 @@ class GoogleContentChecker {
     } catch (e) {
       // console.warn('[MDPI Filter GoogleChecker] Error parsing URL:', hrefAttribute, e);
     }
+    // Regex to extract DOI: 10. followed by 4 or more digits, a slash, and then any characters except whitespace or common delimiters
     const doiMatch = targetUrl.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
     return doiMatch ? doiMatch[1] : null;
   }
@@ -82,39 +83,40 @@ class GoogleContentChecker {
     const itemIdentifier = item.id || item.dataset.mdpiFilterRefId || 'google-item';
     const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
 
-    // PRIORITY 1: Direct MDPI Domain Links (Confirmed)
+    // --- CONFIRMED MDPI CHECKS (Link-based ONLY) ---
+
+    // 1. Direct MDPI Domain Links
     for (const link of allLinksInItem) {
       const href = link.href;
-      if (href && href.includes(mdpiDomain)) {
-        return { 
-          isMdpi: true, 
-          isPotential: false, 
-          source: 'direct-mdpi-link', 
-          details: `Direct link to ${mdpiDomain}: ${href}` 
+      if (href && (href.includes(`.${mdpiDomain}`) || href.includes(`//${mdpiDomain}`))) { // More robust check for mdpi.com
+        return {
+          isMdpi: true,
+          isPotential: false,
+          source: 'direct-mdpi-link',
+          details: `Direct link to ${mdpiDomain}: ${href}`
         };
       }
     }
 
-    // PRIORITY 2: MDPI DOI in Links (Confirmed)
+    // 2. MDPI DOI in Links
     for (const link of allLinksInItem) {
       const href = link.href;
       const doi = this.extractDoiFromLink(href);
       if (doi && doi.startsWith(mdpiDoiPrefix)) {
-        return { 
-          isMdpi: true, 
-          isPotential: false, 
-          source: 'mdpi-doi-link', 
-          details: `MDPI DOI in link: ${doi}` 
+        return {
+          isMdpi: true,
+          isPotential: false,
+          source: 'mdpi-doi-link',
+          details: `MDPI DOI in link: ${doi}`
         };
       }
     }
 
-    // PRIORITY 3: NCBI API Check for PMIDs/PMCIDs (Confirmed)
+    // 3. NCBI API Check for PMIDs/PMCIDs (extracted from links)
     if (activeConfig.useNcbiApi && window.MDPIFilterNcbiApiHandler) {
       const pmidStrings = new Set();
       const pmcIdStrings = new Set();
 
-      // Extract NCBI IDs from links
       for (const link of allLinksInItem) {
         const href = link.href;
         const pmid = this.extractPmidFromUrl(href);
@@ -123,57 +125,57 @@ class GoogleContentChecker {
         if (pmcid) pmcIdStrings.add(pmcid);
       }
 
-      const allNcbiIds = [...pmidStrings, ...pmcIdStrings];
-      if (allNcbiIds.length > 0) {
+      if (pmidStrings.size > 0) {
         try {
-          // Check PMIDs
-          if (pmidStrings.size > 0) {
-            const pmidResult = await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(
-              Array.from(pmidStrings), 'pmid', runCache, ncbiApiCache
-            );
-            if (pmidResult) {
-              return { 
-                isMdpi: true, 
-                isPotential: false, 
-                source: 'ncbi-pmid', 
-                details: `NCBI PMID check confirmed MDPI: ${Array.from(pmidStrings).join(', ')}` 
-              };
-            }
-          }
-
-          // Check PMCIDs
-          if (pmcIdStrings.size > 0) {
-            const pmcResult = await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(
-              Array.from(pmcIdStrings), 'pmc', runCache, ncbiApiCache
-            );
-            if (pmcResult) {
-              return { 
-                isMdpi: true, 
-                isPotential: false, 
-                source: 'ncbi-pmcid', 
-                details: `NCBI PMCID check confirmed MDPI: ${Array.from(pmcIdStrings).join(', ')}` 
-              };
-            }
+          const pmidResult = await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(
+            Array.from(pmidStrings), 'pmid', runCache, ncbiApiCache
+          );
+          if (pmidResult) {
+            return {
+              isMdpi: true,
+              isPotential: false,
+              source: 'ncbi-pmid',
+              details: `NCBI PMID check confirmed MDPI: ${Array.from(pmidStrings).join(', ')}`
+            };
           }
         } catch (error) {
-          console.warn(`[MDPI Filter GoogleChecker] NCBI API error for ${itemIdentifier}:`, error);
+          console.warn(`[MDPI Filter GoogleChecker] NCBI API (PMID) error for ${itemIdentifier}:`, error);
+        }
+      }
+
+      if (pmcIdStrings.size > 0) {
+        try {
+          const pmcResult = await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(
+            Array.from(pmcIdStrings), 'pmc', runCache, ncbiApiCache
+          );
+          if (pmcResult) {
+            return {
+              isMdpi: true,
+              isPotential: false,
+              source: 'ncbi-pmcid',
+              details: `NCBI PMCID check confirmed MDPI: ${Array.from(pmcIdStrings).join(', ')}`
+            };
+          }
+        } catch (error) {
+          console.warn(`[MDPI Filter GoogleChecker] NCBI API (PMCID) error for ${itemIdentifier}:`, error);
         }
       }
     }
 
-    // PRIORITY 4: Text Content Keywords (Potential)
+    // --- POTENTIAL MDPI CHECK (Text-based ONLY) ---
+    // This runs only if no confirmed MDPI was found above.
     if (currentSettings.highlightPotentialMdpiSites) {
       if (this.checkForPotentialMdpiKeywordsInText(item)) {
-        return { 
-          isMdpi: false, 
-          isPotential: true, 
-          source: 'text-keywords', 
-          details: 'Text content matches MDPI-related keywords' 
+        return {
+          isMdpi: false, // Not confirmed MDPI
+          isPotential: true,
+          source: 'text-keywords',
+          details: 'Text content matches MDPI-related keywords'
         };
       }
     }
 
-    return { isMdpi: false, isPotential: false, source: 'no-match', details: 'No MDPI indicators found' };
+    return { isMdpi: false, isPotential: false, source: 'no-match', details: 'No MDPI indicators found by GoogleChecker' };
   }
 
   /**
@@ -186,37 +188,10 @@ class GoogleContentChecker {
       return false;
     }
     const textContent = element.textContent.toLowerCase();
+    // Ensure keywords are distinct from link-based checks for "confirmed"
     return this.potentialMdpiKeywords.some(keyword =>
       textContent.includes(keyword.toLowerCase())
     );
-  }
-
-  /**
-   * Determines if an element should be highlighted as *potentially* related to MDPI.
-   * This is for backwards compatibility with the old interface.
-   * @param {HTMLElement} element The DOM element to check.
-   * @param {object} settings The current extension settings.
-   * @returns {boolean} True if it should be highlighted as potential, false otherwise.
-   */
-  shouldHighlightAsPotentialMdpi(element, settings) {
-    if (!settings || !settings.highlightPotentialMdpiSites) {
-      return false;
-    }
-
-    // Skip if this is already highlighted as confirmed MDPI
-    if (element.classList.contains('mdpi-search-result-highlight')) {
-      return false;
-    }
-    // Skip if already hidden by the main logic
-    if (element.classList.contains('mdpi-search-result-hidden')) {
-      return false;
-    }
-    // Skip if already highlighted as potential
-    if (element.classList.contains('potential-mdpi-site-highlight')) {
-      return false;
-    }
-
-    return this.checkForPotentialMdpiKeywordsInText(element);
   }
 
   /**
@@ -225,12 +200,12 @@ class GoogleContentChecker {
    * @param {object} settings Extension settings with color preferences.
    */
   highlightConfirmedMdpiSite(element, settings) {
-    element.classList.add('mdpi-search-result-highlight');
+    element.classList.add('mdpi-search-result-highlight'); // Standard class for confirmed
     element.style.backgroundColor = settings.mdpiHighlightColor || 'rgba(255, 182, 193, 0.3)';
     element.style.border = `1px solid ${settings.mdpiBorderColor || '#E2211C'}`;
     element.style.borderRadius = '3px';
     element.style.padding = '1px 3px';
-    element.title = 'Confirmed MDPI Content (Google-specific check): Direct MDPI link or NCBI API confirmation.';
+    element.title = 'Confirmed MDPI Content (Google-specific check): Direct MDPI link or NCBI API confirmation from link.';
   }
 
   /**
@@ -240,11 +215,11 @@ class GoogleContentChecker {
    */
   highlightPotentialMdpiSite(element, color) {
     element.classList.add('potential-mdpi-site-highlight');
-    element.style.backgroundColor = color || 'rgba(255, 255, 153, 0.3)';
-    element.style.border = '1px dashed #FFCC00';
+    element.style.backgroundColor = color || 'rgba(255, 255, 153, 0.3)'; // Default light yellow
+    element.style.border = '1px dashed #FFCC00'; // Distinct dashed border
     element.style.borderRadius = '3px';
     element.style.padding = '1px 3px';
-    element.title = 'This result may contain text matching MDPI-related keywords (e.g., specific DOI prefixes, publisher names in text). This is a broader, potential match specific to Google Search.';
+    element.title = 'This Google result may contain text matching MDPI-related keywords. This is a broader, potential match.';
   }
 
   /**
@@ -252,7 +227,7 @@ class GoogleContentChecker {
    * @param {HTMLElement} element The DOM element to hide.
    */
   hideMdpiSite(element) {
-    element.classList.add('mdpi-search-result-hidden');
+    element.classList.add('mdpi-search-result-hidden'); // Standard class for hiding
     element.style.display = 'none';
   }
 }

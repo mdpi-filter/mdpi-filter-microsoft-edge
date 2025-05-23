@@ -630,6 +630,93 @@ if (!window.mdpiFilterInjected) {
           isProcessing = false;
         }
 
+        // MODIFIED processSearchResults to handle Google via GoogleContentChecker
+        async function processSearchResults() {
+          const currentHostname = window.location.hostname;
+          const currentPathname = window.location.pathname;
+          const activeConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
+          
+          if (!activeConfig) return;
+
+          const itemSelector = activeConfig.itemSelector;
+          if (!itemSelector) return;
+
+          const items = document.querySelectorAll(itemSelector);
+          console.log(`[MDPI Filter CS] Found ${items.length} items for search processing using selector: ${itemSelector}`);
+
+          // Check if this is Google Web search
+          const isGoogleWeb = activeConfig.isGoogleWeb === true;
+          const googleChecker = isGoogleWeb ? new window.GoogleContentChecker() : null;
+
+          for (const item of items) {
+            try {
+              let isMdpi = false;
+              let isPotential = false;
+              let details = '';
+
+              if (isGoogleWeb && googleChecker) {
+                // Use GoogleContentChecker for Google Web search results
+                const result = await googleChecker.checkGoogleItem(
+                  item, 
+                  runCache, 
+                  currentRunSettings.mdpiDoiPrefix, 
+                  currentRunSettings.mdpiDomain, 
+                  activeConfig, 
+                  currentRunSettings, 
+                  window.MDPIFilterCaches.ncbiApiCache
+                );
+                isMdpi = result.isMdpi;
+                isPotential = result.isPotential;
+                details = result.details;
+              } else {
+                // Existing checks for non-Google search results
+                isMdpi = isMdpiItemByContent(item, runCache);
+                isPotential = !isMdpi && window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, currentRunSettings.mdpiDoiPrefix, currentRunSettings.mdpiDomain);
+              }
+
+              if (isMdpi) {
+                styleRef(item, `mdpi-search-${mdpiResultsCount + 1}`, activeConfig);
+                mdpiResultsCount++;
+              } else if (isPotential) {
+                // Potential MDPI item (not confirmed), apply a different style or none
+                styleRef(item, '', activeConfig); // No specific refId, just apply potential styling if any
+              } else {
+                // Remove highlight if previously set
+                let highlightTarget = item;
+                if (activeConfig && activeConfig.highlightTargetSelector) {
+                  const found = item.querySelector(activeConfig.highlightTargetSelector);
+                  if (found) highlightTarget = found;
+                }
+                highlightTarget.classList.remove('mdpi-highlighted-reference', 'mdpi-search-result-highlight', 'mdpi-hidden-reference', 'mdpi-search-result-hidden');
+                highlightTarget.style.backgroundColor = '';
+                highlightTarget.style.border = '';
+                highlightTarget.style.padding = '';
+                highlightTarget.style.display = '';
+                highlightTarget.style.outline = '';
+              }
+            } catch (error) {
+              console.error("[MDPI Filter CS] Error processing search result item:", error);
+            }
+          }
+        
+          if (chrome.runtime && chrome.runtime.id) {
+            chrome.runtime.sendMessage({
+              type: 'mdpiUpdate', 
+              data: {
+                badgeCount: mdpiResultsCount, 
+                references: [] 
+              }
+            }, response => { 
+              if (chrome.runtime.lastError) {
+                // console.warn("[MDPI Filter CS] Error sending search result badge update:", chrome.runtime.lastError.message);
+              } else {
+                // console.log("[MDPI Filter CS] Search result badge update sent. Response:", response);
+              }
+            });
+          }
+          isProcessing = false;
+        }
+
         async function processAllReferences(runCache, settingsToUse) { // settingsToUse is currentRunSettings
           // console.log("[MDPI Filter CS] processAllReferences called.");
           let collectedMdpiReferences = []; 

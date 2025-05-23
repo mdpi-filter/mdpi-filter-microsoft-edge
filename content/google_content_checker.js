@@ -89,9 +89,10 @@ class GoogleContentChecker {
     const itemIdentifier = item.id || item.dataset.mdpiFilterRefId || 'google-item';
     const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
 
-    // --- SECURE MDPI CHECKS (Link-based only) ---
+    console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] Starting checkGoogleItem`);
 
-    // 1. Direct MDPI Domain Links (from <a> href attributes)
+    // --- SECURE MDPI CHECKS (Link-based only: direct MDPI domain) ---
+
     for (const link of allLinksInItem) {
       const href = link.href;
       if (href) {
@@ -99,6 +100,7 @@ class GoogleContentChecker {
           const url = new URL(href);
           const hostname = url.hostname.toLowerCase();
           if (hostname === mdpiDomain || hostname.endsWith('.' + mdpiDomain)) {
+            console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] SECURE: Direct MDPI link found: ${hostname}`);
             return {
               isMdpi: true,
               isPotential: false,
@@ -108,6 +110,7 @@ class GoogleContentChecker {
           }
         } catch (e) {
           if (href.includes(`.${mdpiDomain}/`) || href.includes(`//${mdpiDomain}/`) || href.startsWith(`https://${mdpiDomain}/`)) {
+            console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] SECURE: Direct MDPI link found (fallback): ${href}`);
             return {
               isMdpi: true,
               isPotential: false,
@@ -119,47 +122,9 @@ class GoogleContentChecker {
       }
     }
 
-    // 2. NCBI API Check for PMIDs/PMCIDs (extracted from <a> href attributes only)
-    if (activeConfig.useNcbiApi && window.MDPIFilterNcbiApiHandler) {
-      const pmidStringsFromLinks = new Set();
-      const pmcIdStringsFromLinks = new Set();
-      for (const link of allLinksInItem) {
-        const pmid = this.extractPmidFromUrl(link.href);
-        const pmcid = this.extractPmcidFromUrl(link.href);
-        if (pmid) pmidStringsFromLinks.add(pmid);
-        if (pmcid) pmcIdStringsFromLinks.add(pmcid);
-      }
+    console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] No direct MDPI links found. Checking for potential indicators...`);
 
-      let confirmedByNcbiFromLink = false;
-      if (pmidStringsFromLinks.size > 0) {
-        try {
-          if (await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([...pmidStringsFromLinks], 'pmid', runCache, ncbiApiCache)) {
-            confirmedByNcbiFromLink = true;
-          }
-        } catch (error) {
-          console.warn(`[MDPI Filter GoogleChecker ${itemIdentifier}] Error checking PMIDs from links via NCBI:`, error);
-        }
-      }
-      if (!confirmedByNcbiFromLink && pmcIdStringsFromLinks.size > 0) {
-        try {
-          if (await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([...pmcIdStringsFromLinks], 'pmcid', runCache, ncbiApiCache)) {
-            confirmedByNcbiFromLink = true;
-          }
-        } catch (error) {
-          console.warn(`[MDPI Filter GoogleChecker ${itemIdentifier}] Error checking PMCIDs from links via NCBI:`, error);
-        }
-      }
-      if (confirmedByNcbiFromLink) {
-        return {
-          isMdpi: true,
-          isPotential: false,
-          source: 'ncbi-api-link-confirmed',
-          details: 'NCBI API confirmed MDPI from PMID/PMCID in a link href.'
-        };
-      }
-    }
-
-    // --- POTENTIAL MDPI CHECKS (Text-based indicators only contribute to potential status) ---
+    // --- POTENTIAL MDPI CHECKS (Text or NCBI-confirmed IDs in links/text) ---
     if (currentSettings.highlightPotentialMdpiSites) {
       const itemTextContent = item.textContent || '';
       let isPotential = false;
@@ -171,45 +136,72 @@ class GoogleContentChecker {
         if (doi.startsWith(mdpiDoiPrefix)) {
           isPotential = true;
           potentialDetailsArray.push(`MDPI DOI ${doi} found in text content`);
+          console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] POTENTIAL: MDPI DOI in text: ${doi}`);
           break;
         }
       }
 
-      // Check for NCBI-confirmed PMIDs/PMCIDs in text content
-      if (!isPotential && activeConfig.useNcbiApi && window.MDPIFilterNcbiApiHandler) {
+      // Check for NCBI-confirmed PMIDs/PMCIDs in links or text content
+      if (activeConfig.useNcbiApi && window.MDPIFilterNcbiApiHandler) {
+        // From links
+        const pmidStringsFromLinks = new Set();
+        const pmcIdStringsFromLinks = new Set();
+        for (const link of allLinksInItem) {
+          const pmid = this.extractPmidFromUrl(link.href);
+          const pmcid = this.extractPmcidFromUrl(link.href);
+          if (pmid) pmidStringsFromLinks.add(pmid);
+          if (pmcid) pmcIdStringsFromLinks.add(pmcid);
+        }
+        if (pmidStringsFromLinks.size > 0) {
+          try {
+            if (await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([...pmidStringsFromLinks], 'pmid', runCache, ncbiApiCache)) {
+              isPotential = true;
+              potentialDetailsArray.push('NCBI confirmed MDPI from PMID in link');
+              console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] POTENTIAL: NCBI confirmed MDPI from PMIDs in links: ${[...pmidStringsFromLinks]}`);
+            }
+          } catch (error) {}
+        }
+        if (!isPotential && pmcIdStringsFromLinks.size > 0) {
+          try {
+            if (await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([...pmcIdStringsFromLinks], 'pmcid', runCache, ncbiApiCache)) {
+              isPotential = true;
+              potentialDetailsArray.push('NCBI confirmed MDPI from PMCID in link');
+              console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] POTENTIAL: NCBI confirmed MDPI from PMCIDs in links: ${[...pmcIdStringsFromLinks]}`);
+            }
+          } catch (error) {}
+        }
+        // From text
         const pmidsInText = [...new Set(this.extractPmidsFromText(itemTextContent))];
         const pmcidsInText = [...new Set(this.extractPmcidsFromText(itemTextContent))];
-        
-        if (pmidsInText.length > 0) {
+        if (!isPotential && pmidsInText.length > 0) {
           try {
             if (await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(pmidsInText, 'pmid', runCache, ncbiApiCache)) {
               isPotential = true;
               potentialDetailsArray.push('NCBI confirmed MDPI from PMID in text content');
+              console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] POTENTIAL: NCBI confirmed MDPI from PMIDs in text: ${pmidsInText}`);
             }
-          } catch (error) {
-            console.warn(`[MDPI Filter GoogleChecker ${itemIdentifier}] Error checking PMIDs from text via NCBI:`, error, pmidsInText);
-          }
+          } catch (error) {}
         }
-
         if (!isPotential && pmcidsInText.length > 0) {
           try {
             if (await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(pmcidsInText, 'pmcid', runCache, ncbiApiCache)) {
               isPotential = true;
               potentialDetailsArray.push('NCBI confirmed MDPI from PMCID in text content');
+              console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] POTENTIAL: NCBI confirmed MDPI from PMCIDs in text: ${pmcidsInText}`);
             }
-          } catch (error) {
-            console.warn(`[MDPI Filter GoogleChecker ${itemIdentifier}] Error checking PMCIDs from text via NCBI:`, error, pmcidsInText);
-          }
+          } catch (error) {}
         }
       }
-      
+
       // Check general keywords only if not already potential from more specific text indicators above
       if (!isPotential && this.checkForPotentialMdpiKeywordsInText(item)) {
         isPotential = true;
         potentialDetailsArray.push('General potential keywords found in text.');
+        console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] POTENTIAL: General keywords found`);
       }
 
       if (isPotential) {
+        console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] FINAL RESULT: POTENTIAL MDPI - ${potentialDetailsArray.join('; ')}`);
         return {
           isMdpi: false,
           isPotential: true,
@@ -220,6 +212,7 @@ class GoogleContentChecker {
     }
 
     // Default: Not MDPI and not potential
+    console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] FINAL RESULT: NOT MDPI`);
     return { 
       isMdpi: false, 
       isPotential: false, 

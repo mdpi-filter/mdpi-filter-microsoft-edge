@@ -14,8 +14,11 @@ class GoogleContentChecker {
    */
   extractPmidFromUrl(href) {
     if (!href) return null;
-    // Match patterns like /pubmed/12345678/ or ?pmid=12345678
-    const pmidMatch = href.match(/(?:\/pubmed\/|[?&]pmid=)(\d+)/i);
+    // Enhanced to support both NCBI and EuropePMC URLs:
+    // - https://pubmed.ncbi.nlm.nih.gov/12345678
+    // - https://europepmc.org/article/med/12345678
+    // - ?pmid=12345678
+    const pmidMatch = href.match(/(?:\/pubmed\/|\/article\/med\/|[?&]pmid=)(\d+)/i);
     return pmidMatch ? pmidMatch[1] : null;
   }
 
@@ -27,12 +30,13 @@ class GoogleContentChecker {
    */
   extractPmcidFromUrl(href) {
     if (!href) return null;
-    // Enhanced regex to match various PMC URL patterns:
+    // Enhanced to support both NCBI and EuropePMC URLs:
     // - https://pmc.ncbi.nlm.nih.gov/articles/PMC1234567/
     // - https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1234567/
+    // - https://europepmc.org/article/pmc/pmc1234567
     // - ?pmcid=PMC1234567
-    const pmcMatch = href.match(/(?:\/(?:pmc\/)?articles\/|[?&]pmcid=)(PMC\d+)/i);
-    return pmcMatch ? pmcMatch[1] : null;
+    const pmcMatch = href.match(/(?:\/(?:pmc\/)?articles\/|\/article\/pmc\/|[?&]pmcid=)(pmc\d+)/i);
+    return pmcMatch ? pmcMatch[1].toUpperCase() : null; // Ensure PMC prefix is uppercase
   }
 
   /**

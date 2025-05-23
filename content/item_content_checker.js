@@ -32,19 +32,8 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
     // Main function to check item content for MDPI indicators
     // It takes the DOM item, a runCache (Map), and the current MDPI_DOI and MDPI_DOMAIN strings
     function checkItemContent(item, runCache, currentMdpiDoi, currentMdpiDomain) {
-      // --- NEW: Skip all logic if on Google search results ---
-      if (
-        window.location &&
-        (
-          window.location.hostname.match(/^www\.google\.[a-z.]+$/i) ||
-          window.location.hostname === "www.google.com"
-        ) &&
-        window.location.pathname.startsWith("/search")
-      ) {
-        // Let google_content_checker.js handle Google results exclusively
-        return false;
-      }
-      // --- END NEW LOGIC ---
+      // --- REMOVED: Skip all logic if on Google search results ---
+      // (No early return for Google search pages)
 
       if (!item) return false;
       const itemIdentifier = item.id || item.dataset.mdpiFilterRefId || item.textContent.substring(0, 50);
@@ -69,14 +58,13 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
         }
       }
 
-      // REMOVE THIS BLOCK: (MDPI DOI in text should NOT trigger positive for Google)
-      // Priority 2: MDPI DOI String in Text Content
-      // const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
-      // if (mdpiDoiTextPattern.test(textContent)) {
-      //   const matchedDoi = textContent.match(mdpiDoiTextPattern);
-      //   console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P2: MDPI DOI string FOUND in text: '${matchedDoi ? matchedDoi[0] : 'N/A'}'. Returning TRUE.`);
-      //   return true;
-      // }
+      // Priority 2: MDPI DOI String in Text Content (RESTORED)
+      const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
+      if (mdpiDoiTextPattern.test(textContent)) {
+        const matchedDoi = textContent.match(mdpiDoiTextPattern);
+        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P2: MDPI DOI string FOUND in text: '${matchedDoi ? matchedDoi[0] : 'N/A'}'. Returning TRUE.`);
+        return true;
+      }
 
       // Priority 3: Link to MDPI Domain (general check)
       for (const link of allLinksInItem) {

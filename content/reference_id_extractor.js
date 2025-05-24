@@ -19,20 +19,30 @@
     let idSourceForLog = "unknown";
     let nextRefIdCounter = currentRefIdCounter;
 
-    // Priority 1: Nature-specific ID from child <p class="c-article-references__text" id="ref-CR...">
-    const naturePElement = itemElement.querySelector('p.c-article-references__text[id^="ref-CR"]');
-    if (naturePElement && naturePElement.id) {
-      idToUse = naturePElement.id;
-      idSourceForLog = "Nature child p.id";
+    // Priority 1: Frontiers-specific anchor name attribute (for <a name="B1" id="B1">)
+    const frontiersAnchor = itemElement.querySelector('a[name][id]');
+    if (frontiersAnchor && frontiersAnchor.name && frontiersAnchor.id) {
+      // Prefer the name attribute as it's more commonly used in inline citations
+      idToUse = frontiersAnchor.name;
+      idSourceForLog = "Frontiers anchor name attribute";
     }
 
-    // Priority 2: Oxford University Press popup reference data-id
+    // Priority 2: Nature-specific ID from child <p class="c-article-references__text" id="ref-CR...">
+    if (!idToUse) {
+      const naturePElement = itemElement.querySelector('p.c-article-references__text[id^="ref-CR"]');
+      if (naturePElement && naturePElement.id) {
+        idToUse = naturePElement.id;
+        idSourceForLog = "Nature child p.id";
+      }
+    }
+
+    // Priority 3: Oxford University Press popup reference data-id
     if (!idToUse && itemElement.dataset && itemElement.dataset.id) {
       idToUse = itemElement.dataset.id;
       idSourceForLog = "item.dataset.id (OUP popup)";
     }
 
-    // Priority 3: ScienceDirect specific ID from child <a id="ref-id-b...">
+    // Priority 4: ScienceDirect specific ID from child <a id="ref-id-b...">
     if (!idToUse) {
       const sciDirectAnchor = itemElement.querySelector('span.label a.anchor[id^="ref-id-b"]');
       if (sciDirectAnchor && sciDirectAnchor.id) {
@@ -41,7 +51,7 @@
       }
     }
 
-    // Priority 4: ScienceDirect specific ID from child <span class="reference" id="rf...">
+    // Priority 5: ScienceDirect specific ID from child <span class="reference" id="rf...">
     // This is a fallback if the anchor ID isn't found, though less ideal for inline linking.
     if (!idToUse) {
       const sciDirectRefSpan = itemElement.querySelector('span.reference[id^="rf"]');
@@ -51,13 +61,13 @@
       }
     }
 
-    // Priority 5: Standard item.id attribute
+    // Priority 6: Standard item.id attribute
     if (!idToUse && itemElement.id) {
       idToUse = itemElement.id;
       idSourceForLog = "item.id";
     }
 
-    // Priority 6: 'content-id' attribute (common in OUP - academic.oup.com)
+    // Priority 7: 'content-id' attribute (common in OUP - academic.oup.com)
     if (!idToUse) {
       const oupContentId = itemElement.getAttribute('content-id');
       if (oupContentId) {
@@ -66,7 +76,7 @@
       }
     }
     
-    // Priority 7: 'data-legacy-id' attribute (common in OUP)
+    // Priority 8: 'data-legacy-id' attribute (common in OUP)
     if (!idToUse) {
       const oupLegacyId = itemElement.getAttribute('data-legacy-id');
       if (oupLegacyId) {
@@ -75,13 +85,13 @@
       }
     }
 
-    // Priority 8: 'data-bib-id' attribute (common in Wiley)
+    // Priority 9: 'data-bib-id' attribute (common in Wiley)
     if (!idToUse && itemElement.dataset && itemElement.dataset.bibId) {
         idToUse = itemElement.dataset.bibId;
         idSourceForLog = "item.dataset.bibId";
     }
 
-    // Priority 9: If no specific linkable ID found yet, check existing 'data-mdpi-filter-ref-id'
+    // Priority 10: If no specific linkable ID found yet, check existing 'data-mdpi-filter-ref-id'
     // This handles cases where the script might re-process an element that already has an ID (possibly generated).
     if (!idToUse && itemElement.dataset.mdpiFilterRefId) {
       idToUse = itemElement.dataset.mdpiFilterRefId;

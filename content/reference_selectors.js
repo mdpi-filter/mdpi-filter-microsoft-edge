@@ -1,7 +1,7 @@
 // Defines the selectors used to identify reference list items on a page.
 window.MDPIFilterReferenceSelectors = [
   'li.c-article-references__item',
-  'div.References p.ReferencesCopy1',
+  'div.References p.ReferencesCopy1', // Frontiers-specific selector
   'li.html-x',
   'li.html-xx',
   // Replace generic 'div.citation' with more specific versions

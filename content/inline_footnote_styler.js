@@ -52,8 +52,8 @@
             directChildSpans.forEach(span => {
                 // Only style if this span is likely a leaf text container
                 if (span.querySelectorAll('span').length === 0) {
-                   span.style.color = markerColor;
-                   span.style.fontWeight = 'bold';
+                    span.style.color = markerColor;
+                    span.style.fontWeight = 'bold';
                 }
             });
         }
@@ -76,6 +76,9 @@
 
     const styledElements = new Set(); // Keep track of elements (<a> or <sup>) already styled to avoid redundant operations
 
+    // Create a Set of MDPI reference IDs for quick lookup
+    const mdpiReferenceIds = new Set(collectedMdpiReferences.map(refData => refData.listItemDomId));
+
     collectedMdpiReferences.forEach(refData => {
       // refData.listItemDomId is the ID of the reference list item (e.g., from item.id or item.dataset.bibId)
       // This ID is used to generate selectors for corresponding inline citations.
@@ -95,70 +98,47 @@
 
       try {
         document.querySelectorAll(allSelectorsString).forEach(matchedElement => {
-          let anchorToStyle = null;
-
-          if (matchedElement.tagName.toLowerCase() === 'a') {
-            anchorToStyle = matchedElement;
-          } else if (matchedElement.tagName.toLowerCase() === 'sup') {
-            // The <sup> itself was matched (e.g., by a selector like sup[id="..."]).
-            // This <sup> is associated with an MDPI reference (currentListItemDomId).
-            // We need to find the specific child <a> element(s) within this <sup>
-            // that link to currentListItemDomId.
-            // Note: querySelectorAll uses the current `matchedElement` (the sup) as the base.
-            const specificAnchorsInSup = matchedElement.querySelectorAll(
-              `a[href="#${currentListItemDomId}"], a[href$="#${currentListItemDomId}"],` +
-              `a[href="#cite_note-${currentListItemDomId.replace(/^cite_note-/i, '')}"],` +
-              `a[href="#ref-${currentListItemDomId.replace(/^ref-/i, '')}"],` +
-              `a[href="#reference-${currentListItemDomId.replace(/^reference-/i, '')}"],` +
-              `a[href="#B${currentListItemDomId.replace(/^B/i, '')}"],` +
-              `a[href="#CR${currentListItemDomId.replace(/^CR/i, '')}"],` +
-              `a[data-rid="${currentListItemDomId}"], a[rid="${currentListItemDomId}"],` +
-              `a[data-test="citation-ref"][href$="#ref-${currentListItemDomId.replace(/^ref-/i, '')}"]` // Nature specific inside sup
-            );
-
-            if (specificAnchorsInSup.length > 0) {
-              // Style all such specific anchors found within the sup
-              specificAnchorsInSup.forEach(specificAnchor => {
-                if (!styledElements.has(specificAnchor)) {
-                  styleInlineMarker(specificAnchor, mdpiColor);
-                  styledElements.add(specificAnchor);
-                  // Add parent sup to styledElements for tracking, not for styling it directly.
-                  if (specificAnchor.parentElement && specificAnchor.parentElement.tagName.toLowerCase() === 'sup') {
-                    styledElements.add(specificAnchor.parentElement);
-                  }
-                }
-              });
-            } else {
-                // If the sup was matched, but no specific anchor inside it matches currentListItemDomId via these selectors,
-                // it's possible the sup itself is the intended target (e.g. a sup with an ID but no internal links, though rare for citations).
-                // Or, the sup contains the link but our specific selectors above missed it.
-                // As a fallback, if the sup itself was matched by allSelectorsString, do not style it directly.
-                // Instead, try to style its first anchor child if it exists and links to the MDPI ref.
-                if (!styledElements.has(matchedElement)) { 
-                    styledElements.add(matchedElement); // Mark sup as processed
-                    // Try to style the first <a> child if it links to the current MDPI ref
-                    const firstAnchorInSup = matchedElement.querySelector('a');
-                    if (firstAnchorInSup && !styledElements.has(firstAnchorInSup)) {
-                        const href = firstAnchorInSup.getAttribute('href');
-                        const idSuffix = `#${currentListItemDomId}`;
-                        const refIdSuffix = `#ref-${currentListItemDomId}`; // For Nature
-                        if (href && (href.endsWith(idSuffix) || href.endsWith(refIdSuffix))) {
-                            styleInlineMarker(firstAnchorInSup, mdpiColor);
-                            styledElements.add(firstAnchorInSup);
-                        }
-                    }
-                }
-            }
-            return; // Finished processing this matched <sup> and its children
+          // Additional verification: ensure the matched element actually links to an MDPI reference
+          if (styledElements.has(matchedElement)) {
+            return; // Already styled
           }
 
-          if (anchorToStyle && !styledElements.has(anchorToStyle)) {
-            styleInlineMarker(anchorToStyle, mdpiColor);
-            styledElements.add(anchorToStyle);
-            // Add parent sup to styledElements for tracking if the anchor was styled.
-            const parentSup = anchorToStyle.parentElement;
-            if (parentSup && parentSup.tagName.toLowerCase() === 'sup') {
-              styledElements.add(parentSup);
+          // Extract the reference ID from the matched element's href or other attributes
+          let targetRefId = null;
+          
+          // Check href attribute for reference ID
+          if (matchedElement.href) {
+            const hrefMatch = matchedElement.href.match(/#(.+)$/);
+            if (hrefMatch) {
+              targetRefId = hrefMatch[1];
+            }
+          }
+          
+          // Check data attributes for reference ID
+          if (!targetRefId && matchedElement.dataset) {
+            targetRefId = matchedElement.dataset.rid || 
+                         matchedElement.dataset.brisRid || 
+                         matchedElement.getAttribute('rid') ||
+                         matchedElement.getAttribute('aria-controls');
+          }
+
+          // Only style if we can confirm this element points to an MDPI reference
+          if (targetRefId && mdpiReferenceIds.has(targetRefId)) {
+            if (matchedElement.tagName.toLowerCase() === 'a') {
+              styleInlineMarker(matchedElement, mdpiColor);
+              styledElements.add(matchedElement);
+              
+              // Also style parent sup if it exists
+              const parentSup = matchedElement.closest('sup');
+              if (parentSup && !styledElements.has(parentSup)) {
+                styledElements.add(parentSup);
+              }
+            } else if (matchedElement.tagName.toLowerCase() === 'sup') {
+              const anchorInSup = matchedElement.querySelector('a');
+              if (anchorInSup) {
+                styleInlineMarker(anchorInSup, mdpiColor);
+              }
+              styledElements.add(matchedElement);
             }
           }
         });

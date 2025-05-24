@@ -16,6 +16,15 @@
     'section[aria-labelledby="citedby-label"]', // Accessibility pattern
     'div#impact', // EuropePMC "Citations & impact" section container
     'div#article-citations', // EuropePMC article citations
+    // PubMed specific containers for "Cited By" sections
+    'div.cited-by-articles', // PubMed "Cited By" section container
+    'section.cited-by', // Generic "Cited By" section
+    'div[data-cy="cited-by"]', // Data attribute for "Cited By" sections
+    'div.citedby-articles', // Alternative PubMed container
+    'section.citedby', // Alternative PubMed section
+    'div.article-details-cited-by', // Another potential PubMed container
+    'main', // Fallback for PubMed pages where "Cited By" items appear in main content
+    'body', // Ultimate fallback for PubMed if no specific container is found
     // Add other container selectors as identified across different sites
   ].join(',');
 
@@ -27,6 +36,9 @@
     'article.citation-item',    // Generic article item that might be in a "Cited By" list
     'div#impact div#article-citations li.separated-list-item', // EuropePMC items within "Citations & impact" -> "Article citations" list
     'div#article-citations li.separated-list-item', // EuropePMC article citations
+    // PubMed specific selectors for "Cited By" items
+    'li.full-docsum:has(a[ref*="citedby_articles_link"])', // PubMed "Cited By" items (specific)
+    'li.full-docsum', // PubMed items (generic fallback, will be filtered by container)
     // Add other item-specific selectors as identified
   ].join(',');
 

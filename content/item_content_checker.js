@@ -43,7 +43,7 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       // --- REMOVED: Skip all logic if on Google search results ---
       // (No early return for Google search pages)
 
-      if (!item) return false;
+      if (!item) return false; // Should not happen if called correctly
       const itemIdentifier = item.id || item.dataset.mdpiFilterRefId || item.textContent.substring(0, 50);
       // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] --- Checking item ---`, item.textContent.substring(0, 200));
 
@@ -54,39 +54,41 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       const isMdpiDoi = (doi) => doi && doi.startsWith(currentMdpiDoi);
 
       // Priority 1: MDPI DOI Check (from links)
-      let hasNonMdpiDoiLink = false;
-      let foundMdpiDoiLink = false; // Added to track if an MDPI DOI link is found
+      // Revised logic: If an MDPI DOI link is found, it's MDPI.
+      // If only non-MDPI DOI links are found, it's not MDPI by this check.
+      let hasMdpiDoiLink = false;
+      let hasOnlyNonMdpiDoiLinks = false; // True if we find DOI links, and ALL of them are non-MDPI
+      let foundAnyDoiLink = false;
 
       for (const link of allLinksInItem) {
-        const doiInLink = extractDoiFromLinkInternal(link.href);
-        if (doiInLink) {
-          if (isMdpiDoi(doiInLink)) {
-            // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: MDPI DOI link FOUND: '${doiInLink}'. Returning TRUE.`);
-            // return true; // Original behavior: return true immediately
-            foundMdpiDoiLink = true; // Mark that an MDPI DOI link was found
-            // Do not return immediately; continue checking other links for non-MDPI DOIs
-            // to correctly set hasNonMdpiDoiLink.
-          } else {
-            // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: Non-MDPI DOI link FOUND: '${doiInLink}'. Setting hasNonMdpiDoiLink.`);
-            hasNonMdpiDoiLink = true;
+        const href = link.getAttribute('href');
+        if (!href) continue;
+        const doi = extractDoiFromLinkInternal(href);
+        if (doi) {
+          foundAnyDoiLink = true;
+          if (isMdpiDoi(doi)) {
+            hasMdpiDoiLink = true;
+            break; // Found an MDPI DOI, this item is MDPI by this rule.
           }
         }
       }
 
-      // If an MDPI DOI link was found AND no non-MDPI DOI link was found, then it's MDPI.
-      if (foundMdpiDoiLink && !hasNonMdpiDoiLink) {
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: MDPI DOI link found and no overriding non-MDPI DOI link. Returning TRUE.`);
+      if (hasMdpiDoiLink) {
+        // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: MDPI DOI link found. Returning TRUE.`);
+        // runCache.set(itemIdentifier, true); // Optional: update runCache if it's used for item's direct MDPI status
         return true;
       }
-      // If a non-MDPI DOI link was found, this item is definitively NOT MDPI,
-      // regardless of whether an MDPI DOI link was also found (unlikely but possible with multiple DOI links).
-      if (hasNonMdpiDoiLink) {
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1 Result: Non-MDPI DOI link found. Definitive NON-MDPI. Returning FALSE.`);
+
+      // If we didn't find an MDPI DOI link, check if we found *only* non-MDPI DOI links.
+      if (foundAnyDoiLink && !hasMdpiDoiLink) { // This means all DOIs found were non-MDPI
+        // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: Only non-MDPI DOI link(s) found, and no MDPI DOI link. Returning FALSE.`);
+        // runCache.set(itemIdentifier, false); // Optional
         return false;
       }
-      // If we reach here, P1 found no DOI links at all, or only MDPI DOI links but also a non-MDPI DOI link (handled above).
+      // If no DOI links were found at all, or if the situation is mixed (which is complex and less likely for a single ref item's primary DOI),
+      // proceed to other checks. The `hasMdpiDoiLink` check above is the most direct.
 
-      // Priority 2: MDPI DOI String in Text Content (RESTORED)
+      // Priority 2: MDPI DOI String in Text Content
       const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
       if (mdpiDoiTextPattern.test(textContent)) {
         const matchedDoi = textContent.match(mdpiDoiTextPattern);
@@ -174,15 +176,14 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       }
 
       // --- NEW DECISION POINT BEFORE WEAKER CHECKS (like P5 Journal Name) ---
-      // If a non-MDPI DOI link was found, this item is definitively NOT MDPI.
-      if (hasNonMdpiDoiLink) {
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Pre-P5 Decision: Non-MDPI due to 'hasNonMdpiDoiLink' being true. Returning FALSE.`);
-        return false;
-      }
+      // This check is now effectively handled by the revised P1. If P1 returned false,
+      // it means we either found only non-MDPI DOIs or no DOIs at all.
+      // The old `hasNonMdpiDoiLink` variable logic is superseded.
+
       // If the item has NCBI IDs and ALL of them are cached as definitively non-MDPI, then it's NOT MDPI.
       if (itemHasNcbiIds && allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) {
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Pre-P5 Decision: Non-MDPI due to all associated NCBI IDs being cached as non-MDPI. Returning FALSE.`);
-        return false;
+      // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: All NCBI IDs for this item are cached as non-MDPI. Returning FALSE.`);
+      return false;
       }
       // --- END NEW DECISION POINT ---
 

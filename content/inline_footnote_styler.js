@@ -15,8 +15,49 @@
     anchorElement.style.color      = markerColor;
     anchorElement.style.fontWeight = 'bold';
 
-    // Do NOT style the parent sup element directly here.
-    // This prevents commas and non-MDPI links within the same sup from being affected.
+    // Specifically target known text-holding spans within the anchor for robust styling.
+    // This helps ensure the visible text color changes even if site CSS is very specific.
+
+    // For ScienceDirect: <a ...><span class="anchor-text-container"><span class="anchor-text">TEXT</span></span></a>
+    const scienceDirectTextSpan = anchorElement.querySelector('span.anchor-text');
+    if (scienceDirectTextSpan) {
+        scienceDirectTextSpan.style.color = markerColor;
+        scienceDirectTextSpan.style.fontWeight = 'bold';
+    }
+
+    // For EuropePMC: <a ...><span class="hyperlink-content">TEXT</span></a>
+    const europePMCTextSpan = anchorElement.querySelector('span.hyperlink-content');
+    if (europePMCTextSpan) {
+        europePMCTextSpan.style.color = markerColor;
+        europePMCTextSpan.style.fontWeight = 'bold';
+    }
+
+    // Add other specific selectors if needed, e.g.:
+    // const wileyTextSpan = anchorElement.querySelector('span.some-wiley-class');
+    // if (wileyTextSpan) { ... }
+
+    // General fallback: If the anchor has direct child spans and no specific span was styled above,
+    // and the anchor itself doesn't seem to have direct text nodes, style its direct child spans.
+    // This is a heuristic to catch cases where text is wrapped in a simple, non-specific span.
+    if (!scienceDirectTextSpan && !europePMCTextSpan) {
+        let hasDirectText = false;
+        anchorElement.childNodes.forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '') {
+                hasDirectText = true;
+            }
+        });
+
+        if (!hasDirectText) {
+            const directChildSpans = Array.from(anchorElement.children).filter(child => child.tagName.toLowerCase() === 'span');
+            directChildSpans.forEach(span => {
+                // Only style if this span is likely a leaf text container
+                if (span.querySelectorAll('span').length === 0) {
+                   span.style.color = markerColor;
+                   span.style.fontWeight = 'bold';
+                }
+            });
+        }
+    }
   };
 
   // Styles inline footnotes based on collected MDPI references.

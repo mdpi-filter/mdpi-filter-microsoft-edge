@@ -8,56 +8,86 @@
   /**
    * Extracts or generates an internal scroll ID for a reference item.
    * It also sets the 'data-mdpi-filter-ref-id' attribute on the item.
+   * The returned 'extractedId' is the best guess for an ID that can be used
+   * to link to inline citations.
    * @param {HTMLElement} itemElement - The DOM element representing the reference item.
    * @param {number} currentRefIdCounter - The current counter value for generating new IDs.
    * @returns {{extractedId: string, updatedRefIdCounter: number}} An object containing the extracted/generated ID and the updated counter.
    */
   function extractInternalScrollId(itemElement, currentRefIdCounter) {
-    let idToUse = itemElement.dataset.mdpiFilterRefId;
+    let idToUse = null;
+    let idSourceForLog = "unknown";
     let nextRefIdCounter = currentRefIdCounter;
-    let idSourceForLog = "existing data-mdpi-filter-ref-id";
 
-    if (!idToUse) {
-      idToUse = itemElement.id; // Check standard id attribute
-      if (idToUse) {
-        idSourceForLog = "item.id";
-      }
+    // Priority 1: Nature-specific ID from child <p class="c-article-references__text" id="ref-CR...">
+    const naturePElement = itemElement.querySelector('p.c-article-references__text[id^="ref-CR"]');
+    if (naturePElement && naturePElement.id) {
+      idToUse = naturePElement.id;
+      idSourceForLog = "Nature child p.id";
     }
 
+    // Priority 2: Standard item.id attribute
+    if (!idToUse && itemElement.id) {
+      idToUse = itemElement.id;
+      idSourceForLog = "item.id";
+    }
+
+    // Priority 3: 'content-id' attribute (common in OUP - academic.oup.com)
     if (!idToUse) {
-      // Check for 'content-id' attribute, common in OUP (academic.oup.com)
-      idToUse = itemElement.getAttribute('content-id');
-      if (idToUse) {
+      const oupContentId = itemElement.getAttribute('content-id');
+      if (oupContentId) {
+        idToUse = oupContentId;
         idSourceForLog = "attribute 'content-id'";
       }
     }
     
+    // Priority 4: 'data-legacy-id' attribute (common in OUP)
     if (!idToUse) {
-      // Fallback to 'data-legacy-id' if 'content-id' is not present (also seen in OUP)
-      idToUse = itemElement.getAttribute('data-legacy-id');
-      if (idToUse) {
+      const oupLegacyId = itemElement.getAttribute('data-legacy-id');
+      if (oupLegacyId) {
+        idToUse = oupLegacyId;
         idSourceForLog = "attribute 'data-legacy-id'";
       }
     }
 
+    // Priority 5: 'data-bib-id' attribute (common in Wiley)
+    if (!idToUse && itemElement.dataset && itemElement.dataset.bibId) {
+        idToUse = itemElement.dataset.bibId;
+        idSourceForLog = "item.dataset.bibId";
+    }
+
+    // Priority 6: If no specific linkable ID found yet, check existing 'data-mdpi-filter-ref-id'
+    // This handles cases where the script might re-process an element that already has an ID (possibly generated).
+    if (!idToUse && itemElement.dataset.mdpiFilterRefId) {
+      idToUse = itemElement.dataset.mdpiFilterRefId;
+      idSourceForLog = "existing data-mdpi-filter-ref-id";
+    }
+
+    // If still no ID after all checks, generate a new one.
     if (!idToUse) {
       idToUse = `mdpi-ref-${nextRefIdCounter++}`;
-      itemElement.dataset.mdpiFilterRefId = idToUse; // Set the attribute on the item
+      itemElement.dataset.mdpiFilterRefId = idToUse; // Set attribute for newly generated
+      idSourceForLog = "generated mdpi-ref-X";
       console.log(`[MDPI Filter RefIdExtractor] Generated and set data-mdpi-filter-ref-id='${idToUse}' for:`, itemElement);
     } else {
-      // If idToUse was found from item.id, content-id, or data-legacy-id,
-      // and it's not already set as data-mdpi-filter-ref-id, set it for consistency.
+      // An ID was found (either specific, existing, or from attributes).
+      // Ensure 'data-mdpi-filter-ref-id' is consistent with this found ID.
       if (itemElement.dataset.mdpiFilterRefId !== idToUse) {
         itemElement.dataset.mdpiFilterRefId = idToUse;
-        console.log(`[MDPI Filter RefIdExtractor] Adopted ID from ${idSourceForLog} and set data-mdpi-filter-ref-id='${idToUse}' for:`, itemElement);
+        // Log adoption if the source wasn't "existing..." (which implies it was already the value)
+        // or "generated..." (which has its own log).
+        console.log(`[MDPI Filter RefIdExtractor] Adopted ID from ${idSourceForLog} ('${idToUse}') and set data-mdpi-filter-ref-id for:`, itemElement);
       } else {
-        // This means idToUse came from itemElement.dataset.mdpiFilterRefId initially
-        console.log(`[MDPI Filter RefIdExtractor] Reused existing data-mdpi-filter-ref-id='${idToUse}' for:`, itemElement);
+        // The attribute already matched idToUse.
+        // Log confirmation, unless it was a generated ID (already logged).
+         if (idSourceForLog !== "generated mdpi-ref-X") {
+            console.log(`[MDPI Filter RefIdExtractor] Using ID '${idToUse}' (source: ${idSourceForLog}). data-mdpi-filter-ref-id confirmed. Item:`, itemElement);
+        }
       }
     }
 
     return {
-      extractedId: idToUse,
+      extractedId: idToUse, // This is the ID to be used by generateInlineFootnoteSelectors
       updatedRefIdCounter: nextRefIdCounter
     };
   }

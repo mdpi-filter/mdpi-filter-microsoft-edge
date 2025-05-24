@@ -26,13 +26,19 @@
       idSourceForLog = "Nature child p.id";
     }
 
-    // Priority 2: Standard item.id attribute
+    // Priority 2: Oxford University Press popup reference data-id
+    if (!idToUse && itemElement.dataset && itemElement.dataset.id) {
+      idToUse = itemElement.dataset.id;
+      idSourceForLog = "item.dataset.id (OUP popup)";
+    }
+
+    // Priority 3: Standard item.id attribute
     if (!idToUse && itemElement.id) {
       idToUse = itemElement.id;
       idSourceForLog = "item.id";
     }
 
-    // Priority 3: 'content-id' attribute (common in OUP - academic.oup.com)
+    // Priority 4: 'content-id' attribute (common in OUP - academic.oup.com)
     if (!idToUse) {
       const oupContentId = itemElement.getAttribute('content-id');
       if (oupContentId) {
@@ -41,7 +47,7 @@
       }
     }
     
-    // Priority 4: 'data-legacy-id' attribute (common in OUP)
+    // Priority 5: 'data-legacy-id' attribute (common in OUP)
     if (!idToUse) {
       const oupLegacyId = itemElement.getAttribute('data-legacy-id');
       if (oupLegacyId) {
@@ -50,13 +56,13 @@
       }
     }
 
-    // Priority 5: 'data-bib-id' attribute (common in Wiley)
+    // Priority 6: 'data-bib-id' attribute (common in Wiley)
     if (!idToUse && itemElement.dataset && itemElement.dataset.bibId) {
         idToUse = itemElement.dataset.bibId;
         idSourceForLog = "item.dataset.bibId";
     }
 
-    // Priority 6: If no specific linkable ID found yet, check existing 'data-mdpi-filter-ref-id'
+    // Priority 7: If no specific linkable ID found yet, check existing 'data-mdpi-filter-ref-id'
     // This handles cases where the script might re-process an element that already has an ID (possibly generated).
     if (!idToUse && itemElement.dataset.mdpiFilterRefId) {
       idToUse = itemElement.dataset.mdpiFilterRefId;

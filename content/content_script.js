@@ -1179,6 +1179,46 @@ if (!window.mdpiFilterInjected) {
           return false; // Important for other listeners
         });
 
+    // Enhanced MutationObserver to handle dynamic content like popups
+    const observerConfig = { 
+      childList: true, 
+      subtree: true,
+      attributes: false // Focus on DOM structure changes, not attribute changes
+    };
+
+    const debouncedProcessReferences = debounce(() => {
+      // console.log("[MDPI Filter CS] Debounced processReferences triggered by MutationObserver.");
+      processReferences();
+    }, 500); // 500ms delay to avoid excessive calls
+
+    const observer = new MutationObserver(mutations => {
+      let shouldReprocess = false;
+      
+      mutations.forEach(mutation => {
+        // Check for added nodes that might contain references or popups
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            // Check if the added node contains reference elements
+            if (node.matches && node.matches(window.MDPIFilterReferenceSelectors)) {
+              shouldReprocess = true;
+            } else if (node.querySelector && node.querySelector(window.MDPIFilterReferenceSelectors)) {
+              shouldReprocess = true;
+            }
+            // Specifically check for Oxford University Press popup content
+            else if (node.id === 'revealContent' || node.querySelector('#revealContent')) {
+              shouldReprocess = true;
+            }
+          }
+        });
+      });
+
+      if (shouldReprocess) {
+        debouncedProcessReferences();
+      }
+    });
+
+    observer.observe(document.body, observerConfig);
+
       }); // End of chrome.storage.sync.get callback
     } else {
       console.warn("[MDPI Filter CS] Extension context invalidated before storage access. Main script logic will not execute for this frame.");

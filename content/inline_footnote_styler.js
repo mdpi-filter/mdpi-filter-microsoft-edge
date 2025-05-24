@@ -2,47 +2,24 @@
 (function() {
   // Helper function to style sup/a elements for inline citations.
   // This function was originally styleSup in content_script.js.
-  const styleInlineMarker = (supOrA, color) => {
-    if (!supOrA) return;
+  // It now specifically targets an anchor element and its parent sup.
+  const styleInlineMarker = (anchorElement, color) => {
+    if (!anchorElement || anchorElement.tagName.toLowerCase() !== 'a') {
+      // console.warn("[MDPI Filter Styler] styleInlineMarker called with non-anchor element:", anchorElement);
+      return;
+    }
 
     const markerColor = color || '#E2211C'; // Default to MDPI Red if no color is provided
 
-    // Style the main element (sup or a)
-    supOrA.style.color      = markerColor;
-    supOrA.style.fontWeight = 'bold';
+    // Style the anchor element itself
+    anchorElement.style.color      = markerColor;
+    anchorElement.style.fontWeight = 'bold';
 
-    // If supOrA is a sup element, specifically style any anchor tag and its content within it
-    if (supOrA.tagName.toLowerCase() === 'sup') {
-      const anchorElement = supOrA.querySelector('a');
-      if (anchorElement) {
-        anchorElement.style.color      = markerColor;
-        anchorElement.style.fontWeight = 'bold';
-        Array.from(anchorElement.childNodes).forEach(child => {
-          if (child.nodeType === Node.ELEMENT_NODE) {
-            child.style.color      = markerColor;
-            child.style.fontWeight = 'bold';
-          }
-        });
-        const bracketSpans = anchorElement.querySelectorAll('span.cite-bracket');
-        bracketSpans.forEach(span => {
-          span.style.color = markerColor;
-        });
-      }
-    }
-    // If supOrA is an anchor itself that contains a sup
-    else if (supOrA.tagName.toLowerCase() === 'a') {
-      const supInsideAnchor = supOrA.querySelector('sup');
-      if (supInsideAnchor) {
-        supInsideAnchor.style.color      = markerColor;
-        supInsideAnchor.style.fontWeight = 'bold';
-        const anchorInsideSup = supInsideAnchor.querySelector('a');
-        if (anchorInsideSup) {
-          const bracketSpans = anchorInsideSup.querySelectorAll('span.cite-bracket');
-          bracketSpans.forEach(span => {
-              span.style.color = markerColor;
-          });
-        }
-      }
+    // Style the parent sup element, if it exists
+    const parentSup = anchorElement.parentElement;
+    if (parentSup && parentSup.tagName.toLowerCase() === 'sup') {
+      parentSup.style.color      = markerColor; // This will affect text nodes like commas within the sup
+      parentSup.style.fontWeight = 'bold';
     }
   };
 
@@ -60,7 +37,7 @@
       return;
     }
 
-    const styledInlineRefs = new Set();
+    const styledElements = new Set(); // Keep track of elements (<a> or <sup>) already styled to avoid redundant operations
 
     collectedMdpiReferences.forEach(refData => {
       // refData.listItemDomId is the ID of the reference list item (e.g., from item.id or item.dataset.bibId)
@@ -69,7 +46,7 @@
         // console.warn("[MDPI Filter] Skipping inline styling for refData with missing or invalid listItemDomId:", refData);
         return;
       }
-      const currentListItemDomId = refData.listItemDomId;
+      const currentListItemDomId = refData.listItemDomId; // This ID belongs to an MDPI reference
 
       const allSelectorsString = window.MDPIFilterUtils.generateInlineFootnoteSelectors(currentListItemDomId);
 
@@ -80,21 +57,75 @@
       // console.log(`[MDPI Filter CS] Querying inline for listItemDomId '${currentListItemDomId}' with: ${allSelectorsString}`);
 
       try {
-        document.querySelectorAll(allSelectorsString).forEach(el => {
-          let targetElementToStyle = el;
-          if (el.tagName.toLowerCase() === 'sup') {
-            targetElementToStyle = el;
-          } else if (el.tagName.toLowerCase() === 'a') {
-            const directSupParent = el.parentElement;
-            if (directSupParent && directSupParent.tagName.toLowerCase() === 'sup') {
-              targetElementToStyle = directSupParent;
+        document.querySelectorAll(allSelectorsString).forEach(matchedElement => {
+          let anchorToStyle = null;
+
+          if (matchedElement.tagName.toLowerCase() === 'a') {
+            anchorToStyle = matchedElement;
+          } else if (matchedElement.tagName.toLowerCase() === 'sup') {
+            // The <sup> itself was matched (e.g., by a selector like sup[id="..."]).
+            // This <sup> is associated with an MDPI reference (currentListItemDomId).
+            // We need to find the specific child <a> element(s) within this <sup>
+            // that link to currentListItemDomId.
+            // Note: querySelectorAll uses the current `matchedElement` (the sup) as the base.
+            const specificAnchorsInSup = matchedElement.querySelectorAll(
+              `a[href="#${currentListItemDomId}"], a[href$="#${currentListItemDomId}"],` +
+              `a[href="#cite_note-${currentListItemDomId.replace(/^cite_note-/i, '')}"],` +
+              `a[href="#ref-${currentListItemDomId.replace(/^ref-/i, '')}"],` +
+              `a[href="#reference-${currentListItemDomId.replace(/^reference-/i, '')}"],` +
+              `a[href="#B${currentListItemDomId.replace(/^B/i, '')}"],` +
+              `a[href="#CR${currentListItemDomId.replace(/^CR/i, '')}"],` +
+              `a[data-rid="${currentListItemDomId}"], a[rid="${currentListItemDomId}"],` +
+              `a[data-test="citation-ref"][href$="#ref-${currentListItemDomId.replace(/^ref-/i, '')}"]` // Nature specific inside sup
+            );
+
+            if (specificAnchorsInSup.length > 0) {
+              // Style all such specific anchors found within the sup
+              specificAnchorsInSup.forEach(specificAnchor => {
+                if (!styledElements.has(specificAnchor)) {
+                  styleInlineMarker(specificAnchor, mdpiColor);
+                  styledElements.add(specificAnchor);
+                  // Ensure its parent sup is also marked as styled if styleInlineMarker handled it
+                  if (specificAnchor.parentElement && specificAnchor.parentElement.tagName.toLowerCase() === 'sup') {
+                    styledElements.add(specificAnchor.parentElement);
+                  }
+                }
+              });
             } else {
-              targetElementToStyle = el;
+                // If the sup was matched, but no specific anchor inside it matches currentListItemDomId via these selectors,
+                // it's possible the sup itself is the intended target (e.g. a sup with an ID but no internal links, though rare for citations).
+                // Or, the sup contains the link but our specific selectors above missed it.
+                // As a fallback, if the sup itself was matched by allSelectorsString, style it.
+                // And style its first anchor child if it exists, as a general guess.
+                if (!styledElements.has(matchedElement)) { // Style the <sup>
+                    matchedElement.style.color = mdpiColor;
+                    matchedElement.style.fontWeight = 'bold';
+                    styledElements.add(matchedElement);
+                    // Try to style the first <a> child as a fallback if no specific one was found
+                    const firstAnchorInSup = matchedElement.querySelector('a');
+                    if (firstAnchorInSup && !styledElements.has(firstAnchorInSup)) {
+                         // Check if this first anchor actually links to the current MDPI ref before styling
+                        const href = firstAnchorInSup.getAttribute('href');
+                        const idSuffix = `#${currentListItemDomId}`;
+                        const refIdSuffix = `#ref-${currentListItemDomId}`; // For Nature
+                        if (href && (href.endsWith(idSuffix) || href.endsWith(refIdSuffix))) {
+                            styleInlineMarker(firstAnchorInSup, mdpiColor);
+                            styledElements.add(firstAnchorInSup);
+                        }
+                    }
+                }
             }
+            return; // Finished processing this matched <sup> and its children
           }
-          if (targetElementToStyle && !styledInlineRefs.has(targetElementToStyle)) {
-            styleInlineMarker(targetElementToStyle, mdpiColor); // Pass mdpiColor here
-            styledInlineRefs.add(targetElementToStyle);
+
+          if (anchorToStyle && !styledElements.has(anchorToStyle)) {
+            styleInlineMarker(anchorToStyle, mdpiColor);
+            styledElements.add(anchorToStyle);
+            // Ensure its parent sup is also marked as styled if styleInlineMarker handled it
+            const parentSup = anchorToStyle.parentElement;
+            if (parentSup && parentSup.tagName.toLowerCase() === 'sup') {
+              styledElements.add(parentSup);
+            }
           }
         });
       } catch (error) {

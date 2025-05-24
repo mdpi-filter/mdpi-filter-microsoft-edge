@@ -48,9 +48,13 @@ window.MDPIFilterDomains = {
   // PubMed (no outbound links, only DOI in text)
   pubmed: {
     host: 'pubmed.ncbi.nlm.nih.gov', // Should match an entry or be covered by an entry in searchEngineDomains
-    // Match both article and li elements with the full-docsum class
+    // Add a path regex to distinguish search/listing pages from article pages.
+    // Matches if query string contains 'term=' OR path starts with /search/ or /collections/
+    // Article pages (e.g., /PMID/) will not match this.
+    path: /(?:\?.*term=|^\/(?:search|collections)\/)/i,
+    // Match both article and li elements with the full-docsum class on search result pages
     itemSelector: 'article.full-docsum, li.full-docsum',
-    doiPattern: '10.3390'
+    doiPattern: '10.3390' // Used for simple DOI check on search results if API fails or is not used
   },
 
   // Europe PMC (matches any subdomain of europepmc.org)

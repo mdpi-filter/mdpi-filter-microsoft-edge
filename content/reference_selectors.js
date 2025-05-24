@@ -15,6 +15,7 @@ window.MDPIFilterReferenceSelectors = [
   'li[id^="reference-"]', // Generic
   'li[id^="B"]', // NCBI/PMC specific Bxx-journal-id format for <li> elements
   'div.ref-cit-blk[id^="B"]', // EuropePMC article page references (e.g. id="B5-microorganisms-11-01048")
+  'div#references ol.references-list > li', // PubMed article page references
   'li[id^="en"]', // For ods.od.nih.gov style IDs like "en14"
   'li:has(> span > a[id^="ref-id-"])', // Some other format
   'li:has(a[name^="bbib"])', // Another format

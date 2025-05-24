@@ -52,3 +52,56 @@
     - [https://europepmc.org/article/med/36838493#free-full-text](https://europepmc.org/article/med/36838493#free-full-text)
     - [https://europepmc.org/article/pmc/pmc9146485#free-full-text](https://europepmc.org/article/pmc/pmc9146485#free-full-text)
 - **Nature.com Sidebar References**: On Nature.com articles (e.g., [https://www.nature.com/articles/s44264-024-00042-0](https://www.nature.com/articles/s44264-024-00042-0)), references in the "reading companion" sidebar may occasionally be incorrectly counted and listed in the extension's popup, particularly if an inline footnote is clicked while the page and extension are still loading. While these sidebar references are correctly styled if they are MDPI, they are not intended to be part of the main count.
+
+---
+
+## 🧪 Test Pages & Queries
+
+### Test Articles
+
+**Nature**
+- https://www.nature.com/articles/s43016-021-00402-w
+
+**Cell**
+- https://www.cell.com/trends/plant-science/abstract/S1360-1385(24)00048-7
+
+**ScienceDirect**
+- https://www.sciencedirect.com/science/article/pii/S1360138520301941
+
+### Search Queries
+
+**Google**
+```
+mdpi
+10.3390 europepmc "pmc"
+10.3390 "pmc"
+```
+
+**Google Scholar**
+```
+mdpi
+```
+
+**PubMed**
+```
+10.3390
+```
+
+**EuropePMC**
+```
+10.3390
+```
+
+### PubMed Articles
+- https://pubmed.ncbi.nlm.nih.gov/22971582/
+- https://pubmed.ncbi.nlm.nih.gov/28805671/
+
+### Other Test Pages
+
+**Wikipedia**
+- https://en.wikipedia.org/wiki/Autism
+
+**Healthline**
+- https://www.healthline.com/health/nutrition/dietary-supplements
+
+---

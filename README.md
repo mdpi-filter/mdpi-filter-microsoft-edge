@@ -50,3 +50,4 @@
 - **EuropePMC Full-Text Citations**: Inline numerical citations (e.g., "[1]") in the full-text view of some EuropePMC articles are not highlighted for MDPI references. Examples:
     - [https://europepmc.org/article/med/36838493#free-full-text](https://europepmc.org/article/med/36838493#free-full-text)
     - [https://europepmc.org/article/pmc/pmc9146485#free-full-text](https://europepmc.org/article/pmc/pmc9146485#free-full-text)
+- **Nature.com Sidebar References**: On Nature.com articles (e.g., [https://www.nature.com/articles/s44264-024-00042-0](https://www.nature.com/articles/s44264-024-00042-0)), references in the "reading companion" sidebar may occasionally be incorrectly counted and listed in the extension's popup, particularly if an inline footnote is clicked while the page and extension are still loading. While these sidebar references are correctly styled if they are MDPI, they are not intended to be part of the main count.

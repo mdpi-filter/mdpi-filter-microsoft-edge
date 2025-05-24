@@ -32,13 +32,32 @@
       idSourceForLog = "item.dataset.id (OUP popup)";
     }
 
-    // Priority 3: Standard item.id attribute
+    // Priority 3: ScienceDirect specific ID from child <a id="ref-id-b...">
+    if (!idToUse) {
+      const sciDirectAnchor = itemElement.querySelector('span.label a.anchor[id^="ref-id-b"]');
+      if (sciDirectAnchor && sciDirectAnchor.id) {
+        idToUse = sciDirectAnchor.id;
+        idSourceForLog = "ScienceDirect child a.anchor.id";
+      }
+    }
+
+    // Priority 4: ScienceDirect specific ID from child <span class="reference" id="rf...">
+    // This is a fallback if the anchor ID isn't found, though less ideal for inline linking.
+    if (!idToUse) {
+      const sciDirectRefSpan = itemElement.querySelector('span.reference[id^="rf"]');
+      if (sciDirectRefSpan && sciDirectRefSpan.id) {
+        idToUse = sciDirectRefSpan.id;
+        idSourceForLog = "ScienceDirect child span.reference.id";
+      }
+    }
+
+    // Priority 5: Standard item.id attribute
     if (!idToUse && itemElement.id) {
       idToUse = itemElement.id;
       idSourceForLog = "item.id";
     }
 
-    // Priority 4: 'content-id' attribute (common in OUP - academic.oup.com)
+    // Priority 6: 'content-id' attribute (common in OUP - academic.oup.com)
     if (!idToUse) {
       const oupContentId = itemElement.getAttribute('content-id');
       if (oupContentId) {
@@ -47,7 +66,7 @@
       }
     }
     
-    // Priority 5: 'data-legacy-id' attribute (common in OUP)
+    // Priority 7: 'data-legacy-id' attribute (common in OUP)
     if (!idToUse) {
       const oupLegacyId = itemElement.getAttribute('data-legacy-id');
       if (oupLegacyId) {
@@ -56,13 +75,13 @@
       }
     }
 
-    // Priority 6: 'data-bib-id' attribute (common in Wiley)
+    // Priority 8: 'data-bib-id' attribute (common in Wiley)
     if (!idToUse && itemElement.dataset && itemElement.dataset.bibId) {
         idToUse = itemElement.dataset.bibId;
         idSourceForLog = "item.dataset.bibId";
     }
 
-    // Priority 7: If no specific linkable ID found yet, check existing 'data-mdpi-filter-ref-id'
+    // Priority 9: If no specific linkable ID found yet, check existing 'data-mdpi-filter-ref-id'
     // This handles cases where the script might re-process an element that already has an ID (possibly generated).
     if (!idToUse && itemElement.dataset.mdpiFilterRefId) {
       idToUse = itemElement.dataset.mdpiFilterRefId;

@@ -39,8 +39,27 @@
       `a[aria-controls="${refId}"]`,  // Matches <a aria-controls="sref6"> for listItemDomId "sref6"
       // ADDED FOR OXFORD UNIVERSITY PRESS (academic.oup.com)
       `a.link-ref.xref-bibr[reveal-id="${refId}"]`,
-      `a.link-ref.xref-bibr[data-open="${refId}"]`
+      `a.link-ref.xref-bibr[data-open="${refId}"]`,
+      // ADDED for ScienceDirect style IDs like "ref-id-bb0105" or "ref-id-bbb0105"
+      // where inline links might be href="#bb0105" or href="#bbb0105"
+      `a[href="#${refId.replace(/^ref-id-/i, '')}"]`
     ];
+
+    // ScienceDirect specific handling for "ref-id-b..." type IDs
+    // where inline href might be #bb... or #bbb...
+    if (refId.startsWith("ref-id-b")) {
+      const baseSciDirectId = refId.substring("ref-id-".length); // e.g., "bbb0105" or "bb0105"
+      commonSelectors.push(`a[href="#${baseSciDirectId}"]`); // e.g., a[href="#bbb0105"]
+      commonSelectors.push(`a.anchor[href="#${baseSciDirectId}"]`);
+      commonSelectors.push(`a.anchor-primary[href="#${baseSciDirectId}"]`);
+      if (baseSciDirectId.startsWith("b") && baseSciDirectId.length > 1) {
+        const shorterSciDirectId = baseSciDirectId.substring(1); // e.g., "bb0105" from "bbb0105", or "b0105" from "bb0105"
+        commonSelectors.push(`a[href="#${shorterSciDirectId}"]`); // e.g., a[href="#bb0105"]
+        commonSelectors.push(`a.anchor[href="#${shorterSciDirectId}"]`);
+        commonSelectors.push(`a.anchor-primary[href="#${shorterSciDirectId}"]`);
+      }
+    }
+
 
     const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35" or "ref-CR35"
     if (numericRefIdPart) {
@@ -78,8 +97,24 @@
       `sup a[aria-controls="${refId}"]`,
       // ADDED FOR OXFORD UNIVERSITY PRESS (academic.oup.com) - if they ever appear in sup
       `sup a.link-ref.xref-bibr[reveal-id="${refId}"]`,
-      `sup a.link-ref.xref-bibr[data-open="${refId}"]`
+      `sup a.link-ref.xref-bibr[data-open="${refId}"]`,
+      // ADDED for ScienceDirect style IDs
+      `sup a[href="#${refId.replace(/^ref-id-/i, '')}"]`
     ];
+
+    if (refId.startsWith("ref-id-b")) {
+      const baseSciDirectId = refId.substring("ref-id-".length);
+      supParentSelectors.push(`sup a[href="#${baseSciDirectId}"]`);
+      supParentSelectors.push(`sup a.anchor[href="#${baseSciDirectId}"]`);
+      supParentSelectors.push(`sup a.anchor-primary[href="#${baseSciDirectId}"]`);
+      if (baseSciDirectId.startsWith("b") && baseSciDirectId.length > 1) {
+        const shorterSciDirectId = baseSciDirectId.substring(1);
+        supParentSelectors.push(`sup a[href="#${shorterSciDirectId}"]`);
+        supParentSelectors.push(`sup a.anchor[href="#${shorterSciDirectId}"]`);
+        supParentSelectors.push(`sup a.anchor-primary[href="#${shorterSciDirectId}"]`);
+      }
+    }
+
      if (numericRefIdPart) {
         supParentSelectors.push(`sup a[href="#${numericRefIdPart}"]`);
         supParentSelectors.push(`sup a[href$="#${numericRefIdPart}"]`);

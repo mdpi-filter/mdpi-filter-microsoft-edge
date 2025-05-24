@@ -47,6 +47,7 @@
 ## ⚠️ Known Issues
 
 - **ScienceDirect Author-Year Citations**: On some ScienceDirect articles (e.g., [https://www.sciencedirect.com/science/article/pii/S0924224424001535](https://www.sciencedirect.com/science/article/pii/S0924224424001535)), author-year style inline citations (e.g., "(Balasundram et al., 2023)") are not highlighted for MDPI references. Other functionalities like counting, listing, and highlighting in the reference list work correctly.
+- **ScienceDirect Numerical Citations**: On some ScienceDirect articles (e.g., [https://www.sciencedirect.com/science/article/pii/S1360138520301941](https://www.sciencedirect.com/science/article/pii/S1360138520301941)), inline numerical citations (e.g., "[21]") are not highlighted for MDPI references. Reference list highlighting works correctly.
 - **EuropePMC Full-Text Citations**: Inline numerical citations (e.g., "[1]") in the full-text view of some EuropePMC articles are not highlighted for MDPI references. Examples:
     - [https://europepmc.org/article/med/36838493#free-full-text](https://europepmc.org/article/med/36838493#free-full-text)
     - [https://europepmc.org/article/pmc/pmc9146485#free-full-text](https://europepmc.org/article/pmc/pmc9146485#free-full-text)

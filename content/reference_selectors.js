@@ -34,4 +34,5 @@ window.MDPIFilterReferenceSelectors = [
   'li[id*="r"][id]', // Fallback: any li with 'r' in id (will filter in code)
   'div.js-splitview-ref-item[content-id^="CIT"]', // Oxford University Press (academic.oup.com)
   'div#revealContent .ref-content[data-id]', // Oxford University Press popup references
+  'li.c-reading-companion__reference-item', // Nature reading companion sidebar references
 ].join(',');

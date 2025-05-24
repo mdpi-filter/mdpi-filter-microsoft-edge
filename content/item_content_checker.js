@@ -11,21 +11,29 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
         const base = hrefAttribute.startsWith('/') ? (typeof window !== 'undefined' ? window.location.origin : undefined) : undefined;
         const urlObj = new URL(hrefAttribute, base);
         if (urlObj.searchParams.has('url')) {
-          targetUrl = decodeURIComponent(urlObj.searchParams.get('url'));
-        } else if (urlObj.searchParams.has('doi')) {
-          const doiParam = decodeURIComponent(urlObj.searchParams.get('doi'));
-          // Handle DOIs that are not full URLs but are actual DOI strings
-          if (!doiParam.toLowerCase().startsWith('http') && doiParam.includes('/')) {
-            targetUrl = `https://doi.org/${doiParam}`;
-          } else {
-            targetUrl = doiParam;
-          }
+          targetUrl = urlObj.searchParams.get('url');
+        } else if (urlObj.pathname.includes('/linkout/') && urlObj.searchParams.has('dest')) {
+          targetUrl = urlObj.searchParams.get('dest');
         }
+        // It's generally safer to decode the targetUrl if it might contain encoded DOIs
+        // especially if the regex relies on specific characters like '/'.
+        targetUrl = decodeURIComponent(targetUrl);
+
       } catch (e) {
         // console.warn('[MDPI Filter ItemChecker] Error parsing URL in extractDoiFromLink:', hrefAttribute, e);
+        // If URL parsing fails, try to decode the original hrefAttribute as a fallback,
+        // as it might still contain a decodable DOI.
+        try {
+          targetUrl = decodeURIComponent(hrefAttribute);
+        } catch (decodeError) {
+          // If decoding also fails, proceed with the original hrefAttribute.
+          // console.warn('[MDPI Filter ItemChecker] Error decoding hrefAttribute:', hrefAttribute, decodeError);
+        }
       }
-      // Regex to extract DOI: 10. followed by 4 or more digits, a slash, and then any characters except whitespace or common delimiters
-      const doiMatch = targetUrl.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
+      // Regex to extract DOI: 10. followed by 4 or more digits, a slash (or its URL encoding %2F), 
+      // and then any characters except whitespace or common delimiters.
+      // Now explicitly handles decoded slashes.
+      const doiMatch = targetUrl.match(/\b(10\.\d{4,9}\/(?:[^"\s'&<>]+))\b/i);
       return doiMatch ? doiMatch[1] : null;
     };
 
@@ -37,7 +45,7 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
       if (!item) return false;
       const itemIdentifier = item.id || item.dataset.mdpiFilterRefId || item.textContent.substring(0, 50);
-      console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] --- Checking item ---`, item.textContent.substring(0, 200));
+      // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] --- Checking item ---`, item.textContent.substring(0, 200));
 
       const textContent = item.textContent || '';
       const innerHTML = item.innerHTML || '';
@@ -47,16 +55,36 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
       // Priority 1: MDPI DOI Check (from links)
       let hasNonMdpiDoiLink = false;
+      let foundMdpiDoiLink = false; // Added to track if an MDPI DOI link is found
+
       for (const link of allLinksInItem) {
         const doiInLink = extractDoiFromLinkInternal(link.href);
         if (doiInLink) {
           if (isMdpiDoi(doiInLink)) {
-            console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: MDPI DOI link FOUND: '${doiInLink}'. Returning TRUE.`);
-            return true; // MDPI DOI link found
+            // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: MDPI DOI link FOUND: '${doiInLink}'. Returning TRUE.`);
+            // return true; // Original behavior: return true immediately
+            foundMdpiDoiLink = true; // Mark that an MDPI DOI link was found
+            // Do not return immediately; continue checking other links for non-MDPI DOIs
+            // to correctly set hasNonMdpiDoiLink.
+          } else {
+            // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: Non-MDPI DOI link FOUND: '${doiInLink}'. Setting hasNonMdpiDoiLink.`);
+            hasNonMdpiDoiLink = true;
           }
-          hasNonMdpiDoiLink = true; // A non-MDPI DOI link was found
         }
       }
+
+      // If an MDPI DOI link was found AND no non-MDPI DOI link was found, then it's MDPI.
+      if (foundMdpiDoiLink && !hasNonMdpiDoiLink) {
+        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: MDPI DOI link found and no overriding non-MDPI DOI link. Returning TRUE.`);
+        return true;
+      }
+      // If a non-MDPI DOI link was found, this item is definitively NOT MDPI,
+      // regardless of whether an MDPI DOI link was also found (unlikely but possible with multiple DOI links).
+      if (hasNonMdpiDoiLink) {
+        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1 Result: Non-MDPI DOI link found. Definitive NON-MDPI. Returning FALSE.`);
+        return false;
+      }
+      // If we reach here, P1 found no DOI links at all, or only MDPI DOI links but also a non-MDPI DOI link (handled above).
 
       // Priority 2: MDPI DOI String in Text Content (RESTORED)
       const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");

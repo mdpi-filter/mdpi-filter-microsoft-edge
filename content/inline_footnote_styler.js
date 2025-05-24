@@ -15,12 +15,8 @@
     anchorElement.style.color      = markerColor;
     anchorElement.style.fontWeight = 'bold';
 
-    // Style the parent sup element, if it exists
-    const parentSup = anchorElement.parentElement;
-    if (parentSup && parentSup.tagName.toLowerCase() === 'sup') {
-      parentSup.style.color      = markerColor; // This will affect text nodes like commas within the sup
-      parentSup.style.fontWeight = 'bold';
-    }
+    // Do NOT style the parent sup element directly here.
+    // This prevents commas and non-MDPI links within the same sup from being affected.
   };
 
   // Styles inline footnotes based on collected MDPI references.
@@ -85,7 +81,7 @@
                 if (!styledElements.has(specificAnchor)) {
                   styleInlineMarker(specificAnchor, mdpiColor);
                   styledElements.add(specificAnchor);
-                  // Ensure its parent sup is also marked as styled if styleInlineMarker handled it
+                  // Add parent sup to styledElements for tracking, not for styling it directly.
                   if (specificAnchor.parentElement && specificAnchor.parentElement.tagName.toLowerCase() === 'sup') {
                     styledElements.add(specificAnchor.parentElement);
                   }
@@ -95,16 +91,13 @@
                 // If the sup was matched, but no specific anchor inside it matches currentListItemDomId via these selectors,
                 // it's possible the sup itself is the intended target (e.g. a sup with an ID but no internal links, though rare for citations).
                 // Or, the sup contains the link but our specific selectors above missed it.
-                // As a fallback, if the sup itself was matched by allSelectorsString, style it.
-                // And style its first anchor child if it exists, as a general guess.
-                if (!styledElements.has(matchedElement)) { // Style the <sup>
-                    matchedElement.style.color = mdpiColor;
-                    matchedElement.style.fontWeight = 'bold';
-                    styledElements.add(matchedElement);
-                    // Try to style the first <a> child as a fallback if no specific one was found
+                // As a fallback, if the sup itself was matched by allSelectorsString, do not style it directly.
+                // Instead, try to style its first anchor child if it exists and links to the MDPI ref.
+                if (!styledElements.has(matchedElement)) { 
+                    styledElements.add(matchedElement); // Mark sup as processed
+                    // Try to style the first <a> child if it links to the current MDPI ref
                     const firstAnchorInSup = matchedElement.querySelector('a');
                     if (firstAnchorInSup && !styledElements.has(firstAnchorInSup)) {
-                         // Check if this first anchor actually links to the current MDPI ref before styling
                         const href = firstAnchorInSup.getAttribute('href');
                         const idSuffix = `#${currentListItemDomId}`;
                         const refIdSuffix = `#ref-${currentListItemDomId}`; // For Nature
@@ -121,7 +114,7 @@
           if (anchorToStyle && !styledElements.has(anchorToStyle)) {
             styleInlineMarker(anchorToStyle, mdpiColor);
             styledElements.add(anchorToStyle);
-            // Ensure its parent sup is also marked as styled if styleInlineMarker handled it
+            // Add parent sup to styledElements for tracking if the anchor was styled.
             const parentSup = anchorToStyle.parentElement;
             if (parentSup && parentSup.tagName.toLowerCase() === 'sup') {
               styledElements.add(parentSup);

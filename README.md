@@ -67,9 +67,13 @@
 
 **Nature**
 - https://www.nature.com/articles/s43016-021-00402-w
+- https://www.nature.com/articles/s41579-023-00993-0
 
 **ScienceDirect**
 - https://www.sciencedirect.com/science/article/pii/S1360138520301941
+
+**PMC (PubMed Central)**
+- https://pmc.ncbi.nlm.nih.gov/articles/PMC8810379/
 
 ### Search Queries
 

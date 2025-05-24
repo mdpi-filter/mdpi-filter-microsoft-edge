@@ -11,7 +11,7 @@
    */
   function generateInlineFootnoteSelectors(listItemDomId) {
     if (!listItemDomId || typeof listItemDomId !== 'string' || listItemDomId.trim() === "") {
-      return ""; // Return an empty selector if the ID is invalid
+      return "";
     }
 
     // Use listItemDomId as the base refId for generating selectors
@@ -36,7 +36,10 @@
       `a[data-test="citation-ref"][href$="#ref-${refId}"]`,
       // ADDED FOR CELL.COM and similar sites
       `a[id="body-ref-${refId}"]`, // Matches <a id="body-ref-sref6"> for listItemDomId "sref6"
-      `a[aria-controls="${refId}"]`  // Matches <a aria-controls="sref6"> for listItemDomId "sref6"
+      `a[aria-controls="${refId}"]`,  // Matches <a aria-controls="sref6"> for listItemDomId "sref6"
+      // ADDED FOR OXFORD UNIVERSITY PRESS (academic.oup.com)
+      `a.link-ref.xref-bibr[reveal-id="${refId}"]`,
+      `a.link-ref.xref-bibr[data-open="${refId}"]`
     ];
 
     const numericRefIdPart = refId.replace(/\D/g, ''); // e.g., "35" from "CR35" or "ref-CR35"
@@ -72,7 +75,10 @@
       `sup a[data-test="citation-ref"][href$="#ref-${refId}"]`,
       // ADDED FOR CELL.COM and similar sites (for cases where sup might be the target with these attributes)
       `sup a[id="body-ref-${refId}"]`,
-      `sup a[aria-controls="${refId}"]`
+      `sup a[aria-controls="${refId}"]`,
+      // ADDED FOR OXFORD UNIVERSITY PRESS (academic.oup.com) - if they ever appear in sup
+      `sup a.link-ref.xref-bibr[reveal-id="${refId}"]`,
+      `sup a.link-ref.xref-bibr[data-open="${refId}"]`
     ];
      if (numericRefIdPart) {
         supParentSelectors.push(`sup a[href="#${numericRefIdPart}"]`);

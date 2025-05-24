@@ -13,6 +13,9 @@
     // --- END Healthline Specific Selectors ---
     
     { selector: 'a.c-bibliographic-information__link[href*="springer.com"]', type: 'generic' }, // Springer article links
+    // --- START Oxford University Press (academic.oup.com) Specific Selector ---
+    { selector: 'div.mixed-citation a.link.link-uri[href*="doi.org"]', type: 'doi' }, // OUP DOI link
+    // --- END Oxford University Press Specific Selector ---
     { selector: 'a.article-link', type: 'generic' }, // Common class for article links
     { selector: 'a[data-track-action="article reference"]', type: 'generic' }, // Tracking attributes
     { selector: 'div.citation-content > a[href]', type: 'generic' }, // First link in citation content

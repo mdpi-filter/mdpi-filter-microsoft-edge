@@ -31,4 +31,5 @@ window.MDPIFilterReferenceSelectors = [
   // --- Added for PMC/NCBI style: IDs ending with 'r' followed by digits (e.g., zoi220196r19) ---
   'li[id$="r"]', // Matches IDs ending with 'r' (will filter in code for digits after 'r')
   'li[id*="r"][id]', // Fallback: any li with 'r' in id (will filter in code)
+  'div.js-splitview-ref-item[content-id^="CIT"]', // Oxford University Press (academic.oup.com)
 ].join(',');

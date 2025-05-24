@@ -48,13 +48,13 @@ window.MDPIFilterDomains = {
   // PubMed (no outbound links, only DOI in text)
   pubmed: {
     host: 'pubmed.ncbi.nlm.nih.gov', // Should match an entry or be covered by an entry in searchEngineDomains
-    // Add a path regex to distinguish search/listing pages from article pages.
-    // Matches if query string contains 'term=' OR path starts with /search/ or /collections/
-    // Article pages (e.g., /PMID/) will not match this.
-    path: /(?:\?.*term=|^\/(?:search|collections)\/)/i,
+    // Updated path regex to be more comprehensive for PubMed search pages
+    // Matches URLs with query parameters (?) OR specific search/collection paths
+    path: /(?:\?|^\/(?:search|collections)\/)/i,
     // Match both article and li elements with the full-docsum class on search result pages
     itemSelector: 'article.full-docsum, li.full-docsum',
-    doiPattern: '10.3390' // Used for simple DOI check on search results if API fails or is not used
+    doiPattern: '10.3390', // Used for simple DOI check on search results if API fails or is not used
+    useNcbiApi: true // Enable NCBI API checks for better DOI resolution
   },
 
   // Europe PMC (matches any subdomain of europepmc.org)
@@ -96,18 +96,28 @@ window.MDPIFilterDomainUtils.getActiveSearchConfig = function(currentHostname, c
   ];
 
   for (const config of configsToConsider) {
-    if (!config) continue; // Skip if a config (e.g., googleWeb) is not defined or missing
-
+    if (!config) continue;
     let hostMatch = false;
-    if (config.host) { // Primarily uses direct host string match
+    if (config.host) {
       hostMatch = (currentHostname === config.host);
-    } else if (config.hostRegex) { // Uses regex for host matching (e.g., EuropePMC)
+    } else if (config.hostRegex) {
       hostMatch = config.hostRegex.test(currentHostname);
     }
 
     if (hostMatch) {
-      // If path is defined in config, it must match. Otherwise, path match is true.
-      const pathMatch = config.path ? config.path.test(currentPathname) : true;
+      // Enhanced path matching logic
+      let pathMatch = true; // Default to true if no path constraint
+      
+      if (config.path) {
+        // Special handling for PubMed: check both pathname and search params
+        if (config.host === 'pubmed.ncbi.nlm.nih.gov') {
+          const fullUrl = currentPathname + window.location.search;
+          pathMatch = config.path.test(fullUrl);
+        } else {
+          // Standard path matching for other domains
+          pathMatch = config.path.test(currentPathname);
+        }
+      }
 
       if (pathMatch) {
         // Special condition for EuropePMC: ensure it's listed in searchEngineDomains

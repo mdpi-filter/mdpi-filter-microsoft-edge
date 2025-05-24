@@ -31,6 +31,7 @@
       // ADDED FOR TANDFONLINE and similar sites using data-rid or data-bris-rid
       `a[data-rid="${refId}"]`,
       `a[data-bris-rid="${refId}"]`,
+      `a[rid="${refId}"]`, // ADDED for EuropePMC and similar sites using plain rid
       // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<ID>)
       `a[data-test="citation-ref"][href$="#ref-${refId}"]`,
       // ADDED FOR CELL.COM and similar sites
@@ -66,6 +67,7 @@
                                // Consider if `sup[id="ref-${refId}"]` or similar is more specific.
       `sup a[data-rid="${refId}"]`,
       `sup a[data-bris-rid="${refId}"]`,
+      `sup a[rid="${refId}"]`, // ADDED for EuropePMC and similar sites using plain rid
       // ADDED FOR NATURE (data-test="citation-ref" and href ending with #ref-CR<ID> within a sup)
       `sup a[data-test="citation-ref"][href$="#ref-${refId}"]`,
       // ADDED FOR CELL.COM and similar sites (for cases where sup might be the target with these attributes)

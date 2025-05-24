@@ -16,10 +16,12 @@ class GoogleContentChecker {
     if (!href) return null;
     // Enhanced to support both NCBI and EuropePMC URLs:
     // - https://pubmed.ncbi.nlm.nih.gov/12345678
+    // - https://pubmed.ncbi.nlm.nih.gov/pubmed/12345678
     // - https://europepmc.org/article/med/12345678
     // - ?pmid=12345678
-    const pmidMatch = href.match(/(?:\/pubmed\/|\/article\/med\/|[?&]pmid=)(\d+)/i);
-    return pmidMatch ? pmidMatch[1] : null;
+    const pmidRegex = /(?:\/pubmed\/|\/article\/med\/|[?&]pmid=)(\d+)|(?:https?:\/\/(?:www\.)?pubmed\.ncbi\.nlm\.nih\.gov\/)(\d+)\/?(?:$|[?#])/i;
+    const pmidMatch = href.match(pmidRegex);
+    return pmidMatch ? (pmidMatch[1] || pmidMatch[2]) : null;
   }
 
   /**

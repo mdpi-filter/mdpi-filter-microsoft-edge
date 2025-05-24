@@ -82,6 +82,7 @@
 mdpi
 10.3390 europepmc "pmc"
 10.3390 "pmc"
+Poly Lactic-co-Glycolic Acid (PLGA) as Biodegradable Controlled Drug Delivery Carrier
 ```
 
 **Google Scholar**

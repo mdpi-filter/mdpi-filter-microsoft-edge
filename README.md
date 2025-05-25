@@ -124,6 +124,7 @@ Poly Lactic-co-Glycolic Acid (PLGA) as Biodegradable Controlled Drug Delivery Ca
 **Google Scholar**
 ```
 mdpi
+10.3390
 ```
 
 **PubMed**

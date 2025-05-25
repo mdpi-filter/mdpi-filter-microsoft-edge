@@ -107,6 +107,9 @@
 **TheClinics.com**
 - https://www.id.theclinics.com/article/S0891-5520(21)00048-9/fulltext
 
+**LWW Journals (Medicine)**
+- https://journals.lww.com/md-journal/fulltext/2019/09130/an_investigation_into_the_stress_relieving_and.67.aspx
+
 ### Search Queries
 
 **Google**

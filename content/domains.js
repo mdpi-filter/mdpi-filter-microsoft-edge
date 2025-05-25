@@ -63,8 +63,7 @@ window.MDPIFilterDomains = {
                                  // 'europepmc.org' in searchEngineDomains will cover pages on this domain.
     path: /^\/search/, // Ensures itemSelector and htmlContains apply only to search result pages
     itemSelector: 'li.separated-list-item', // Specific to search results
-    htmlContains: '<b>MDPI</b>', // Specific to search results
-    useNcbiApi: true // ADDED: Enable NCBI API checks for EuropePMC domain
+    useNcbiApi: true // Enable NCBI API checks for EuropePMC domain
   }
 };
 

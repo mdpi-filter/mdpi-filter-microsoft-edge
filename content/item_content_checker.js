@@ -1,7 +1,7 @@
 if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
   window.MDPIFilterItemContentChecker = (() => {
     const M_JOURNALS_STRONG = ['Int J Mol Sci', 'IJMS', 'International Journal of Molecular Sciences'];
-    const M_JOURNALS_WEAK = ['Nutrients', 'Molecules']; // This array includes the "WEAK" selection context
+    const M_JOURNALS_WEAK = ['Nutrients', 'Molecules', 'Toxins']; // This array includes the "WEAK" selection context
 
     const extractDoiFromLinkInternal = (hrefAttribute) => {
       if (!hrefAttribute) return null;

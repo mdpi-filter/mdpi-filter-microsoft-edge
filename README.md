@@ -63,6 +63,9 @@
 **Cell**
 - https://www.cell.com/trends/plant-science/abstract/S1360-1385(24)00048-7
 
+**BMJ**
+- https://bjsm.bmj.com/content/52/6/376.long
+
 **MDPI**
 - https://www.mdpi.com/1660-4601/20/3/1681
 

@@ -54,6 +54,7 @@
 - **Nature.com Sidebar References**: On Nature.com articles (e.g., [https://www.nature.com/articles/s44264-024-00042-0](https://www.nature.com/articles/s44264-024-00042-0)), references in the "reading companion" sidebar may occasionally be incorrectly counted and listed in the extension's popup, particularly if an inline footnote is clicked while the page and extension are still loading. While these sidebar references are correctly styled if they are MDPI, they are not intended to be part of the main count.
 - **The Lancet Inline Citations**: On The Lancet articles (e.g., [https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(24)00200-3/fulltext](https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(24)00200-3/fulltext)), inline numerical citations (e.g., "<sup>74</sup>") are not highlighted for MDPI references. Reference list highlighting and other functionalities work correctly.
 - **Cambridge University Press Inline Citations**: On Cambridge University Press articles (e.g., [https://www.cambridge.org/core/journals/psychological-medicine/article/comparative-efficacy-and-tolerability-of-nutraceuticals-for-depressive-disorder-a-systematic-review-and-network-metaanalysis/5799A126D0B5677764562824C452D545](https://www.cambridge.org/core/journals/psychological-medicine/article/comparative-efficacy-and-tolerability-of-nutraceuticals-for-depressive-disorder-a-systematic-review-and-network-metaanalysis/5799A126D0B5677764562824C452D545)), inline numerical citations (e.g., "Suneson et al.2021") are not highlighted for MDPI references. Reference list highlighting and other functionalities work correctly.
+- **TheClinics.com Inline Citations**: On TheClinics.com articles (e.g., [https://www.id.theclinics.com/article/S0891-5520(21)00048-9/fulltext](https://www.id.theclinics.com/article/S0891-5520(21)00048-9/fulltext)), inline numerical citations (e.g., "<sup>50</sup>") are not highlighted for MDPI references. Reference list highlighting and other functionalities work correctly.
 
 ---
 
@@ -98,6 +99,9 @@
 
 **Taylor & Francis Online**
 - https://www.tandfonline.com/doi/full/10.1080/15502783.2024.2441775
+
+**TheClinics.com**
+- https://www.id.theclinics.com/article/S0891-5520(21)00048-9/fulltext
 
 ### Search Queries
 

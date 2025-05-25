@@ -42,7 +42,9 @@
       `a.link-ref.xref-bibr[data-open="${refId}"]`,
       // ADDED for ScienceDirect style IDs like "ref-id-bb0105" or "ref-id-bbb0105"
       // where inline links might be href="#bb0105" or href="#bbb0105"
-      `a[href="#${refId.replace(/^ref-id-/i, '')}"]`
+      `a[href="#${refId.replace(/^ref-id-/i, '')}"]`,
+      // --- Added for Sagepub ---
+      `a[role="doc-biblioref"][href="#${refId}"]`
     ];
 
     // ScienceDirect specific handling for "ref-id-b..." type IDs
@@ -98,8 +100,10 @@
       // ADDED FOR OXFORD UNIVERSITY PRESS (academic.oup.com) - if they ever appear in sup
       `sup a.link-ref.xref-bibr[reveal-id="${refId}"]`,
       `sup a.link-ref.xref-bibr[data-open="${refId}"]`,
-      // ADDED for ScienceDirect style IDs
-      `sup a[href="#${refId.replace(/^ref-id-/i, '')}"]`
+     // ADDED for ScienceDirect style IDs
+      `sup a[href="#${refId.replace(/^ref-id-/i, '')}"]`,
+      // --- Added for Sagepub ---
+      `sup a[role="doc-biblioref"][href="#${refId}"]`
     ];
 
     if (refId.startsWith("ref-id-b")) {

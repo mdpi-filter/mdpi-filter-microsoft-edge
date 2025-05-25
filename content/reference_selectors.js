@@ -37,4 +37,6 @@ window.MDPIFilterReferenceSelectors = [
   'div.js-splitview-ref-item[content-id^="CIT"]', // Oxford University Press (academic.oup.com)
   'div#revealContent .ref-content[data-id]', // Oxford University Press popup references
   'li.c-reading-companion__reference-item', // Nature reading companion sidebar references
+  // --- Added for Sagepub ---
+  'div.citations[id^="bibr"]', // Sagepub reference items (e.g., id="bibr21-02698811231200023")
 ].join(',');

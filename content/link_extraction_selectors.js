@@ -20,6 +20,9 @@
     { selector: 'div.ReferenceLinks a.anchor[href*="doi.org"]', type: 'doi' }, // ScienceDirect DOI link
     { selector: 'div.ReferenceLinks a[href*="doi.org/10."]', type: 'doi' }, // Broader ScienceDirect DOI link
     // --- END ScienceDirect Specific Selector ---
+    // --- START Sagepub Specific Selector for DOI link ---
+    { selector: 'div.external-links div.core-xlink-crossref > a[href*="doi.org"]', type: 'doi' }, // Sagepub DOI link
+    // --- END Sagepub Specific Selector ---
     { selector: 'a.article-link', type: 'generic' }, // Common class for article links
     { selector: 'a[data-track-action="article reference"]', type: 'generic' }, // Tracking attributes
     { selector: 'div.citation-content > a[href]', type: 'generic' }, // First link in citation content

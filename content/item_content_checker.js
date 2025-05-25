@@ -116,97 +116,67 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       let pmidStrings = new Set();
       // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: Starting NCBI ID extraction from links.`);
       for (const link of allLinksInItem) {
-        const href = link.href; // Get the fully resolved URL from the browser
+        const href = link.href;
         if (href) {
           let match;
-
-          // PMCID from EuropePMC (e.g., europepmc.org/articles/PMC12345)
+          // PMCID from EuropePMC
           match = href.match(/europepmc\.org\/(?:articles|article\/PMC)\/(PMC\d+)/i);
-          if (match && match[1]) {
-            pmcIdStrings.add(match[1]);
-          }
-
-          // PMCID from NCBI (e.g., ncbi.nlm.nih.gov/pmc/articles/PMC12345)
+          if (match && match[1]) pmcIdStrings.add(match[1]);
+          // PMCID from NCBI
           match = href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
-          if (match && match[1]) {
-            pmcIdStrings.add(match[1]);
-          }
-
-          // PMID from EuropePMC (e.g., europepmc.org/article/MED/1234567)
+          if (match && match[1]) pmcIdStrings.add(match[1]);
+          // PMID from EuropePMC
           match = href.match(/europepmc\.org\/(?:articles|abstract\/MED|article\/med)\/(\d+)(?:\/?$|\?|#)/i);
-          if (match && match[1] && /^\d+$/.test(match[1])) {
-            pmidStrings.add(match[1]);
-          }
-
-          // PMID from NCBI (e.g., pubmed.ncbi.nlm.nih.gov/1234567)
+          if (match && match[1]) pmidStrings.add(match[1]);
+          // PMID from NCBI
           match = href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
-          if (match && match[1] && /^\d+$/.test(match[1])) {
-            pmidStrings.add(match[1]);
-          }
+          if (match && match[1]) pmidStrings.add(match[1]);
         }
       }
-      // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: Extracted PMIDs from links:`, Array.from(pmidStrings));
-      // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: Extracted PMCIDs from links:`, Array.from(pmcIdStrings));
 
+      // Strong indicator: any PMID/PMCID present → MDPI
       const allItemNcbiIds = [...pmidStrings, ...pmcIdStrings];
-      let itemHasNcbiIds = allItemNcbiIds.length > 0;
-      let allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = itemHasNcbiIds; 
-
-      if (itemHasNcbiIds) {
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: Item has NCBI IDs, checking runCache for:`, allItemNcbiIds);
-        for (const id of allItemNcbiIds) {
-          if (runCache.has(id)) {
-            if (runCache.get(id) === true) { // Explicitly true means MDPI
-              console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: NCBI ID '${id}' in runCache IS MDPI. Returning TRUE.`);
-              return true; // Found an MDPI ID via NCBI API result in cache
-            }
-            // If cached as false, it contributes to 'allCheckedIdsWereInCacheAndDefinitivelyNonMdpi'
-            if (runCache.get(id) !== false) { // Not definitively non-MDPI (e.g. undefined, null, or error state)
-                allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
-            }
-          } else {
-            // ID not in runCache means it wasn't (successfully) checked by API or is pending.
-            // Cannot definitively say it's non-MDPI based on cache.
-            allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false;
-            console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: NCBI ID '${id}' NOT in runCache. Cannot determine MDPI status from cache alone for this ID.`);
-          }
-        }
-      } else {
-        allCheckedIdsWereInCacheAndDefinitivelyNonMdpi = false; // No NCBI IDs means this condition isn't met
+      if (allItemNcbiIds.length > 0) {
+        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: PMID/PMCID found (${allItemNcbiIds.join(',')}). Returning TRUE.`);
+        return true;
       }
-
-      // --- NEW DECISION POINT BEFORE WEAKER CHECKS (like P5 Journal Name) ---
-      // This check is now effectively handled by the revised P1. If P1 returned false,
-      // it means we either found only non-MDPI DOIs or no DOIs at all.
-      // The old `hasNonMdpiDoiLink` variable logic is superseded.
-
-      // If the item has NCBI IDs and ALL of them are cached as definitively non-MDPI, then it's NOT MDPI.
-      if (itemHasNcbiIds && allCheckedIdsWereInCacheAndDefinitivelyNonMdpi) {
-      // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: All NCBI IDs for this item are cached as non-MDPI. Returning FALSE.`);
-      return false;
-      }
-      // --- END NEW DECISION POINT ---
 
       // Priority 5: Journal Name Check
-      const strongJournalRegex = new RegExp(`\\b(${M_JOURNALS_STRONG.map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+      const strongJournalRegex = new RegExp(
+        `\\b(${M_JOURNALS_STRONG
+          .map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('|')})\\b`,
+        'i'
+      );
       if (strongJournalRegex.test(innerHTML)) {
         const matchedJournal = innerHTML.match(strongJournalRegex);
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P5: Strong MDPI journal name FOUND: '${matchedJournal ? matchedJournal[0] : 'N/A'}'. Returning TRUE.`);
+        console.log(
+          `[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P5: Strong MDPI journal name FOUND: '${matchedJournal ? matchedJournal[0] : 'N/A'}'. Returning TRUE.`
+        );
         return true;
       }
 
-      const weakJournalRegex = new RegExp(`\\b(${M_JOURNALS_WEAK.map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+      const weakJournalRegex = new RegExp(
+        `\\b(${M_JOURNALS_WEAK
+          .map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('|')})\\b`,
+        'i'
+      );
       if (weakJournalRegex.test(innerHTML)) {
         const matchedJournal = innerHTML.match(weakJournalRegex);
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P5: Weak MDPI journal name FOUND: '${matchedJournal ? matchedJournal[0] : 'N/A'}'. Returning TRUE.`);
+        console.log(
+          `[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P5: Weak MDPI journal name FOUND: '${matchedJournal ? matchedJournal[0] : 'N/A'}'. Returning TRUE.`
+        );
         return true;
       }
 
-      // FINAL DECISION POINT (Fallback)
-      // This log indicates that none of the preceding checks (P1-P5 MDPI true conditions, or overriding non-MDPI conditions) were met.
-      console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Final Fallback: No definitive MDPI indicators found, and no overriding non-MDPI conditions met prior to P5 that were not already handled. Defaulting to non-MDPI. Returning FALSE.`);
+      // Final fallback
+      console.log(
+        `[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] Final Fallback: No definitive MDPI indicators found. Returning FALSE.`
+      );
       return false;
-    }
+
+    } // end of checkItemContent
 
     return {
       checkItemContent: checkItemContent,

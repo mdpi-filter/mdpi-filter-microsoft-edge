@@ -44,7 +44,9 @@
       // where inline links might be href="#bb0105" or href="#bbb0105"
       `a[href="#${refId.replace(/^ref-id-/i, '')}"]`,
       // --- Added for Sagepub ---
-      `a[role="doc-biblioref"][href="#${refId}"]`
+      `a[role="doc-biblioref"][href="#${refId}"]`,
+      // --- Added for Medicine (LWW) ---
+      `a.ejp-citation-link[data-reference-links="${refId}"]`
     ];
 
     // ScienceDirect specific handling for "ref-id-b..." type IDs
@@ -103,7 +105,9 @@
      // ADDED for ScienceDirect style IDs
       `sup a[href="#${refId.replace(/^ref-id-/i, '')}"]`,
       // --- Added for Sagepub ---
-      `sup a[role="doc-biblioref"][href="#${refId}"]`
+      `sup a[role="doc-biblioref"][href="#${refId}"]`,
+      // --- Added for Medicine (LWW) ---
+      `sup a.ejp-citation-link[data-reference-links="${refId}"]`
     ];
 
     if (refId.startsWith("ref-id-b")) {

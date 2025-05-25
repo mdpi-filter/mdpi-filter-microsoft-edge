@@ -5,41 +5,62 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
     const extractDoiFromLinkInternal = (hrefAttribute) => {
       if (!hrefAttribute) return null;
-      let targetUrl = hrefAttribute;
+      let targetUrlStr = hrefAttribute; 
+
       try {
         // Resolve relative URLs using window.location.origin if in a browser context
         const base = hrefAttribute.startsWith('/') ? (typeof window !== 'undefined' ? window.location.origin : undefined) : undefined;
         const urlObj = new URL(hrefAttribute, base);
-        if (urlObj.searchParams.has('url')) {
-          targetUrl = urlObj.searchParams.get('url');
-        } else if (urlObj.pathname.includes('/linkout/') && urlObj.searchParams.has('dest')) {
-          targetUrl = urlObj.searchParams.get('dest');
+
+        // Wiley specific: prioritize 'refDoi' or 'key' parameter in /servlet/linkout
+        if (urlObj.pathname.includes('/servlet/linkout')) {
+            let doiFromParam = null;
+            if (urlObj.searchParams.has('refDoi')) {
+                doiFromParam = urlObj.searchParams.get('refDoi');
+            } else if (urlObj.searchParams.has('key')) {
+                doiFromParam = urlObj.searchParams.get('key');
+            }
+
+            if (doiFromParam) {
+                // The param value might itself be a DOI or contain it.
+                // Validate/extract clean DOI from it.
+                const doiMatchInParam = String(doiFromParam).match(/\b(10\.\d{4,9}\/[^#?\s'&<>]+)\b/i);
+                if (doiMatchInParam && doiMatchInParam[1]) {
+                    // console.log(`[MDPI Filter ItemChecker] Extracted DOI '${doiMatchInParam[1]}' from Wiley link param.`);
+                    return doiMatchInParam[1]; // Return the DOI from 'refDoi' or 'key'
+                }
+            }
         }
-        // It's generally safer to decode the targetUrl if it might contain encoded DOIs
-        // especially if the regex relies on specific characters like '/'.
-        targetUrl = decodeURIComponent(targetUrl);
+
+        // Generic extraction from 'url' or 'dest' parameters if the above didn't return
+        if (urlObj.searchParams.has('url')) {
+          targetUrlStr = urlObj.searchParams.get('url');
+        } else if (urlObj.pathname.includes('/linkout/') && urlObj.searchParams.has('dest')) { // Generic linkout (might be redundant if Wiley specific is comprehensive)
+          targetUrlStr = urlObj.searchParams.get('dest');
+        }
+        // It's generally safer to decode the targetUrlStr if it might contain encoded DOIs
+        targetUrlStr = decodeURIComponent(targetUrlStr);
 
       } catch (e) {
         // console.warn('[MDPI Filter ItemChecker] Error parsing URL in extractDoiFromLink:', hrefAttribute, e);
-        // If URL parsing fails, try to decode the original hrefAttribute as a fallback,
-        // as it might still contain a decodable DOI.
         try {
-          targetUrl = decodeURIComponent(hrefAttribute);
+          targetUrlStr = decodeURIComponent(hrefAttribute); // Fallback to decoding the original href
         } catch (decodeError) {
-          // If decoding also fails, proceed with the original hrefAttribute.
           // console.warn('[MDPI Filter ItemChecker] Error decoding hrefAttribute:', hrefAttribute, decodeError);
+          // If all decoding fails, targetUrlStr remains the original hrefAttribute
         }
       }
-      // Regex to extract DOI: 10. followed by 4 or more digits, a slash (or its URL encoding %2F), 
-      // and then any characters except whitespace or common delimiters.
-      // Now explicitly handles decoded slashes.
-      const doiMatch = targetUrl.match(/\b(10\.\d{4,9}\/(?:[^"\s'&<>]+))\b/i);
+      
+      // General DOI regex match on the processed targetUrlStr
+      // Ensure targetUrlStr is a string before calling match
+      const doiMatch = String(targetUrlStr).match(/\b(10\.\d{4,9}\/(?:[^"\s'&<>]+))\b/i);
       return doiMatch ? doiMatch[1] : null;
     };
 
     // Main function to check item content for MDPI indicators
     // It takes the DOM item, a runCache (Map), and the current MDPI_DOI and MDPI_DOMAIN strings
-    function checkItemContent(item, runCache, currentMdpiDoi, currentMdpiDomain) {
+    // And optionally, the primary DOI and URL extracted by link_extractor.js
+    function checkItemContent(item, runCache, currentMdpiDoi, currentMdpiDomain, primaryLinkDoi, primaryLinkUrl) {
       // --- REMOVED: Skip all logic if on Google search results ---
       // (No early return for Google search pages)
 
@@ -52,6 +73,12 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       const allLinksInItem = Array.from(item.querySelectorAll('a[href]'));
 
       const isMdpiDoi = (doi) => doi && doi.startsWith(currentMdpiDoi);
+
+      // Priority 0: Check DOI from primary link extractor (passed as argument)
+      if (primaryLinkDoi && isMdpiDoi(primaryLinkDoi)) {
+        // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P0: Returning TRUE (MDPI DOI from primaryLinkExtractor: ${primaryLinkDoi}).`);
+        return true;
+      }
 
       // Priority 1: MDPI DOI Check (from links)
       // Revised logic: If an MDPI DOI link is found, it's MDPI.

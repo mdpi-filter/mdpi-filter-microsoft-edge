@@ -5,6 +5,9 @@
     { selector: 'a[data-doi]', type: 'doi' },
     { selector: 'a[href*="doi.org"]', type: 'doi' },
     { selector: 'a[href*="/10."]', type: 'doi' },
+    // --- START Wiley Specific Selector for hidden DOI in span ---
+    { selector: 'div.extra-links > span.data-doi', type: 'doi', attribute: 'text' },
+    // --- END Wiley Specific Selector ---
     
     // --- START Healthline Specific Selectors ---
     // These should be relatively early as they are quite specific.

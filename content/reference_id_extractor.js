@@ -51,13 +51,23 @@
       }
     }
 
-    // Priority 5: ScienceDirect specific ID from child <span class="reference" id="rf...">
+    // Priority 5: ScienceDirect specific ID from child <span class="reference" id^="rf...">
     // This is a fallback if the anchor ID isn't found, though less ideal for inline linking.
     if (!idToUse) {
       const sciDirectRefSpan = itemElement.querySelector('span.reference[id^="rf"]');
       if (sciDirectRefSpan && sciDirectRefSpan.id) {
         idToUse = sciDirectRefSpan.id;
         idSourceForLog = "ScienceDirect child span.reference.id";
+      }
+    }
+
+    // Priority 5.5 (New): BMJ specific ID from child <a class="rev-xref-ref" id="ref-...">
+    // This anchor's ID is directly targeted by inline citations.
+    if (!idToUse) {
+      const bmjRevXrefAnchor = itemElement.querySelector('a.rev-xref-ref[id^="ref-"]');
+      if (bmjRevXrefAnchor && bmjRevXrefAnchor.id) {
+        idToUse = bmjRevXrefAnchor.id;
+        idSourceForLog = "BMJ child a.rev-xref-ref.id";
       }
     }
 

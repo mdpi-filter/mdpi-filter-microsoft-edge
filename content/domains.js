@@ -39,7 +39,15 @@ window.MDPIFilterDomains = {
   scholar: {
     host: 'scholar.google.com', // Should match an entry or be covered by an entry in searchEngineDomains
     itemSelector: 'div.gs_r', // Changed 'container' to 'itemSelector' and confirmed selector
-    linkSelector: 'a[href*="mdpi.com"]' // This is used by older logic, item_content_checker.js has more robust checks
+    // broadened to include PMC/NCBI and EuropePMC links so Scholar items with pmcid/pmid aren’t skipped
+    linkSelector: [
+      'a[href*="mdpi.com"]',
+      'a[href*="pmc.ncbi.nlm.nih.gov"]',
+      'a[href*="pubmed.ncbi.nlm.nih.gov"]',
+      'a[href*="ncbi.nlm.nih.gov"]',
+      'a[href*="europepmc.org"]'
+    ].join(', '),
+    useNcbiApi: true // Enable NCBI API checks for Google Scholar
     // Consider adding useNcbiApi: true if NCBI checks are desired for Scholar in the future,
     // though MDPIFilterItemContentChecker would need access to PMID/PMCID extraction utilities or
     // the main content_script loop would need to handle it.

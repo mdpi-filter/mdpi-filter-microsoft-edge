@@ -93,6 +93,9 @@
 **Wiley Online Library**
 - https://onlinelibrary.wiley.com/doi/full/10.1002/vms3.798
 
+**Sage Journals**
+- https://journals.sagepub.com/doi/abs/10.1177/02698811231200023
+
 ### Search Queries
 
 **Google**

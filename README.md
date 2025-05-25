@@ -52,6 +52,7 @@
     - [https://europepmc.org/article/med/36838493#free-full-text](https://europepmc.org/article/med/36838493#free-full-text)
     - [https://europepmc.org/article/pmc/pmc9146485#free-full-text](https://europepmc.org/article/pmc/pmc9146485#free-full-text)
 - **Nature.com Sidebar References**: On Nature.com articles (e.g., [https://www.nature.com/articles/s44264-024-00042-0](https://www.nature.com/articles/s44264-024-00042-0)), references in the "reading companion" sidebar may occasionally be incorrectly counted and listed in the extension's popup, particularly if an inline footnote is clicked while the page and extension are still loading. While these sidebar references are correctly styled if they are MDPI, they are not intended to be part of the main count.
+- **The Lancet Inline Citations**: On The Lancet articles (e.g., [https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(24)00200-3/fulltext](https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(24)00200-3/fulltext)), inline numerical citations (e.g., "<sup>74</sup>") are not highlighted for MDPI references. Reference list highlighting and other functionalities work correctly.
 
 ---
 
@@ -77,6 +78,12 @@
 
 **The Lancet**
 - https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(24)00200-3/fulltext
+
+**Oxford Academic**
+- https://academic.oup.com/af/article/13/4/112/7242422
+
+**Wiley Online Library**
+- https://onlinelibrary.wiley.com/doi/full/10.1002/vms3.798
 
 ### Search Queries
 

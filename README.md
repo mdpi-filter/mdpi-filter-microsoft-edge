@@ -87,10 +87,18 @@
 **ScienceDirect**
 - https://www.sciencedirect.com/science/article/pii/S1360138520301941
 
-**PMC (PubMed Central)**
-- https://pmc.ncbi.nlm.nih.gov/articles/PMC8810379/
-- https://pmc.ncbi.nlm.nih.gov/articles/PMC9415189/
-- https://pmc.ncbi.nlm.nih.gov/articles/PMC6750292/
+**NCBI**
+  **PMC (PubMed Central)**
+  - https://pmc.ncbi.nlm.nih.gov/articles/PMC8810379/
+  - https://pmc.ncbi.nlm.nih.gov/articles/PMC9415189/
+  - https://pmc.ncbi.nlm.nih.gov/articles/PMC6750292/
+  **PubMed**
+  - https://pubmed.ncbi.nlm.nih.gov/22971582/
+  - https://pubmed.ncbi.nlm.nih.gov/28805671/
+
+**EuropePMC**
+- https://europepmc.org/article/med/37110471
+- https://europepmc.org/article/pmc/pmc9223600
 
 **The Lancet**
 - https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(24)00200-3/fulltext
@@ -128,7 +136,9 @@ Poly Lactic-co-Glycolic Acid (PLGA) as Biodegradable Controlled Drug Delivery Ca
 ```
 mdpi
 10.3390
+"Pattern recognition receptors and the innate immune response to viral infection"
 ```
+> The query "Pattern recognition receptors and the innate immune response to viral infection" is included because the MDPI article does not have a direct MDPI link in Scholar results, but does have an NCBI PMC link ([https://pmc.ncbi.nlm.nih.gov/articles/PMC3186011/](https://pmc.ncbi.nlm.nih.gov/articles/PMC3186011/)).
 
 **PubMed**
 ```

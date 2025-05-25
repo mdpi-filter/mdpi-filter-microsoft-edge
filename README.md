@@ -63,8 +63,12 @@
 **Cell**
 - https://www.cell.com/trends/plant-science/abstract/S1360-1385(24)00048-7
 
+**MDPI**
+- https://www.mdpi.com/1660-4601/20/3/1681
+
 **Frontiers**
 - https://www.frontiersin.org/journals/drug-discovery/articles/10.3389/fddsv.2024.1385460/full#B40
+- https://www.frontiersin.org/journals/nutrition/articles/10.3389/fnut.2024.1439294/full
 
 **Nature**
 - https://www.nature.com/articles/s43016-021-00402-w

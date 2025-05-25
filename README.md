@@ -84,6 +84,7 @@
 
 **PMC (PubMed Central)**
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC8810379/
+- https://pmc.ncbi.nlm.nih.gov/articles/PMC9415189/
 
 **The Lancet**
 - https://www.thelancet.com/journals/lanmic/article/PIIS2666-5247(24)00200-3/fulltext

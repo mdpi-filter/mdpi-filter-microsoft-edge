@@ -37,6 +37,7 @@
       // ADDED FOR CELL.COM and similar sites
       `a[id="body-ref-${refId}"]`, // Matches <a id="body-ref-sref6"> for listItemDomId "sref6"
       `a[aria-controls="${refId}"]`,  // Matches <a aria-controls="sref6"> for listItemDomId "sref6"
+      `a[data-db-target-for="${refId}"]`, // ADDED for Cell.com specific attribute
       // ADDED FOR OXFORD UNIVERSITY PRESS (academic.oup.com)
       `a.link-ref.xref-bibr[reveal-id="${refId}"]`,
       `a.link-ref.xref-bibr[data-open="${refId}"]`,
@@ -99,6 +100,7 @@
       // ADDED FOR CELL.COM and similar sites (for cases where sup might be the target with these attributes)
       `sup a[id="body-ref-${refId}"]`,
       `sup a[aria-controls="${refId}"]`,
+      `sup a[data-db-target-for="${refId}"]`, // ADDED for Cell.com specific attribute
       // ADDED FOR OXFORD UNIVERSITY PRESS (academic.oup.com) - if they ever appear in sup
       `sup a.link-ref.xref-bibr[reveal-id="${refId}"]`,
       `sup a.link-ref.xref-bibr[data-open="${refId}"]`,

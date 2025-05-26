@@ -118,6 +118,7 @@
           if (!targetRefId && matchedElement.dataset) {
             targetRefId = matchedElement.dataset.rid || 
                          matchedElement.dataset.brisRid || 
+                         matchedElement.dataset.dbTargetFor || // ADDED for Cell.com data-db-target-for
                          matchedElement.getAttribute('rid') ||
                          matchedElement.getAttribute('aria-controls');
           }

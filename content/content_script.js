@@ -390,7 +390,7 @@ if (!window.mdpiFilterInjected) {
           } else {
             item.classList.add('mdpi-highlighted-reference');
             // Apply specific styling for Google search results
-            if (config && (config.host === 'www.google.com' || config.host === 'scholar.google.com')) {
+            if (config && (config.host === 'www.google.com' )) {
               highlightTarget.classList.add('mdpi-search-result-highlight');
               highlightTarget.style.backgroundColor = 'rgba(255, 182, 193, 0.3)';
               highlightTarget.style.border = `1px solid ${mdpiColor}`;

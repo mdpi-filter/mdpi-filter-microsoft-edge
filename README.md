@@ -69,6 +69,7 @@
 
 **Cell**
 - https://www.cell.com/trends/plant-science/abstract/S1360-1385(24)00048-7
+- https://www.cell.com/heliyon/fulltext/S2405-8440(24)17287-8
 
 **BMJ**
 - https://bjsm.bmj.com/content/52/6/376.long

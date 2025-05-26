@@ -405,10 +405,18 @@ if (!window.mdpiFilterInjected) {
           }
         }
 
-        const isMdpiItemByContent = (item, runCache) => {
+        const isMdpiItemByContent = (item, runCache, idExtractor) => { // Added idExtractor
           if (!item) return false;
           // Use currentRunSettings for mdpiDoiPrefix and mdpiDomain
-          return window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, currentRunSettings.mdpiDoiPrefix, currentRunSettings.mdpiDomain);
+          return window.MDPIFilterItemContentChecker.checkItemContent(
+            item,
+            runCache,
+            currentRunSettings.mdpiDoiPrefix,
+            currentRunSettings.mdpiDomain,
+            null, // primaryLinkDoi (typically not pre-extracted for this generic call)
+            null, // primaryLinkUrl
+            idExtractor // Pass it through
+          );
         };
 
         function updateBadgeAndReferences() {
@@ -682,85 +690,194 @@ if (!window.mdpiFilterInjected) {
         }
 
         // MODIFIED processSearchResults to handle Google via GoogleContentChecker
+        // AND to pass googleCheckerInstance to ItemContentChecker for other sites
         async function processSearchResults(runCache, settingsToUse) {
           const currentHostname = window.location.hostname;
           const currentPathname = window.location.pathname;
           const activeConfig = window.MDPIFilterDomainUtils.getActiveSearchConfig(currentHostname, currentPathname, domains);
           
-          if (!activeConfig) return;
+          if (!activeConfig) {
+            // console.log("[MDPI Filter CS] No active search config for this page (processSearchResults).");
+            return 0; // Return count
+          }
 
           const itemSelector = activeConfig.itemSelector;
-          if (!itemSelector) return;
+          if (!itemSelector) {
+            // console.log("[MDPI Filter CS] No itemSelector in activeConfig (processSearchResults).");
+            return 0; // Return count
+          }
 
           const items = document.querySelectorAll(itemSelector);
-          console.log(`[MDPI Filter CS] Found ${items.length} items for search processing using selector: ${itemSelector}`);
+          // console.log(`[MDPI Filter CS] Found ${items.length} items for search processing using selector: ${itemSelector}`);
+          if (items.length === 0) return 0;
 
-          // Check if this is Google Web search
-          const isGoogleWeb = activeConfig.isGoogleWeb === true;
-          const googleChecker = isGoogleWeb ? new window.GoogleContentChecker() : null;
-          
-          let mdpiResultsCount = 0; // Initialize counter
+          let mdpiResultsCount = 0;
 
           for (const item of items) {
-            try {
-              let isMdpi = false;
-              let isPotential = false;
-              let details = '';
+            const itemShortText = (item.textContent || "").substring(0, 70).trim().replace(/\s+/g, " ");
+            const logPrefix = `[MDPI Filter CS Item - "${itemShortText}"]:`;
 
-              if (isGoogleWeb && googleChecker) {
-                // Use GoogleContentChecker for Google Web search results
-                const result = await googleChecker.checkGoogleItem(
-                  item, 
-                  runCache, 
-                  settingsToUse.mdpiDoiPrefix, 
-                  settingsToUse.mdpiDomain, 
-                  activeConfig, 
-                  settingsToUse, 
-                  window.MDPIFilterCaches.ncbiApiCache
-                );
-                isMdpi = result.isMdpi;
-                isPotential = result.isPotential;
-                details = result.details;
-              } else {
-                // Use existing logic for other sites
-                if (activeConfig.htmlContains) {
-                  isMdpi = item.innerHTML.includes(activeConfig.htmlContains);
-                } else if (activeConfig.doiPattern) {
-                  isMdpi = (item.textContent || '').includes(activeConfig.doiPattern);
-                } else if (activeConfig.linkSelector) {
-                  isMdpi = !!item.querySelector(activeConfig.linkSelector);
+            if (MDPIFilterCaches.citationProcessCache.has(item)) {
+                // console.log(`${logPrefix} Item already processed and in citationProcessCache.`);
+                const cachedStatus = MDPIFilterCaches.citationProcessCache.get(item);
+                if (cachedStatus.isMdpi || cachedStatus.isPotential) {
+                    if (cachedStatus.isMdpi) mdpiResultsCount++;
+                    // Re-apply styling based on cached status
+                    styleSearchItem(item, cachedStatus.isMdpi, cachedStatus.isPotential, settingsToUse, activeConfig, cachedStatus.source || "Cache");
+                }
+                continue;
+            }
+
+            let isMdpi = false;
+            let isPotentialMdpi = false;
+            let sourceOfDetection = 'unknown';
+
+            if (activeConfig.isGoogleWeb) {
+              if (!googleCheckerInstance || typeof googleCheckerInstance.checkGoogleItem !== 'function') {
+                console.error(`${logPrefix} googleCheckerInstance.checkGoogleItem is not available for Google Web.`);
+                continue;
+              }
+              // console.log(`${logPrefix} Processing with GoogleContentChecker (isGoogleWeb).`);
+              const googleCheckResult = await googleCheckerInstance.checkGoogleItem(
+                item, runCache, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomain,
+                activeConfig, settingsToUse, MDPIFilterCaches.ncbiApiCache
+              );
+              isMdpi = googleCheckResult.isMdpi;
+              isPotentialMdpi = googleCheckResult.isPotential;
+              sourceOfDetection = googleCheckResult.source;
+              // console.log(`${logPrefix} GoogleContentChecker result: isMdpi=${isMdpi}, isPotential=${isPotentialMdpi}, source=${sourceOfDetection}`);
+            } else {
+              // Logic for Scholar, PubMed, EuropePMC, etc.
+              // console.log(`${logPrefix} Processing as non-GoogleWeb. Config host: ${activeConfig.host || activeConfig.hostRegex || 'N/A'}`);
+              let itemIsMdpiByDirectIdentification = false;
+
+              const mdpiDomainLinks = item.querySelectorAll(`a[href*="${settingsToUse.mdpiDomain}"]`);
+              if (mdpiDomainLinks.length > 0) {
+                itemIsMdpiByDirectIdentification = true;
+                sourceOfDetection = `Direct MDPI domain link (${mdpiDomainLinks[0].getAttribute('href')})`;
+                // console.log(`${logPrefix} MDPI by direct domain link: ${mdpiDomainLinks[0].getAttribute('href')}`);
+              }
+
+              if (!itemIsMdpiByDirectIdentification) {
+                const itemTextContentForDoi = item.textContent || "";
+                const mdpiDoiPatternRegex = new RegExp(settingsToUse.mdpiDoiPrefix.replace(/\./g, '\\.') + "/[^\\s\"'<>&]+", "ig");
+                const foundDirectMdpiDois = new Set();
+                (itemTextContentForDoi.match(mdpiDoiPatternRegex) || []).forEach(doi => foundDirectMdpiDois.add(doi));
+                item.querySelectorAll('a[href]').forEach(link => {
+                  const href = link.getAttribute('href');
+                  if (href) {
+                    const doiFromLink = MDPIFilterItemContentChecker.extractDoiFromLinkInternal(href);
+                    if (doiFromLink && doiFromLink.startsWith(settingsToUse.mdpiDoiPrefix)) {
+                      foundDirectMdpiDois.add(doiFromLink);
+                    }
+                  }
+                });
+                if (foundDirectMdpiDois.size > 0) {
+                  itemIsMdpiByDirectIdentification = true;
+                  sourceOfDetection = `Direct MDPI DOI (${[...foundDirectMdpiDois].join(', ')})`;
+                  // console.log(`${logPrefix} MDPI by direct MDPI DOI: ${[...foundDirectMdpiDois].join(', ')}`);
+                }
+              }
+              
+              isMdpi = itemIsMdpiByDirectIdentification;
+              let itemIsMdpiByApi = false;
+
+              if (!isMdpi && activeConfig.useNcbiApi) {
+                // console.log(`${logPrefix} Not MDPI by direct ID. Using NCBI API.`);
+                const pmidsToQuery = new Set();
+                const pmcidsToQuery = new Set();
+                const doisToQueryApi = new Set();
+
+                item.querySelectorAll('a[href]').forEach(link => {
+                  const href = link.getAttribute('href');
+                  if (!href) return;
+                  const pmid = googleCheckerInstance.extractPmidFromUrl(href);
+                  if (pmid) pmidsToQuery.add(pmid);
+                  const pmcid = googleCheckerInstance.extractPmcidFromUrl(href);
+                  if (pmcid) pmcidsToQuery.add(pmcid);
+                  const doi = MDPIFilterItemContentChecker.extractDoiFromLinkInternal(href);
+                  if (doi && !doi.startsWith(settingsToUse.mdpiDoiPrefix)) doisToQueryApi.add(doi);
+                });
+                
+                const textContent = item.textContent || "";
+                (googleCheckerInstance.extractPmidsFromText(textContent) || []).forEach(id => pmidsToQuery.add(id));
+                (googleCheckerInstance.extractPmcidsFromText(textContent) || []).forEach(id => pmcidsToQuery.add(id));
+                (googleCheckerInstance.extractDoisFromText(textContent) || []).forEach(doi => {
+                  if (!doi.startsWith(settingsToUse.mdpiDoiPrefix)) doisToQueryApi.add(doi);
+                });
+
+                // console.log(`${logPrefix} IDs for API: PMIDs=${[...pmidsToQuery].join(',')||'0'}, PMCIDs=${[...pmcidsToQuery].join(',')||'0'}, DOIs=${[...doisToQueryApi].join(',')||'0'}`);
+
+                if (pmidsToQuery.size > 0) {
+                  if (await MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([...pmidsToQuery], 'pmid', runCache, MDPIFilterCaches.ncbiApiCache)) {
+                    itemIsMdpiByApi = true; sourceOfDetection = 'NCBI API (PMID)';
+                  }
+                }
+                if (!itemIsMdpiByApi && pmcidsToQuery.size > 0) {
+                  if (await MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([...pmcidsToQuery], 'pmcid', runCache, MDPIFilterCaches.ncbiApiCache)) {
+                    itemIsMdpiByApi = true; sourceOfDetection = 'NCBI API (PMCID)';
+                  }
+                }
+                if (!itemIsMdpiByApi && doisToQueryApi.size > 0) {
+                  if (await MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi([...doisToQueryApi], 'doi', runCache, MDPIFilterCaches.ncbiApiCache)) {
+                    itemIsMdpiByApi = true; sourceOfDetection = 'NCBI API (DOI)';
+                  }
+                }
+                if (itemIsMdpiByApi) {
+                  isMdpi = true;
+                  // console.log(`${logPrefix} MDPI confirmed by NCBI API. Source: ${sourceOfDetection}`);
                 } else {
-                  isMdpi = window.MDPIFilterItemContentChecker.checkItemContent(item, runCache, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomain);
+                  // console.log(`${logPrefix} NCBI API did not confirm MDPI for extracted IDs.`);
                 }
               }
 
-              // Apply styling based on results
-              if (isMdpi) {
-                applySearchResultStyling(item, activeConfig, 'mdpi');
-                mdpiResultsCount++;
-              } else if (isPotential && settingsToUse.highlightPotentialMdpiSites) {
-                applySearchResultStyling(item, activeConfig, 'potential');
+              if (!isMdpi) {
+                // console.log(`${logPrefix} MDPI not yet confirmed. Calling ItemContentChecker.`);
+                const contentCheckResult = MDPIFilterItemContentChecker.checkItemContent(
+                  item, runCache, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomain,
+                  null, null, googleCheckerInstance // Pass googleCheckerInstance
+                );
+                if (contentCheckResult) {
+                  isMdpi = true;
+                  sourceOfDetection = 'ItemContentChecker';
+                  // console.log(`${logPrefix} MDPI confirmed by ItemContentChecker.`);
+                } else {
+                  // console.log(`${logPrefix} ItemContentChecker did NOT confirm MDPI.`);
+                }
               }
+              
+              if (!isMdpi && activeConfig.doiPattern && (item.textContent || "").includes(activeConfig.doiPattern)) {
+                if (activeConfig.doiPattern === settingsToUse.mdpiDoiPrefix) { // Ensure it's the MDPI pattern
+                     isMdpi = true;
+                     sourceOfDetection = `Config MDPI DOI Pattern in text (${activeConfig.doiPattern})`;
+                     // console.log(`${logPrefix} MDPI by config.doiPattern (MDPI prefix) in text: ${activeConfig.doiPattern}`);
+                }
+              }
+            }
 
-            } catch (error) {
-              console.warn('[MDPI Filter CS] Error processing search item:', error);
+            // console.log(`${logPrefix} Final decision: isMdpi=${isMdpi}, isPotentialMdpi=${isPotentialMdpi}, Source: ${sourceOfDetection}`);
+
+            if (isMdpi || isPotentialMdpi) {
+              if (isMdpi) mdpiResultsCount++;
+              styleSearchItem(item, isMdpi, isPotentialMdpi, settingsToUse, activeConfig, sourceOfDetection);
+              MDPIFilterCaches.citationProcessCache.set(item, {isMdpi, isPotential: isPotentialMdpi, source: sourceOfDetection});
+            } else {
+              MDPIFilterCaches.citationProcessCache.set(item, {isMdpi: false, isPotential: false, source: sourceOfDetection});
+              unstyleSearchItem(item, activeConfig);
             }
           }
-
-          // Update badge count
+          // Update badge count for search results
           if (chrome.runtime && chrome.runtime.id) {
             chrome.runtime.sendMessage({
               type: 'mdpiUpdate',
-              data: {
-                badgeCount: mdpiResultsCount,
-                references: []
-              }
-            }, response => {
-              if (chrome.runtime.lastError) {
-                console.warn('[MDPI Filter CS] Could not send search result badge update:', chrome.runtime.lastError.message);
+              data: { badgeCount: mdpiResultsCount, references: [] }
+            }).catch(e => {
+              if (!e.message.includes("Receiving end does not exist")) {
+                // console.warn("[MDPI Filter CS] Error sending search result badge update:", e.message);
               }
             });
           }
+          return mdpiResultsCount;
         }
 
         async function processAllReferences(runCache, settingsToUse) { // settingsToUse is currentRunSettings
@@ -812,26 +929,20 @@ if (!window.mdpiFilterInjected) {
             const itemText = itemElement.textContent || "";
             const links = Array.from(itemElement.querySelectorAll('a[href]'));
 
-            const pmidTextMatch = itemText.match(/\bPMID:\s*(\d+)\b/gi);
-            if (pmidTextMatch) pmidTextMatch.forEach(m => allNcbiIdsToPreFetch.pmid.add(m.match(/\d+/)[0]));
-            const pmcidTextMatch = itemText.match(/\b(PMC\d+)\b/gi);
-            if (pmcidTextMatch) pmcidTextMatch.forEach(m => allNcbiIdsToPreFetch.pmcid.add(m));
-
+            // Use googleCheckerInstance for ID extraction
+            (googleCheckerInstance.extractPmidsFromText(itemText) || []).forEach(id => allNcbiIdsToPreFetch.pmid.add(id));
+            (googleCheckerInstance.extractPmcidsFromText(itemText) || []).forEach(id => allNcbiIdsToPreFetch.pmcid.add(id));
+            
             links.forEach(link => {
               const href = link.href || "";
-              if (href.includes("ncbi.nlm.nih.gov/pubmed/")) {
-                const pmidMatch = href.match(/\/pubmed\/(\d+)/);
-                if (pmidMatch && pmidMatch[1]) allNcbiIdsToPreFetch.pmid.add(pmidMatch[1]);
-              }
-              if (href.includes("ncbi.nlm.nih.gov/pmc/articles/PMC")) {
-                const pmcMatch = href.match(/\/(PMC\d+)/);
-                if (pmcMatch && pmcMatch[1]) allNcbiIdsToPreFetch.pmcid.add(pmcMatch[1]);
-              }
-              if (href.includes("doi.org/10.")) {
-                const doiMatch = href.match(/\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/i);
-                if (doiMatch && doiMatch[1] && !doiMatch[1].startsWith(settingsToUse.mdpiDoiPrefix)) {
-                    allNcbiIdsToPreFetch.doi.add(doiMatch[1].split('#')[0].split('?')[0].trim());
-                }
+              const pmid = googleCheckerInstance.extractPmidFromUrl(href);
+              if (pmid) allNcbiIdsToPreFetch.pmid.add(pmid);
+              const pmcid = googleCheckerInstance.extractPmcidFromUrl(href);
+              if (pmcid) allNcbiIdsToPreFetch.pmcid.add(pmcid);
+              
+              const doi = MDPIFilterItemContentChecker.extractDoiFromLinkInternal(href); // Keep using specific DOI extractor here
+              if (doi && !doi.startsWith(settingsToUse.mdpiDoiPrefix)) {
+                  allNcbiIdsToPreFetch.doi.add(doi.split('#')[0].split('?')[0].trim());
               }
             });
             const doiTextPattern = /\b(10\.\d{4,9}\/[^"\s'&<>]+)\b/gi;
@@ -853,20 +964,19 @@ if (!window.mdpiFilterInjected) {
           if (idsForAPICall.pmcid.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.pmcid, 'pmcid', runCache, ncbiApiCache);
           if (idsForAPICall.doi.length > 0) await window.MDPIFilterNcbiApiHandler.checkNcbiIdsForMdpi(idsForAPICall.doi, 'doi', runCache, ncbiApiCache);
 
-          let localRefIdCounter = refIdCounter;
+          let localRefIdCounter = refIdCounter; // refIdCounter is global to content_script
           for (const itemElement of referenceItems) {
-            // If an item was already processed by cited_by_processor or similar_articles_processor, it might have styling.
-            // However, the main reference processor should still assign its own ID if it matches here,
-            // but the earlier filter for 'div#article-citations' should prevent this for those specific items.
-            
-            const isMdpi = isMdpiItemByContent(itemElement, runCache); // runCache is populated by pre-fetch and this function
-            // Cache the result of isMdpiItemByContent for this element to avoid re-computation if other modules check it.
-            // Note: citationProcessCache is a WeakMap, good for DOM elements.
-            citationProcessCache.set(itemElement, isMdpi); // Cache for other modules if they need it
+            const { extractedId, updatedRefIdCounter } = window.MDPIFilterReferenceIdExtractor.extractInternalScrollId(itemElement, localRefIdCounter);
+            localRefIdCounter = updatedRefIdCounter; // Update local counter for this loop
+
+            // Pass googleCheckerInstance to isMdpiItemByContent
+            const isMdpi = isMdpiItemByContent(itemElement, runCache, googleCheckerInstance);
+            citationProcessCache.set(itemElement, isMdpi); // Cache boolean result
 
             if (isMdpi) {
               mdpiFoundInRefs = true;
-              const refData = extractReferenceData(itemElement); // extractReferenceData assigns/retrieves data-mdpi-filter-ref-id
+              // Pass the extractedId to extractReferenceData
+              const refData = extractReferenceData(itemElement, extractedId); 
 
               // Deduplication logic based on contentKey (DOI or text)
               let contentKey = '';

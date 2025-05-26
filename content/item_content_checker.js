@@ -59,8 +59,8 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
     // Main function to check item content for MDPI indicators
     // It takes the DOM item, a runCache (Map), and the current MDPI_DOI and MDPI_DOMAIN strings
-    // And optionally, the primary DOI and URL extracted by link_extractor.js
-    function checkItemContent(item, runCache, currentMdpiDoi, currentMdpiDomain, primaryLinkDoi, primaryLinkUrl) {
+    // And optionally, the primary DOI and URL extracted by link_extractor.js, and an idExtractorInstance
+    function checkItemContent(item, runCache, currentMdpiDoi, currentMdpiDomain, primaryLinkDoi, primaryLinkUrl, idExtractorInstance) {
       // --- REMOVED: Skip all logic if on Google search results ---
       // (No early return for Google search pages)
 
@@ -76,44 +76,26 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
       // Priority 0: Check DOI from primary link extractor (passed as argument)
       if (primaryLinkDoi && isMdpiDoi(primaryLinkDoi)) {
-        // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P0: Returning TRUE (MDPI DOI from primaryLinkExtractor: ${primaryLinkDoi}).`);
+        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P0: Returning TRUE (MDPI DOI from primaryLinkExtractor: ${primaryLinkDoi}).`);
         return true;
       }
 
       // Priority 1: MDPI DOI Check (from links)
-      // Revised logic: If an MDPI DOI link is found, it's MDPI.
-      // If only non-MDPI DOI links are found, it's not MDPI by this check.
       let hasMdpiDoiLink = false;
-      let hasOnlyNonMdpiDoiLinks = false; // True if we find DOI links, and ALL of them are non-MDPI
-      let foundAnyDoiLink = false;
-
       for (const link of allLinksInItem) {
         const href = link.getAttribute('href');
         if (!href) continue;
         const doi = extractDoiFromLinkInternal(href);
-        if (doi) {
-          foundAnyDoiLink = true;
-          if (isMdpiDoi(doi)) {
-            hasMdpiDoiLink = true;
-            break; // Found an MDPI DOI, this item is MDPI by this rule.
-          }
+        if (doi && isMdpiDoi(doi)) {
+          hasMdpiDoiLink = true;
+          break;
         }
       }
 
       if (hasMdpiDoiLink) {
-        // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: MDPI DOI link found. Returning TRUE.`);
-        // runCache.set(itemIdentifier, true); // Optional: update runCache if it's used for item's direct MDPI status
+        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: MDPI DOI link found. Returning TRUE.`);
         return true;
       }
-
-      // If we didn't find an MDPI DOI link, check if we found *only* non-MDPI DOI links.
-      if (foundAnyDoiLink && !hasMdpiDoiLink) { // This means all DOIs found were non-MDPI
-        // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P1: Only non-MDPI DOI link(s) found, and no MDPI DOI link. Returning FALSE.`);
-        // runCache.set(itemIdentifier, false); // Optional
-        return false;
-      }
-      // If no DOI links were found at all, or if the situation is mixed (which is complex and less likely for a single ref item's primary DOI),
-      // proceed to other checks. The `hasMdpiDoiLink` check above is the most direct.
 
       // Priority 2: MDPI DOI String in Text Content
       const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
@@ -127,48 +109,84 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       for (const link of allLinksInItem) {
         if (link.href && typeof link.href === 'string') {
           try {
-            const url = new URL(link.href); // Handles relative URLs correctly
-            if (url.hostname.endsWith(currentMdpiDomain)) {
-              console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P3: Link to MDPI domain FOUND: '${link.href}'. Returning TRUE.`);
-              return true; // Link to MDPI domain
+            const linkHostname = new URL(link.href).hostname;
+            if (linkHostname.endsWith(currentMdpiDomain)) {
+              console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P3: Link to MDPI domain FOUND: ${link.href}. Returning TRUE.`);
+              return true;
             }
-          } catch (e) {
-            // console.warn(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P3: Could not parse URL: ${link.href}`, e);
+          } catch (e) { /* ignore invalid URLs */ }
+        }
+      }
+
+      // Priority 4: Check runCache for IDs found in the item (PMID, PMCID, non-MDPI DOI)
+      // This step assumes runCache has been populated by prior API calls.
+      // It uses idExtractorInstance (e.g., GoogleContentChecker) for consistent ID extraction.
+      if (idExtractorInstance && typeof idExtractorInstance.extractPmidFromUrl === 'function') {
+        const idsToCheckInCache = new Set();
+
+        allLinksInItem.forEach(link => {
+          const href = link.getAttribute('href');
+          if (!href) return;
+
+          const pmidFromLink = idExtractorInstance.extractPmidFromUrl(href);
+          if (pmidFromLink) idsToCheckInCache.add(pmidFromLink);
+
+          const pmcidFromLink = idExtractorInstance.extractPmcidFromUrl(href);
+          if (pmcidFromLink) idsToCheckInCache.add(pmcidFromLink);
+          
+          const doiFromLink = extractDoiFromLinkInternal(href); // Use own internal for consistency here
+          if (doiFromLink && !isMdpiDoi(doiFromLink)) {
+              idsToCheckInCache.add(doiFromLink);
           }
+        });
+
+        (idExtractorInstance.extractPmidsFromText(textContent) || []).forEach(id => idsToCheckInCache.add(id));
+        (idExtractorInstance.extractPmcidsFromText(textContent) || []).forEach(id => idsToCheckInCache.add(id));
+        (idExtractorInstance.extractDoisFromText(textContent) || []).forEach(doi => {
+            if (!isMdpiDoi(doi)) idsToCheckInCache.add(doi);
+        });
+
+        if (idsToCheckInCache.size > 0) {
+          let anIdInCacheIsMdpi = false;
+          let allFoundIdsWereInCacheAndFalse = true; // Assume true until an ID is missing or true
+          let atLeastOneIdFoundAndInCache = false;
+
+          for (const id of idsToCheckInCache) {
+            if (runCache.has(id)) {
+              atLeastOneIdFoundAndInCache = true;
+              if (runCache.get(id) === true) {
+                anIdInCacheIsMdpi = true;
+                allFoundIdsWereInCacheAndFalse = false; 
+                break; 
+              } else {
+                // runCache.get(id) is false, continue
+              }
+            } else {
+              // This ID was found in the item but not in the runCache.
+              // This means we can't confirm all IDs are non-MDPI.
+              allFoundIdsWereInCacheAndFalse = false;
+              // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: ID '${id}' found in item but not in runCache.`);
+            }
+          }
+
+          if (anIdInCacheIsMdpi) {
+            console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: Returning TRUE (found MDPI ID in runCache).`);
+            return true;
+          }
+          // If we found at least one ID, and all of them that were in the cache were 'false',
+          // and no ID was found to be 'true'.
+          if (atLeastOneIdFoundAndInCache && allFoundIdsWereInCacheAndFalse) {
+               console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: Returning FALSE (all found NCBI/DOI IDs that were in runCache are non-MDPI).`);
+               return false; // Definitively not MDPI based on these IDs
+          }
+          // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: No conclusive MDPI status from runCache for IDs. Proceeding. allFoundIdsWereInCacheAndFalse=${allFoundIdsWereInCacheAndFalse}, atLeastOneIdFoundAndInCache=${atLeastOneIdFoundAndInCache}`);
         }
+      } else {
+        // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: idExtractorInstance not available. Skipping cache check for NCBI IDs.`);
       }
 
-      // Priority 4: PMID/PMCID to DOI Conversion Check (via runCache)
-      let pmcIdStrings = new Set();
-      let pmidStrings = new Set();
-      // console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: Starting NCBI ID extraction from links.`);
-      for (const link of allLinksInItem) {
-        const href = link.href;
-        if (href) {
-          let match;
-          // PMCID from EuropePMC
-          match = href.match(/europepmc\.org\/(?:articles|article\/PMC)\/(PMC\d+)/i);
-          if (match && match[1]) pmcIdStrings.add(match[1]);
-          // PMCID from NCBI
-          match = href.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC\d+)/i);
-          if (match && match[1]) pmcIdStrings.add(match[1]);
-          // PMID from EuropePMC
-          match = href.match(/europepmc\.org\/(?:articles|abstract\/MED|article\/med)\/(\d+)(?:\/?$|\?|#)/i);
-          if (match && match[1]) pmidStrings.add(match[1]);
-          // PMID from NCBI
-          match = href.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
-          if (match && match[1]) pmidStrings.add(match[1]);
-        }
-      }
 
-      // Strong indicator: any PMID/PMCID present → MDPI
-      const allItemNcbiIds = [...pmidStrings, ...pmcIdStrings];
-      if (allItemNcbiIds.length > 0) {
-        console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P4: PMID/PMCID found (${allItemNcbiIds.join(',')}). Returning TRUE.`);
-        return true;
-      }
-
-      // Priority 5: Journal Name Check
+      // Priority 5: Journal Name Check (if not returned false by P4's cache check)
       const strongJournalRegex = new RegExp(
         `\\b(${M_JOURNALS_STRONG
           .map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
@@ -207,7 +225,7 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
     return {
       checkItemContent: checkItemContent,
-      extractDoiFromLinkInternal: extractDoiFromLinkInternal // Expose for potential use in content_script for pre-fetching
+      extractDoiFromLinkInternal: extractDoiFromLinkInternal
     };
   })();
 }

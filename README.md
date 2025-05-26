@@ -77,7 +77,7 @@
 - https://www.mdpi.com/1660-4601/20/3/1681
 
 **Frontiers**
-- https://www.frontiersin.org/journals/drug-discovery/articles/10.3389/fddsv.2024.1385460/full#B40
+- https://www.frontiersin.org/journals/drug-discovery/articles/10.3389/fddsv.2024.1385460/full
 - https://www.frontiersin.org/journals/nutrition/articles/10.3389/fnut.2024.1439294/full
 
 **Nature**

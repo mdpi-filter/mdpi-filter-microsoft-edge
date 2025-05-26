@@ -111,6 +111,23 @@ if (!window.mdpiFilterInjected) {
       console.error("[MDPI Filter CS] CRITICAL: referenceListSelectors is undefined or empty. Value:", referenceListSelectors, "Window object value:", window.MDPIFilterReferenceSelectors);
     }
 
+    // Ensure GoogleContentChecker class is available and instantiate it
+    let googleCheckerInstance;
+    if (typeof window.GoogleContentChecker === 'function') {
+      googleCheckerInstance = new window.GoogleContentChecker();
+    } else {
+      console.error("[MDPI Filter CS] GoogleContentChecker class not found! checkGoogleItem and ID extractors will not work correctly.");
+      // Provide a dummy instance with no-op methods to prevent further errors if critical for structure
+      googleCheckerInstance = {
+        extractPmidFromUrl: () => null,
+        extractPmcidFromUrl: () => null,
+        extractDoisFromText: () => [],
+        extractPmidsFromText: () => [],
+        extractPmcidsFromText: () => [],
+        checkGoogleItem: async () => ({ isMdpi: false, isPotential: false, source: 'dummy_checker_unavailable', details: null })
+      };
+    }
+
     // let collectedMdpiReferences = []; // This global one will be updated by updatePopupData
     let refIdCounter = 0;
     let globalCollectedMdpiReferences = []; // To store data for MDPI references for footnote styling
@@ -125,6 +142,85 @@ if (!window.mdpiFilterInjected) {
         highlightPotentialMdpiSites: true // ADD THIS - Enable potential highlighting by default
     };
     // ---
+
+    // ADD THESE FUNCTION DEFINITIONS:
+    function styleSearchItem(item, isMdpi, isPotential, settings, activeConfig, source) {
+      if (!item) return;
+      let highlightTarget = item;
+      const mdpiColorToUse = '#E2211C'; // Default MDPI Red
+    
+      if (activeConfig && activeConfig.highlightTargetSelector) {
+        const foundTarget = item.querySelector(activeConfig.highlightTargetSelector);
+        if (foundTarget) {
+          highlightTarget = foundTarget;
+        }
+      }
+    
+      // Clear previous styling classes
+      highlightTarget.classList.remove('mdpi-highlighted-reference', 'mdpi-potential-reference', 'mdpi-hidden-reference', 'mdpi-highlighted-google', 'mdpi-potential-google');
+      // Clear previous inline styles
+      highlightTarget.style.border = '';
+      highlightTarget.style.borderLeft = '';
+      highlightTarget.style.paddingLeft = '';
+      highlightTarget.style.backgroundColor = '';
+      highlightTarget.style.display = '';
+      highlightTarget.style.outline = '';
+      item.style.display = ''; // Ensure main item is visible if it was hidden
+    
+      if (settings.mode === 'hide' && isMdpi) {
+        item.classList.add('mdpi-hidden-reference'); // Hide the main item
+        item.style.display = 'none';
+        // console.log(`[MDPI Filter CS] Hiding search item (source: ${source}):`, item.textContent.substring(0, 70));
+      } else {
+        if (isMdpi) {
+          highlightTarget.classList.add('mdpi-highlighted-reference');
+          if (activeConfig && activeConfig.isGoogleWeb) {
+            highlightTarget.classList.add('mdpi-highlighted-google');
+            // Google Web specific styling (e.g., subtle background or border on the target)
+            highlightTarget.style.border = `1px solid ${mdpiColorToUse}`;
+            highlightTarget.style.backgroundColor = 'rgba(226, 33, 28, 0.05)'; // Light red tint
+          } else {
+            // Standard search result styling (e.g., left border)
+            highlightTarget.style.borderLeft = `3px solid ${mdpiColorToUse}`;
+            highlightTarget.style.paddingLeft = '5px';
+            highlightTarget.style.backgroundColor = 'rgba(226, 33, 28, 0.05)';
+          }
+          // console.log(`[MDPI Filter CS] Styling search item as MDPI (source: ${source}):`, item.textContent.substring(0, 70));
+        } else if (isPotential && settings.highlightPotentialMdpiSites) {
+          highlightTarget.classList.add('mdpi-potential-reference');
+          if (activeConfig && activeConfig.isGoogleWeb) {
+            highlightTarget.classList.add('mdpi-potential-google');
+            highlightTarget.style.border = '1px dashed orange';
+            highlightTarget.style.backgroundColor = 'rgba(255, 165, 0, 0.05)'; // Light orange tint
+          } else {
+            highlightTarget.style.borderLeft = '3px dashed orange';
+            highlightTarget.style.paddingLeft = '5px';
+            highlightTarget.style.backgroundColor = 'rgba(255, 165, 0, 0.05)';
+          }
+          // console.log(`[MDPI Filter CS] Styling search item as POTENTIAL (source: ${source}):`, item.textContent.substring(0, 70));
+        }
+      }
+    }
+
+    function unstyleSearchItem(item, activeConfig) {
+      if (!item) return;
+      let targetToUnstyle = item;
+      if (activeConfig && activeConfig.highlightTargetSelector) {
+        const foundTarget = item.querySelector(activeConfig.highlightTargetSelector);
+        if (foundTarget) {
+          targetToUnstyle = foundTarget;
+        }
+      }
+
+      targetToUnstyle.classList.remove('mdpi-highlighted-reference', 'mdpi-potential-reference', 'mdpi-hidden-reference', 'mdpi-highlighted-google', 'mdpi-potential-google');
+      targetToUnstyle.style.border = '';
+      targetToUnstyle.style.borderLeft = '';
+      targetToUnstyle.style.paddingLeft = '';
+      targetToUnstyle.style.backgroundColor = '';
+      targetToUnstyle.style.outline = '';
+      item.style.display = ''; // Ensure main item is visible
+      // console.log(`[MDPI Filter CS] Unstyled search item:`, item.textContent.substring(0, 70));
+    }
 
     // MODIFIED extractReferenceData to accept the pre-assigned extractedId
     const extractReferenceData = (item, assignedExtractedId) => {

@@ -1,6 +1,6 @@
 # mdpi-filter-chrome
 
-**MDPI Filter** is a Chrome extension that helps you identify and manage MDPI publications. It enhances your literature search by allowing you to hide or highlight MDPI results on major search engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API. Furthermore, it universally styles MDPI citations on any scholarly article you read: visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within "Cited By" and "Similar Articles" sections.
+**MDPI Filter** is a Chrome extension that helps you identify and manage MDPI publications. It enhances your literature search by allowing you to hide or highlight MDPI results on major search engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API. Furthermore, it universally styles MDPI citations on any scholarly article you read: visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within "Cited By" and "Similar Articles" sections. The extension popup provides a quick overview of detected MDPI references, allowing you to see a count, a list, and click to scroll to them in the document.
 
 ---
 
@@ -13,9 +13,14 @@
     - PubMed
     - Europe PMC
 - **Universal in-page citation styling**  
-  - **Inline footnotes**: turns MDPI reference numbers red wherever they appear  
-  - **Reference lists**: outlines and bold-reds MDPI entries in bibliographies across *any* journal site
-
+  - **Inline footnotes**: turns MDPI reference numbers red wherever they appear.
+  - **Reference lists**: outlines and bold-reds MDPI entries in bibliographies across *any* journal site.
+- **Popup Interaction & Overview**
+  - **Counts MDPI References**: Displays the total number of MDPI references found on the current page.
+  - **Lists MDPI References**: Shows a clickable list of identified MDPI references.
+  - **Scroll-to-Reference**: Allows you to click on a reference in the popup to scroll directly to its location in the document.
+  - **"Cited By" sections**: styles MDPI entries within lists of citing articles.
+  - **"Similar Articles" sections**: styles MDPI entries within lists of similar articles.
 ---
 
 ## 📥 Installation

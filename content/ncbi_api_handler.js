@@ -42,7 +42,7 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
     }
 
     const BATCH_SIZE = 200;
-    let overallFoundMdpiInBatches = false;
+    const PAUSE_MS = 350;   // ~3 calls/sec
 
     for (let i = 0; i < idsToQueryApi.length; i += BATCH_SIZE) {
       const batchIdsToQuery = idsToQueryApi.slice(i, i + BATCH_SIZE);
@@ -140,6 +140,11 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
             runCache.set(id, false);
           }
         });
+      }
+
+      // throttle: wait before next request if more batches remain
+      if (i + BATCH_SIZE < idsToQueryApi.length) {
+        await new Promise(resolve => setTimeout(resolve, PAUSE_MS));
       }
     }
 

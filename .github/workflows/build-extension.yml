@@ -1,0 +1,37 @@
+# filepath: .github/workflows/build-extension.yml
+name: Build Extension with Secrets
+
+on:
+  workflow_dispatch: # Allows manual triggering
+  push:
+    tags:
+      - 'v*.*.*' # Or trigger on new tags for releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Replace Placeholders
+        run: |
+          # Ensure the path to your file is correct
+          # Replace Email Placeholder
+          sed -i "s|'%%NCBI_API_EMAIL%%'|'${{ secrets.NCBI_API_EMAIL_SECRET }}'|g" ./content/ncbi_api_handler.js
+          # Replace Tool Name Placeholder
+          sed -i "s|'%%NCBI_TOOL_NAME%%'|'${{ secrets.NCBI_TOOL_NAME_SECRET }}'|g" ./content/ncbi_api_handler.js
+        # For macOS runners, sed syntax is slightly different for multiple replacements or use separate commands:
+        # sed -i '' "s|'%%NCBI_API_EMAIL%%'|'${{ secrets.NCBI_API_EMAIL_SECRET }}'|g" ./content/ncbi_api_handler.js
+        # sed -i '' "s|'%%NCBI_TOOL_NAME%%'|'${{ secrets.NCBI_TOOL_NAME_SECRET }}'|g" ./content/ncbi_api_handler.js
+
+      - name: Create ZIP Package
+        run: |
+          # Adjust the path and name of your extension files/directory
+          zip -r mdpi-filter-extension.zip ./ -x ".git/*" ".github/*" "README.md" # Exclude unnecessary files
+
+      - name: Upload Extension Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mdpi-filter-extension-package
+          path: mdpi-filter-extension.zip

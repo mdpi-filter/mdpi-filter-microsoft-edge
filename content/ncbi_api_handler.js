@@ -50,8 +50,8 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
 
       const idsString = batchIdsToQuery.join(',');
       const encodedIdType = encodeURIComponent(idType);
-      const toolName = 'MDPIFilterChromeExtension';
-      const maintainerEmail = 'dicing_nastily314@aleeas.com';
+      const toolName = '%%NCBI_TOOL_NAME%%'; // Placeholder for tool name
+      const maintainerEmail = '%%NCBI_API_EMAIL%%'; // Placeholder for email
       const encodedToolName = encodeURIComponent(toolName);
       const encodedMaintainerEmail = encodeURIComponent(maintainerEmail);
 

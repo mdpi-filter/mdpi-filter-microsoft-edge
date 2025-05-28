@@ -9,6 +9,12 @@
   let wileyReferencesExpanded = false;
   let healthlineSourcesExpanded = false;
 
+  // Helper: check if current hostname exactly matches or is subdomain of given domain
+  function isHostnameAllowed(domain) {
+    const h = window.location.hostname.toLowerCase();
+    return h === domain || h.endsWith('.' + domain);
+  }
+
   /**
    * Extracts the primary link (DOI or other) from a reference item element.
    * It also handles expanding accordions on Wiley and Healthline if necessary.
@@ -23,7 +29,7 @@
    */
   function extractPrimaryLink(itemElement, linkSelectors) {
     // --- Wiley Online Library: Expand "References" accordion if hidden ---
-    if (window.location.hostname.includes('onlinelibrary.wiley.com') && !wileyReferencesExpanded) {
+    if (isHostnameAllowed('onlinelibrary.wiley.com') && !wileyReferencesExpanded) {
       const accordionControls = document.querySelectorAll('div.article-accordion .accordion__control[aria-expanded="false"]');
       accordionControls.forEach(control => {
         const titleElement = control.querySelector('.section__title');
@@ -37,7 +43,7 @@
     }
 
     // --- Healthline: Expand "Sources" button if present and not already expanded ---
-    if (window.location.hostname.includes('healthline.com') && !healthlineSourcesExpanded) {
+    if (isHostnameAllowed('healthline.com') && !healthlineSourcesExpanded) {
       const sourcesButtons = document.querySelectorAll('button.css-5sudr5'); // Selector for the button
       sourcesButtons.forEach(button => {
         // Verify it's the "Sources" button by checking its text content.
@@ -82,8 +88,11 @@
               return `https://doi.org/${url}`;
             } else if (url.includes('doi.org/')) {
               return url;
-            } else if (attribute === 'data-doi' && url) {
-              return `https://doi.org/${url}`;
+            } else {
+              try {
+                const abs = new URL(url, document.baseURI);
+                if (abs.hostname.endsWith('doi.org')) return abs.href;
+              } catch (e) {}
             }
           } else if (selectorConfig.type === 'generic') {
             try {

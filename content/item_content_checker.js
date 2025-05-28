@@ -98,7 +98,7 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       }
 
       // Priority 2: MDPI DOI String in Text Content
-      const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\/[^\\s\"'<>&]+", "i");
+      const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\\/[^\\s\"'<>&]+", "i");
       if (mdpiDoiTextPattern.test(textContent)) {
         const matchedDoi = textContent.match(mdpiDoiTextPattern);
         console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P2: MDPI DOI string FOUND in text: '${matchedDoi ? matchedDoi[0] : 'N/A'}'. Returning TRUE.`);

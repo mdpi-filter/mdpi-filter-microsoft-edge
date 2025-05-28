@@ -116,7 +116,12 @@ if (!window.mdpiFilterInjected) {
     // --- Constants, Selectors, State ---
     const MDPI_DOMAIN_CONST = 'mdpi.com'; // Renamed to avoid conflict if settings also has mdpiDomain
     const MDPI_DOI_CONST = '10.3390';   // Renamed
-    const MDPI_DOI_REGEX = new RegExp(MDPI_DOI_CONST.replace(/\./g, '\\.') + "/[^\\s\"'<>&]+", "i");
+    const MDPI_DOI_REGEX = new RegExp(MDPI_DOI_CONST.replace(/\./g, '\\.') + "\\/[^\\s\"'<>&]+", "i");
+    // Helper to safely check hostname matches a domain or its subdomain
+    function isHostnameAllowed(domain) {
+      const h = window.location.hostname.toLowerCase();
+      return h === domain || h.endsWith('.' + domain);
+    }
     const domains = window.MDPIFilterDomains || {};
     const sanitize = window.sanitize || (html => html);
     const referenceListSelectors = window.MDPIFilterReferenceSelectors;
@@ -910,7 +915,7 @@ if (!window.mdpiFilterInjected) {
 
               if (!itemIsMdpiByDirectIdentification) {
                 const itemTextContentForDoi = item.textContent || "";
-                const mdpiDoiPatternRegex = new RegExp(settingsToUse.mdpiDoiPrefix.replace(/\./g, '\\.') + "/[^\\s\"'<>&]+", "ig");
+                const mdpiDoiPatternRegex = new RegExp(settingsToUse.mdpiDoiPrefix.replace(/\./g, '\\.') + "\\/[^\\s\"'<>&]+", "ig");
                 const foundDirectMdpiDois = new Set();
                 (itemTextContentForDoi.match(mdpiDoiPatternRegex) || []).forEach(doi => foundDirectMdpiDois.add(doi));
                 item.querySelectorAll('a[href]').forEach(link => {
@@ -1217,7 +1222,7 @@ if (!window.mdpiFilterInjected) {
             await processSearchResults(runCache, settingsToUse);
           } else {
             // --- Step 0: Handle page-specific NCBI API check (e.g., on EuropePMC article page) ---
-            const isEuropePMCArticlePage = window.location.hostname.includes('europepmc.org') &&
+            const isEuropePMCArticlePage = isHostnameAllowed('europepmc.org') &&
                                      (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
                                      !window.location.pathname.startsWith('/search');
 
@@ -1267,8 +1272,8 @@ if (!window.mdpiFilterInjected) {
             return;
           }
           // currentRunSettings should be up-to-date here
-          const currentHostname = window.location.hostname;
-          if (currentHostname.includes('onlinelibrary.wiley.com')) {
+          const currentHostname = window.location.hostname.toLowerCase();
+          if (currentHostname === 'onlinelibrary.wiley.com' || currentHostname.endsWith('.onlinelibrary.wiley.com')) {
             const accordionControl = document.querySelector('div.article-accordion .accordion__control[aria-expanded="false"]');
             if (accordionControl) {
               const titleElement = accordionControl.querySelector('.section__title');
@@ -1311,7 +1316,7 @@ if (!window.mdpiFilterInjected) {
             // Accept both scrollToRef and scrollToRefOnPage for compatibility
             if ((msg.type === 'scrollToRefOnPage' || msg.type === 'scrollToRef') && msg.refId) {
               // --- Wiley: Expand References Accordion if Needed ---
-              if (window.location.hostname.includes('onlinelibrary.wiley.com')) {
+              if (isHostnameAllowed('onlinelibrary.wiley.com')) {
                 // Find the accordion control for "References"
                 const accordionControls = document.querySelectorAll('div.article-accordion .accordion__control[aria-expanded="false"]');
                 for (const control of accordionControls) {

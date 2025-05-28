@@ -95,8 +95,11 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
                   if (effectiveDoi.startsWith(MDPI_DOI_PREFIX)) {
                     isMdpi = true;
                   }
-                } else if (record.journal && typeof record.journal === 'string' && record.journal.toLowerCase().includes(MDPI_DOMAIN)) {
-                  isMdpi = true;
+                } else if (record.journal && typeof record.journal === 'string') {
+                  const journalHost = record.journal.toLowerCase();
+                  if (journalHost === MDPI_DOMAIN || journalHost.endsWith('.' + MDPI_DOMAIN)) {
+                    isMdpi = true;
+                  }
                 }
 
                 console.log(`[MDPI Filter NCBI API DEBUG] DIAGNOSTIC: Before runCache.set for ID '${queriedId}'. runCache type: ${typeof runCache}, is Map: ${runCache instanceof Map}, runCache value:`, runCache);

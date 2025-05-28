@@ -310,10 +310,49 @@ if (!window.mdpiFilterInjected) {
       // e.g., updateBadgeCount(globalCollectedMdpiReferences.length);
     }
 
+    // --- NEW: MutationObserver for dynamic reference and footnote updates ---
+    function setupReferenceAndFootnoteObserver() {
+      // Debounce to avoid excessive processing
+      const debouncedRefresh = window.debounce
+        ? window.debounce(refreshMdpiProcessingAndStyling, 300)
+        : refreshMdpiProcessingAndStyling;
+
+      // Observe the entire document body for subtree changes
+      const observer = new MutationObserver((mutationsList, observer) => {
+        // Check if any added/removed nodes might affect references or footnotes
+        let relevantChange = false;
+        for (const mutation of mutationsList) {
+          if (
+            mutation.type === 'childList' &&
+            (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0)
+          ) {
+            relevantChange = true;
+            break;
+          }
+        }
+        if (relevantChange) {
+          debouncedRefresh();
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      // Optionally, run a few delayed retries after initial load to catch late footnotes
+      [500, 1200, 2500].forEach(delay => {
+        setTimeout(refreshMdpiProcessingAndStyling, delay);
+      });
+
+      // Store the observer instance for potential cleanup
+      window._mdpiFilterRefFootnoteObserver = observer;
+    }
+
     if (chrome.runtime && chrome.runtime.id) {
       chrome.storage.sync.get({ 
         mode: 'highlight',
-        highlightPotentialMdpiSites: true // ADD THIS DEFAULT
+        highlightPotentialMdpiSites: true
       }, (retrievedStorageSettings) => {
         if (chrome.runtime.lastError) {
           console.error(`[MDPI Filter CS] Error accessing storage: ${chrome.runtime.lastError.message}. Using default settings.`);
@@ -326,6 +365,7 @@ if (!window.mdpiFilterInjected) {
         
         // Perform initial processing and styling
         refreshMdpiProcessingAndStyling();
+        setupReferenceAndFootnoteObserver(); // <-- ADD THIS
 
         // TODO: If using a MutationObserver for dynamic content, ensure it's initialized
         // and its callback also triggers refreshMdpiProcessingAndStyling (possibly debounced).
@@ -342,6 +382,7 @@ if (!window.mdpiFilterInjected) {
       // Fallback for environments where chrome.runtime is not available (e.g. testing)
       console.warn("[MDPI Filter CS] chrome.runtime.id not available. Running with default settings and processing.");
       refreshMdpiProcessingAndStyling();
+      setupReferenceAndFootnoteObserver(); // <-- ADD THIS
     }
 
     if (chrome.runtime && chrome.runtime.id) {

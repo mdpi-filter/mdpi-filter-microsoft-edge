@@ -1,6 +1,6 @@
 # mdpi-filter-chrome
 
-**MDPI Filter** is a Chrome extension that helps you declutter your literature searches by hiding or highlighting MDPI publications on major search engines, and styles MDPI citations in any scholarly article you read.
+**MDPI Filter** is a Chrome extension that helps you identify and manage MDPI publications. It enhances your literature search by allowing you to hide or highlight MDPI results on major search engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API. Furthermore, it universally styles MDPI citations on any scholarly article you read: visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within "Cited By" and "Similar Articles" sections.
 
 ---
 
@@ -24,7 +24,8 @@
 2. In Chrome, go to **chrome://extensions**.  
 3. Enable **Developer mode** (top right).  
 4. Click **Load unpacked**, and select the `mdpi-filter-chrome/` folder.  
-5. Look for the MDPI Filter icon in your toolbar.
+5. Pin the MDPI Filter icon to your toolbar.
+
 
 ---
 

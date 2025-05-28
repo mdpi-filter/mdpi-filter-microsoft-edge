@@ -1,7 +1,20 @@
 // content/content_script.js
 
+// --- Logging Override ---
+let loggingEnabled = false;
+chrome.storage.sync.get('loggingEnabled', res => {
+  if (typeof res.loggingEnabled === 'boolean') loggingEnabled = res.loggingEnabled;
+});
+chrome.storage.onChanged.addListener(changes => {
+  if (changes.loggingEnabled) loggingEnabled = changes.loggingEnabled.newValue;
+});
+const nativeConsoleLog = console.log.bind(console);
+const nativeConsoleWarn = console.warn.bind(console);
+console.log = (...args) => { if (loggingEnabled) nativeConsoleLog(...args); };
+console.warn = (...args) => { if (loggingEnabled) nativeConsoleWarn(...args); };
+
 if (!window.mdpiFilterInjected) {
-  // console.log("[MDPI Filter CS] Attempting to inject content script...");
+  console.log("[MDPI Filter CS] Attempting to inject content script...");
 
   // --- Comprehensive Dependency Checks ---
   let dependenciesMet = true;
@@ -98,7 +111,7 @@ if (!window.mdpiFilterInjected) {
     console.error("[MDPI Filter CS] CRITICAL: Halting script. The following dependencies were not met:", missingDependencies.join(', '));
   } else {
     window.mdpiFilterInjected = true;
-    // console.log("[MDPI Filter CS] All dependencies met. Content script executing (mdpiFilterInjected set).");
+    console.log("[MDPI Filter CS] All dependencies met. Content script executing (mdpiFilterInjected set).");
 
     // --- Constants, Selectors, State ---
     const MDPI_DOMAIN_CONST = 'mdpi.com'; // Renamed to avoid conflict if settings also has mdpiDomain
@@ -1370,6 +1383,7 @@ if (!window.mdpiFilterInjected) {
           const refListObserver = new MutationObserver((mutationsList) => {
             for (const mutation of mutationsList) {
               if (mutation.type === 'childList') {
+               
                 const allRefIds = Array.from(document.querySelectorAll('[data-mdpi-filter-ref-id]')).map(el => el.getAttribute('data-mdpi-filter-ref-id'));
                 console.log('[MDPI Filter CS] MutationObserver: Reference list changed. Current data-mdpi-filter-ref-id values:', allRefIds);
               }

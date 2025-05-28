@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // New elements for potential MDPI highlighting settings
   const highlightPotentialMdpiCheckbox = document.getElementById('highlightPotentialMdpi');
   const potentialMdpiColorInput = document.getElementById('potentialMdpiColor');
+  const loggingEnabledCheckbox   = document.getElementById('loggingEnabled');
 
   // --- Settings Panel Toggle ---
   const settingsIcon = document.getElementById('settingsIcon');
@@ -35,8 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Load Mode Setting ---
   chrome.storage.sync.get({
     mode: 'highlight',
-    highlightPotentialMdpiSites: false, // Default to false
-    potentialMdpiHighlightColor: '#FFFF99' // Default light yellow (hex for color input)
+    highlightPotentialMdpiSites: false,
+    potentialMdpiHighlightColor: '#FFFF99',
+    loggingEnabled: false
   }, (settings) => {
     if (chrome.runtime.lastError) {
       console.error("Error loading settings:", chrome.runtime.lastError);
@@ -49,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (potentialMdpiColorInput) {
       potentialMdpiColorInput.value = settings.potentialMdpiHighlightColor;
     }
+    if (loggingEnabledCheckbox) {
+      loggingEnabledCheckbox.checked = settings.loggingEnabled;
+    }
   });
 
   // --- Save Mode Setting ---
@@ -56,17 +61,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedMode = Array.from(radios).find(r => r.checked).value;
     const highlightPotential = highlightPotentialMdpiCheckbox ? highlightPotentialMdpiCheckbox.checked : false;
     const potentialColor = potentialMdpiColorInput ? potentialMdpiColorInput.value : '#FFFF99';
+    const loggingEnabled = loggingEnabledCheckbox   ? loggingEnabledCheckbox.checked : false;
 
     chrome.storage.sync.set({
       mode: selectedMode,
       highlightPotentialMdpiSites: highlightPotential,
-      potentialMdpiHighlightColor: potentialColor
+      potentialMdpiHighlightColor: potentialColor,
+      loggingEnabled
     }, () => {
       if (chrome.runtime.lastError) {
         status.textContent = 'Error saving settings.';
         console.error("Error saving settings:", chrome.runtime.lastError);
       } else {
-        status.textContent = `Settings saved. Mode: "${selectedMode}". Potential highlighting (Google): ${highlightPotential ? `ON (${potentialColor})` : 'OFF'}.`;
+        status.textContent = `Settings saved. Mode: "${selectedMode}". Potential highlighting: ${highlightPotential ? `ON (${potentialColor})` : 'OFF'}. Logging: ${loggingEnabled ? 'ON' : 'OFF'}.`;
       }
       setTimeout(() => status.textContent = '', 3500); // Increased timeout
     });

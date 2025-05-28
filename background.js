@@ -12,7 +12,7 @@ const backgroundDebouncePerTab = (func, wait) => {
     // console.log(`[MDPI Filter BG] Debounce setting new timeout for tab ${tabId} (${wait}ms).`);
     historyUpdateDebounceTimeouts.set(tabId, setTimeout(() => {
       historyUpdateDebounceTimeouts.delete(tabId); // Clean up map
-      console.log(`[MDPI Filter BG] Debounce executing injectModules for tab ${tabId} after ${wait}ms.`);
+      debugLog(`[MDPI Filter BG] Debounce executing injectModules for tab ${tabId} after ${wait}ms.`);
       func.apply(this, [tabId, ...args]);
     }, wait));
   };
@@ -102,7 +102,7 @@ async function injectModules(tabId, triggerSource = "unknown") {
             files: [file]
         });
     }
-    console.log(`[MDPI Filter BG] Successfully injected modules sequentially into tab ${tabId} (Trigger: ${triggerSource})`);
+    debugLog(`[MDPI Filter BG] Successfully injected modules sequentially into tab ${tabId} (Trigger: ${triggerSource})`);
   } catch (error) {
      // Ignore common errors during navigation/injection races
      if (!(error.message.includes('Cannot access') ||
@@ -131,7 +131,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         if (newUrl.origin !== oldUrl.origin || newUrl.pathname !== oldUrl.pathname) {
           chrome.action.setBadgeText({ text: '', tabId });
           delete tabReferenceData[tabId]; // Clear stored references for the tab
-          console.log(`[MDPI Filter BG] Cleared badge and references for loading tab ${tabId} (URL changed)`);
+          debugLog(`[MDPI Filter BG] Cleared badge and references for loading tab ${tabId} (URL changed)`);
         } else {
           // console.log(`[MDPI Filter BG] Tab ${tabId} loading, but URL path/origin unchanged (likely hash change). Badge not cleared.`);
         }
@@ -152,7 +152,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.webNavigation.onCompleted.addListener(
   details => {
     if (details.frameId === 0) {
-      console.log(`[MDPI Filter BG] webNavigation.onCompleted: Tab ${details.tabId} main frame completed loading.`);
+      debugLog(`[MDPI Filter BG] webNavigation.onCompleted: Tab ${details.tabId} main frame completed loading.`);
       // Assuming manifest.json handles all script injections now.
       // If issues persist with scripts not loading, this might need to be revisited,
       // but for now, rely on manifest to avoid double injection or conflicts.
@@ -188,7 +188,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const queryOptions = { active: true, currentWindow: true };
     chrome.tabs.query(queryOptions, (tabs) => {
       if (chrome.runtime.lastError) {
-        console.error("[MDPI Filter BG] Error querying active tab for getMdpiReferences:", chrome.runtime.lastError.message);
+        debugErr("[MDPI Filter BG] Error querying active tab for getMdpiReferences:", chrome.runtime.lastError.message);
         sendResponse({ error: "Could not get active tab", references: [] });
         return;
       }
@@ -227,5 +227,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // Clean up references when a tab is closed
 chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
   delete tabReferenceData[tabId];
-  console.log(`[MDPI Filter BG] Cleared references for closed tab ${tabId}.`);
+  debugLog(`[MDPI Filter BG] Cleared references for closed tab ${tabId}.`);
 });
+
+// --- Logging Configuration (injected) ---
+let loggingEnabled = false;
+chrome.storage.sync.get('loggingEnabled', res => {
+  if (typeof res.loggingEnabled === 'boolean') {
+    loggingEnabled = res.loggingEnabled;
+  }
+});
+chrome.storage.onChanged.addListener(changes => {
+  if (changes.loggingEnabled) {
+    loggingEnabled = changes.loggingEnabled.newValue;
+  }
+});
+function debugLog(...args)  { if (loggingEnabled) console.log(...args); }
+function debugWarn(...args) { if (loggingEnabled) console.warn(...args); }
+function debugErr(...args)  { console.error(...args); /* always show errors */ }

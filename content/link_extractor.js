@@ -86,14 +86,14 @@
           if (selectorConfig.type === 'doi') {
             if (url.startsWith('10.')) {
               return `https://doi.org/${url}`;
-            } else if (url.includes('doi.org/')) {
-              return url;
-            } else {
-              try {
-                const abs = new URL(url, document.baseURI);
-                if (abs.hostname.endsWith('doi.org')) return abs.href;
-              } catch (e) {}
             }
+            try {
+              const abs = new URL(url, document.baseURI);
+              const host = abs.hostname.toLowerCase();
+              if (host === 'doi.org' || host.endsWith('.doi.org')) {
+                return abs.href;
+              }
+            } catch (e) {}
           } else if (selectorConfig.type === 'generic') {
             try {
               const absoluteUrl = new URL(url, document.baseURI).href;

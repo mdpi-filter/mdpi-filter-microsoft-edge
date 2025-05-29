@@ -30,5 +30,33 @@
     "default_title": "MDPI Filter",
     "default_popup": "popup.html"
   },
-  "options_page": "options.html"
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "content/utils.js",
+        "content/sanitizer.js",
+        "content/domains.js",
+        "content/cache_manager.js",
+        "content/google_content_checker.js",
+        "content/reference_selectors.js",
+        "content/link_extraction_selectors.js",
+        "content/link_extractor.js",
+        "content/inline_footnote_selectors.js",
+        "content/inline_footnote_styler.js",
+        "content/cited_by_selectors.js",
+        "content/cited_by_styler.js",
+        "content/similar_articles_selectors.js", 
+        "content/similar_articles_styler.js",   
+        "content/item_content_checker.js",
+        "content/cited_by_processor.js",
+        "content/similar_articles_processor.js", 
+        "content/reference_id_extractor.js",
+        "content/ncbi_api_handler.js",
+        "content/content_script.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }

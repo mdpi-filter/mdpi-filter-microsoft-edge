@@ -17,36 +17,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4 # Updated to v4
 
-      - name: Replace Placeholders
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Replace placeholders
         run: |
-          # Ensure the path to your file is correct
-          # Replace Email Placeholder
-          sed -i "s|'%%NCBI_API_EMAIL%%'|'${{ secrets.NCBI_API_EMAIL_SECRET }}'|g" ./content/ncbi_api_handler.js
-          # Replace Tool Name Placeholder
           sed -i "s|'%%NCBI_TOOL_NAME%%'|'${{ secrets.NCBI_TOOL_NAME_SECRET }}'|g" ./content/ncbi_api_handler.js
-        # For macOS runners, sed syntax is slightly different for multiple replacements or use separate commands:
-        # sed -i '' "s|'%%NCBI_API_EMAIL%%'|'${{ secrets.NCBI_API_EMAIL_SECRET }}'|g" ./content/ncbi_api_handler.js
-        # sed -i '' "s|'%%NCBI_TOOL_NAME%%'|'${{ secrets.NCBI_TOOL_NAME_SECRET }}'|g" ./content/ncbi_api_handler.js
+          sed -i "s|'%%NCBI_API_EMAIL%%'|'${{ secrets.NCBI_API_EMAIL_SECRET }}'|g" ./content/ncbi_api_handler.js
 
       - name: Create ZIP Package
-        run: |
-          # Adjust the path and name of your extension files/directory
-          zip -r mdpi-filter-extension.zip ./ -x ".git/*" ".github/*" "README.md" # Exclude unnecessary files
+        run: zip -r mdpi-filter.zip .
 
       - name: Upload Extension Artifact
-        uses: actions/upload-artifact@v4 # Updated to v4
+        uses: actions/upload-artifact@v4
         with:
-          name: mdpi-filter-extension-package
-          path: mdpi-filter-extension.zip
+          name: extension
+          path: mdpi-filter.zip
 
       - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/') # Only run on tag pushes
-        with:
-          files: mdpi-filter-extension.zip # The file to upload as a release asset
-          # The tag_name is automatically inferred from the Git tag that triggered the workflow
-          # You can customize the release name and body if needed:
-          # name: "Release ${{ github.ref_name }}"
-          # body: "Automated release for ${{ github.ref_name }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

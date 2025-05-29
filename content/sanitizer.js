@@ -12,19 +12,6 @@ window.sanitize = (htmlInput) => {
   if (typeof htmlInput !== 'string') {
     return ''; // Ensure a string is always returned
   }
-  const SCRIPT_REGEX = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
-  // Remove script tags
-  let sanitized = htmlInput.replace(SCRIPT_REGEX, "");
-
-  // Remove other tags (basic version)
-  // This regex is very basic and can be bypassed.
-  // For example, it doesn't handle attributes that can execute script (e.g., onerror, onload).
-  sanitized = sanitized.replace(/<[^>]+>/g, "");
-
-  // It's often better to escape HTML entities if the goal is to display potentially unsafe HTML as text
-  // For example:
-  // sanitized = sanitized.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-  // However, the original intent seems to be stripping tags, not escaping them.
-
-  return sanitized; // Ensure the sanitized string is returned
+  // You can pass configuration as 2nd arg if needed.
+  return DOMPurify.sanitize(htmlInput);
 };

@@ -164,6 +164,8 @@ chrome.webNavigation.onCompleted.addListener(
 
 // 3) Message listener for updates, popup requests, AND scroll requests
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id) return;
+
   // Message from Content Script with count and references
   // Make it robust: check for msg.type === 'mdpiUpdate' OR msg.action === 'mdpiUpdate'
   const isMdpiUpdateMessage = (msg.type === 'mdpiUpdate' || msg.action === 'mdpiUpdate');

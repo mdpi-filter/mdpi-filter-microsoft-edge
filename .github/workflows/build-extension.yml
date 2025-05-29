@@ -34,7 +34,15 @@ jobs:
           sed -i "s|'%%NCBI_API_EMAIL%%'|'${{ secrets.NCBI_API_EMAIL_SECRET }}'|g" ./content/ncbi_api_handler.js
 
       - name: Create ZIP Package
-        run: zip -r mdpi-filter.zip . -x "node_modules/*" -x ".git/*" -x ".github/*" -x "package.json" -x "package-lock.json" -x "*.zip"
+        run: |
+          zip -r mdpi-filter.zip . \
+            -x "node_modules/*" \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "package.json" \
+            -x "package-lock.json" \
+            -x "README.md" \
+            -x "*.zip"
 
       - name: Upload Extension Artifact
         uses: actions/upload-artifact@v4

@@ -192,14 +192,18 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
 
 
       // Priority 5: Journal Name Check (if not returned false by P4's cache check)
+      // Consider using textContent if journal names are expected in plain text.
+      // Using innerHTML is acceptable if patterns might be within HTML tags/attributes.
+      const contentToCheckForJournals = textContent; // Or stick with innerHTML if necessary
+
       const strongJournalRegex = new RegExp(
         `\\b(${M_JOURNALS_STRONG
           .map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
           .join('|')})\\b`,
         'i'
       );
-      if (strongJournalRegex.test(innerHTML)) {
-        const matchedJournal = innerHTML.match(strongJournalRegex);
+      if (strongJournalRegex.test(contentToCheckForJournals)) { // Use contentToCheckForJournals
+        const matchedJournal = contentToCheckForJournals.match(strongJournalRegex); // Use contentToCheckForJournals
         console.log(
           `[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P5: Strong MDPI journal name FOUND: '${matchedJournal ? matchedJournal[0] : 'N/A'}'. Returning TRUE.`
         );
@@ -212,8 +216,8 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
           .join('|')})\\b`,
         'i'
       );
-      if (weakJournalRegex.test(innerHTML)) {
-        const matchedJournal = innerHTML.match(weakJournalRegex);
+      if (weakJournalRegex.test(contentToCheckForJournals)) { // Use contentToCheckForJournals
+        const matchedJournal = contentToCheckForJournals.match(weakJournalRegex); // Use contentToCheckForJournals
         console.log(
           `[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P5: Weak MDPI journal name FOUND: '${matchedJournal ? matchedJournal[0] : 'N/A'}'. Returning TRUE.`
         );

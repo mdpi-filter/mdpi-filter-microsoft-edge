@@ -15,7 +15,7 @@ jobs:
       contents: write # Needed to create releases
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Updated to v4
 
       - name: Replace Placeholders
         run: |
@@ -34,7 +34,7 @@ jobs:
           zip -r mdpi-filter-extension.zip ./ -x ".git/*" ".github/*" "README.md" # Exclude unnecessary files
 
       - name: Upload Extension Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4 # Updated to v4
         with:
           name: mdpi-filter-extension-package
           path: mdpi-filter-extension.zip

@@ -1317,6 +1317,9 @@
           // --- Message Listener for Scrolling ---
           if (chrome.runtime && chrome.runtime.onMessage) {
             chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+              // only accept messages from your content script
+              if (!sender.tab) return; 
+
               // Accept both scrollToRef and scrollToRefOnPage for compatibility
               if ((msg.type === 'scrollToRefOnPage' || msg.type === 'scrollToRef') && msg.refId) {
                 // --- Wiley: Expand References Accordion if Needed ---

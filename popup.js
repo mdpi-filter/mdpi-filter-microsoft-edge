@@ -203,12 +203,19 @@ ${currentTabUrl}
         const li = document.createElement('li');
         li.dataset.refId = ref.id;
         li.title = "Click to scroll to reference";
-        let content = '';
+
         if (ref.number) {
-          content += `<span class="ref-number">${escapeHtml(String(ref.number))}. </span>`;
+          const refNumberSpan = document.createElement('span');
+          refNumberSpan.className = 'ref-number';
+          refNumberSpan.textContent = escapeHtml(String(ref.number)) + '. ';
+          li.appendChild(refNumberSpan);
         }
-        content += `<span class="ref-text">${escapeHtml(ref.text)}</span>`;
-        li.innerHTML = content;
+
+        const refTextSpan = document.createElement('span');
+        refTextSpan.className = 'ref-text';
+        refTextSpan.textContent = escapeHtml(ref.text);
+        li.appendChild(refTextSpan);
+
         referencesList.appendChild(li); // Add new items after the placeholder (which is now hidden)
       });
     }

@@ -25,12 +25,33 @@
 
 ## 📥 Installation
 
-1. Clone or download this repository.  
-2. In Chrome, go to **chrome://extensions**.  
-3. Enable **Developer mode** (top right).  
-4. Click **Load unpacked**, and select the `mdpi-filter-chrome/` folder.  
-5. Pin the MDPI Filter icon to your toolbar.
+1.  **Download the Extension:**
+    *   Go to the [**Releases**](https://github.com/mdpi-filter/mdpi-filter-chrome/releases) page of this repository.
+    *   Download the `mdpi-filter-extension.zip` file from the latest release.
+    *   Unzip the downloaded file. This will create a folder containing the extension files.
 
+2.  **Install in Chrome:**
+    *   Open Chrome and navigate to `chrome://extensions`.
+    *   Enable **Developer mode** (usually a toggle in the top right corner).
+    *   Click the **Load unpacked** button.
+    *   Select the unzipped folder (e.g., `mdpi-filter-extension`) that you extracted.
+
+3.  **Pin the Icon:**
+    *   The MDPI Filter extension should now be installed. Pin its icon to your toolbar for easy access.
+
+**For Developers:** If you've cloned the repository and want to load the source code directly for development, you can use the "Load unpacked" button to select the `mdpi-filter-chrome/` root folder. Note that for full NCBI API functionality, you would need to manually add your API credentials to `content/ncbi_api_handler.js` if you are not using a pre-built release version.
+
+---
+
+## 📦 Building and Releases
+
+This extension is automatically built and packaged using GitHub Actions whenever a new tag (e.g., `vX.Y.Z` or `vX.Y.Z-prerelease`) is pushed to the repository.
+
+The build process includes:
+1.  Checking out the source code.
+2.  Injecting necessary API credentials (NCBI API Email and Tool Name) from GitHub secrets into the `content/ncbi_api_handler.js` file. These secrets are `NCBI_API_EMAIL_SECRET` and `NCBI_TOOL_NAME_SECRET` respectively, and are configured in the repository's GitHub Actions secrets settings.
+3.  Packaging the extension into a `mdpi-filter-extension.zip` file.
+4.  Creating a new GitHub Release associated with the tag and attaching the `mdpi-filter-extension.zip` file as a downloadable asset.
 
 ---
 

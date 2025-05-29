@@ -57,6 +57,11 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       return doiMatch ? doiMatch[1] : null;
     };
 
+    // Escape user-controlled patterns for safe RegExp
+    function escapeRegex(str) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     // Main function to check item content for MDPI indicators
     // It takes the DOM item, a runCache (Map), and the current MDPI_DOI and MDPI_DOMAIN strings
     // And optionally, the primary DOI and URL extracted by link_extractor.js, and an idExtractorInstance
@@ -98,7 +103,7 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
       }
 
       // Priority 2: MDPI DOI String in Text Content
-      const mdpiDoiTextPattern = new RegExp(currentMdpiDoi.replace(/\./g, '\\.') + "\\/[^\\s\"'<>&]+", "i");
+      const mdpiDoiTextPattern = new RegExp(escapeRegex(currentMdpiDoi) + "\\/[^\\s\"'<>&]+", "i");
       if (mdpiDoiTextPattern.test(textContent)) {
         const matchedDoi = textContent.match(mdpiDoiTextPattern);
         console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P2: MDPI DOI string FOUND in text: '${matchedDoi ? matchedDoi[0] : 'N/A'}'. Returning TRUE.`);

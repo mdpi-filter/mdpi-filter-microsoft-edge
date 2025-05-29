@@ -116,7 +116,11 @@ if (!window.mdpiFilterInjected) {
     // --- Constants, Selectors, State ---
     const MDPI_DOMAIN_CONST = 'mdpi.com'; // Renamed to avoid conflict if settings also has mdpiDomain
     const MDPI_DOI_CONST = '10.3390';   // Renamed
-    const MDPI_DOI_REGEX = new RegExp(MDPI_DOI_CONST.replace(/\./g, '\\.') + "\\/[^\\s\"'<>&]+", "i");
+    // Escape user-controlled DOI prefix before building regex
+    function escapeRegex(str) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    const MDPI_DOI_REGEX = new RegExp(escapeRegex(MDPI_DOI_CONST) + "\\/[^\\s\"'<>&]+", "i");
     // Helper to safely check hostname matches a domain or its subdomain
     function isHostnameAllowed(domain) {
       const h = window.location.hostname.toLowerCase();
@@ -915,7 +919,7 @@ if (!window.mdpiFilterInjected) {
 
               if (!itemIsMdpiByDirectIdentification) {
                 const itemTextContentForDoi = item.textContent || "";
-                const mdpiDoiPatternRegex = new RegExp(settingsToUse.mdpiDoiPrefix.replace(/\./g, '\\.') + "\\/[^\\s\"'<>&]+", "ig");
+                const mdpiDoiPatternRegex = new RegExp(escapeRegex(settingsToUse.mdpiDoiPrefix) + "\\/[^\\s\"'<>&]+", "ig");
                 const foundDirectMdpiDois = new Set();
                 (itemTextContentForDoi.match(mdpiDoiPatternRegex) || []).forEach(doi => foundDirectMdpiDois.add(doi));
                 item.querySelectorAll('a[href]').forEach(link => {
@@ -1061,7 +1065,7 @@ if (!window.mdpiFilterInjected) {
 
           // Specific filter for EuropePMC article pages to exclude "Similar Articles" section
           // from being treated as main references.
-          if (window.location.hostname.includes('europepmc.org') &&
+          if (isHostnameAllowed('europepmc.org') &&
               (window.location.pathname.includes('/article/') || window.location.pathname.match(/^\/(med|pmc)\//i)) &&
               !window.location.pathname.startsWith('/search')) {
             allPotentialReferenceItems = allPotentialReferenceItems.filter(item => !item.closest('div.references-similar-articles-container'));

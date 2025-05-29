@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MDPI Filter",
   "version": "0.0.1",
-  "description": "Hide or highlight MDPI publications in literature searches",
+  "description": "Instantly identify MDPI content. Hide/highlight MDPI papers in literature searches & visually mark their citations in any article.",
   "permissions": [
     "storage",
     "scripting",

@@ -61,5 +61,6 @@
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "externally_connectable": { "matches": [] }
 }

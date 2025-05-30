@@ -77,4 +77,6 @@ We may update this Privacy Policy from time to time. We will notify you of any c
 
 ## 8. Contact Us
 
-If you have any questions or concerns about this Privacy Policy or our data handling practices, please contact us at:
+If you have any questions or concerns about this Privacy Policy or our data handling practices, please contact us through the support contact information provided on the MDPI Filter Chrome Web Store listing page.
+
+Alternatively, you can raise an issue on our GitHub repository: [https://github.com/mdpi-filter/mdpi-filter-chrome/issues](https://github.com/mdpi-filter/mdpi-filter-chrome/issues)

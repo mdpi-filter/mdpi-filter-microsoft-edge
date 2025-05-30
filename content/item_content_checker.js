@@ -210,11 +210,11 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
         return true;
       }
 
+      // Use case-sensitive matching for weak MDPI journals to avoid false positives in titles
       const weakJournalRegex = new RegExp(
         `\\b(${M_JOURNALS_WEAK
-          .map(j => j.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-          .join('|')})\\b`,
-        'i'
+          .map(j => j.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'))
+          .join('|')})\\b`
       );
       if (weakJournalRegex.test(contentToCheckForJournals)) { // Use contentToCheckForJournals
         const matchedJournal = contentToCheckForJournals.match(weakJournalRegex); // Use contentToCheckForJournals

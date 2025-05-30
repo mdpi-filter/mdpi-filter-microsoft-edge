@@ -105,7 +105,7 @@
 
           // Extract the reference ID from the matched element's href or other attributes
           let targetRefId = null;
-          
+
           // Check href attribute for reference ID
           if (matchedElement.href) {
             const hrefMatch = matchedElement.href.match(/#(.+)$/);
@@ -113,11 +113,11 @@
               targetRefId = hrefMatch[1];
             }
           }
-          
+
           // Check data attributes for reference ID
           if (!targetRefId && matchedElement.dataset) {
-            targetRefId = matchedElement.dataset.rid || 
-                         matchedElement.dataset.brisRid || 
+            targetRefId = matchedElement.dataset.rid ||
+                         matchedElement.dataset.brisRid ||
                          matchedElement.dataset.dbTargetFor || // ADDED for Cell.com data-db-target-for
                          matchedElement.getAttribute('rid') ||
                          matchedElement.getAttribute('aria-controls');
@@ -128,7 +128,7 @@
             if (matchedElement.tagName.toLowerCase() === 'a') {
               styleInlineMarker(matchedElement, mdpiColor);
               styledElements.add(matchedElement);
-              
+
               // Also style parent sup if it exists
               const parentSup = matchedElement.closest('sup');
               if (parentSup && !styledElements.has(parentSup)) {

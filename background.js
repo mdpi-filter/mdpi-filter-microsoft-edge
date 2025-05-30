@@ -159,7 +159,7 @@ chrome.webNavigation.onCompleted.addListener(
       // injectModules(details.tabId, "webNavigation.onCompleted"); // Commented out
     }
   },
-  { url: [{ schemes: ['http','https'] }] }
+  { url: [{ schemes: ['https'] }] }
 );
 
 // 3) Message listener for updates, popup requests, AND scroll requests

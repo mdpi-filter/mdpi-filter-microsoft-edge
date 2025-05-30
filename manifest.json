@@ -9,7 +9,6 @@
     "webNavigation"
   ],
   "host_permissions": [
-    "http://*/*",
     "https://*/*"
   ],
   "content_security_policy": {
@@ -37,7 +36,6 @@
   "content_scripts": [
     {
       "matches": [
-        "http://*/*",
         "https://*/*"
       ],
       "js": [

@@ -43,6 +43,7 @@ jobs:
             -x "package-lock.json" \
             -x "README.md" \
             -x "PRIVACY_POLICY.md" \
+            -x "docs/PRIVACY_POLICY.md" \
             -x "*.zip"
 
       - name: Upload Extension Artifact

@@ -12,22 +12,20 @@ function loadOptions() {
     mode: 'highlight',
     highlightPotentialMdpiSites: false,
     potentialMdpiHighlightColor: '#FFFF99',
-    loggingEnabled: false
+    loggingEnabled: false,
+    ncbiApiEnabled: true
   }, (settings) => {
     if (chrome.runtime.lastError) {
       console.error("Error loading options:", chrome.runtime.lastError);
       return;
     }
-    radios.forEach(r => r.checked = (r.value === settings.mode));
-    if (highlightPotentialMdpiCheckboxOptions) {
-      highlightPotentialMdpiCheckboxOptions.checked = settings.highlightPotentialMdpiSites;
-    }
-    if (potentialMdpiColorInputOptions) {
-      potentialMdpiColorInputOptions.value = settings.potentialMdpiHighlightColor;
-    }
-    if (loggingCheckboxOptions) {
-      loggingCheckboxOptions.checked = settings.loggingEnabled;
-    }
+    // populate UI
+    Array.from(radios).find(r => r.value === settings.mode).checked = true;
+    if (highlightPotentialMdpiCheckboxOptions) highlightPotentialMdpiCheckboxOptions.checked = settings.highlightPotentialMdpiSites;
+    if (potentialMdpiColorInputOptions) potentialMdpiColorInputOptions.value = settings.potentialMdpiHighlightColor;
+    if (loggingCheckboxOptions) loggingCheckboxOptions.checked = settings.loggingEnabled;
+    const ncbiCheckbox = document.getElementById('ncbiApiEnabledOptions');
+    if (ncbiCheckbox) ncbiCheckbox.checked = settings.ncbiApiEnabled;
   });
 }
 
@@ -36,12 +34,21 @@ function saveOptions() {
   const highlightPotential = highlightPotentialMdpiCheckboxOptions ? highlightPotentialMdpiCheckboxOptions.checked : false;
   const potentialColor = potentialMdpiColorInputOptions ? potentialMdpiColorInputOptions.value : '#FFFF99';
   const loggingEnabled = loggingCheckboxOptions ? loggingCheckboxOptions.checked : false;
+  const ncbiApiEnabled = document.getElementById('ncbiApiEnabledOptions')?.checked ?? true;
+  // Confirm if user is disabling NCBI API lookups
+  if (!ncbiApiEnabled) {
+    const proceed = confirm('Disabling NCBI API lookups will reduce detection accuracy and may miss or mislabel MDPI citations. Continue?');
+    if (!proceed) {
+      return; // Abort save
+    }
+  }
 
   chrome.storage.sync.set({
     mode: selectedMode,
     highlightPotentialMdpiSites: highlightPotential,
     potentialMdpiHighlightColor: potentialColor,
-    loggingEnabled
+    loggingEnabled,
+    ncbiApiEnabled
   }, () => {
     if (chrome.runtime.lastError) {
       status.textContent = 'Error saving options.';

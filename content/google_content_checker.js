@@ -134,7 +134,10 @@ class GoogleContentChecker {
     console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] No direct MDPI links found. Checking for potential indicators...`);
 
     // --- POTENTIAL MDPI CHECKS (Text or NCBI-confirmed IDs in links/text) ---
-    if (currentSettings.highlightPotentialMdpiSites) {
+    const ncbiEnabled = window.MDPIFilterSettings?.ncbiApiEnabled !== false;
+    if (ncbiEnabled && window.MDPIFilterNcbiApiHandler) {
+      console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] NCBI API enabled by user, checking links and text...`);
+      
       const itemTextContent = item.textContent || '';
       let isPotential = false;
       let potentialDetailsArray = [];
@@ -153,7 +156,7 @@ class GoogleContentChecker {
       }
 
       // Check for NCBI-confirmed PMIDs/PMCIDs in links or text content
-      if (activeConfig.useNcbiApi && window.MDPIFilterNcbiApiHandler) {
+      if (ncbiEnabled && window.MDPIFilterNcbiApiHandler) {
         console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] NCBI API enabled, checking links and text...`);
         
         // From links

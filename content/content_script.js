@@ -371,6 +371,19 @@
         window._mdpiFilterRefFootnoteObserver = observer;
       }
 
+      // --- User Settings Container ---
+      if (!window.MDPIFilterSettings) window.MDPIFilterSettings = {};
+      // Load NCBI API enabled flag (default true)
+      chrome.storage.sync.get('ncbiApiEnabled', res => {
+        window.MDPIFilterSettings.ncbiApiEnabled = (res.ncbiApiEnabled !== false);
+      });
+      chrome.storage.onChanged.addListener(changes => {
+        if (changes.ncbiApiEnabled) {
+          window.MDPIFilterSettings.ncbiApiEnabled = changes.ncbiApiEnabled.newValue;
+          console.log("[MDPI Filter CS] NCBI API Enabled set to", changes.ncbiApiEnabled.newValue);
+        }
+      });
+
       if (chrome.runtime && chrome.runtime.id) {
         chrome.storage.sync.get({ 
           mode: 'highlight',
@@ -662,8 +675,8 @@
                 }
               }
           
-              // 2. NCBI API Check (if useNcbiApi is true and not already identified as MDPI)
-              if (!isMdpiResult && config.useNcbiApi) {
+              // 2. NCBI API Check (respect user setting for NCBI API lookups)
+              if (!isMdpiResult && window.MDPIFilterSettings?.ncbiApiEnabled !== false) {
                 // Try to find the primary link of the search result item.
                 // Common Google search result link structure:
                 let mainLinkElement = item.querySelector('div.yuRUbf > a[href]');
@@ -941,7 +954,7 @@
                 isMdpi = itemIsMdpiByDirectIdentification;
                 let itemIsMdpiByApi = false;
 
-                if (!isMdpi && activeConfig.useNcbiApi) {
+                if (!isMdpi && window.MDPIFilterSettings?.ncbiApiEnabled !== false) {
                   // console.log(`${logPrefix} Not MDPI by direct ID. Using NCBI API.`);
                   const pmidsToQuery = new Set();
                   const pmcidsToQuery = new Set();
@@ -1368,7 +1381,7 @@
                 }
 
                 // Log all current data-mdpi-filter-ref-id values for debugging
-                const allRefIds = Array.from(document.querySelectorAll('[data-mdpi-filter-ref-id]')).map(el => el.getAttribute('data-mdpi-filter-ref-id'));
+                const allRefIds = Array.from(document.querySelectorAll('[data-mdpi-filter-ref-id]')). map(el => el.getAttribute('data-mdpi-filter-ref-id'));
                 console.log('[MDPI Filter CS] All current data-mdpi-filter-ref-id values in DOM:', allRefIds);
 
                 if (target) {

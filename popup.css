@@ -240,4 +240,11 @@ h2 {
   background-color: #fff; /* Ensure background for color swatch */
   margin-left: auto; /* Push color picker to the right if in flex container */
 }
+
+/* Warning text style */
+.setting-warning {
+  color: red;
+  font-size: 0.85em;
+  margin-left: 8px;
+}
 /* End Styles for new settings */

@@ -7,6 +7,11 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
   const MDPI_DOI_PREFIX = '10.3390'; // For identifying MDPI DOIs
 
   async function checkNcbiIdsForMdpi(ids, idType, runCache, ncbiApiCache) {
+    // Respect user opt-out for NCBI API
+    if (window.MDPIFilterSettings && window.MDPIFilterSettings.ncbiApiEnabled === false) {
+      console.log("[MDPI Filter NCBI API] Skipping lookup: user opt-out");
+      return false;
+    }
     // Filter out DOIs with fragments or invalid chars
     if (idType === 'doi') {
       ids = ids.map(id => id.split('#')[0].split('?')[0].trim())

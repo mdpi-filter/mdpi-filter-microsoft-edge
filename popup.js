@@ -56,18 +56,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Save Mode Setting ---
+  // --- Load NCBI API setting ---
+  const ncbiPopupCheckbox = document.getElementById('ncbiApiEnabledPopup');
+  chrome.storage.sync.get({ ncbiApiEnabled: true }, settings => {
+    if (ncbiPopupCheckbox) ncbiPopupCheckbox.checked = settings.ncbiApiEnabled;
+  });
+
+  // --- Save all settings including NCBI API ---
   saveBtn.addEventListener('click', () => {
     const selectedMode = Array.from(radios).find(r => r.checked).value;
     const highlightPotential = highlightPotentialMdpiCheckbox ? highlightPotentialMdpiCheckbox.checked : false;
     const potentialColor = potentialMdpiColorInput ? potentialMdpiColorInput.value : '#FFFF99';
     const loggingEnabled = loggingEnabledCheckbox   ? loggingEnabledCheckbox.checked : false;
+    const ncbiEnabled = ncbiPopupCheckbox?.checked ?? true;
+    // Confirm if user is disabling NCBI API lookups
+    if (!ncbiEnabled) {
+      const proceed = confirm('Disabling NCBI API lookups will reduce detection accuracy and may miss or mislabel MDPI citations. Continue?');
+      if (!proceed) {
+        return; // Abort save
+      }
+    }
 
     chrome.storage.sync.set({
       mode: selectedMode,
       highlightPotentialMdpiSites: highlightPotential,
       potentialMdpiHighlightColor: potentialColor,
-      loggingEnabled
+      loggingEnabled,
+      ncbiApiEnabled: ncbiEnabled
     }, () => {
       if (chrome.runtime.lastError) {
         status.textContent = 'Error saving settings.';

@@ -1,6 +1,6 @@
 # Privacy Policy for MDPI Filter Chrome Extension
 
-**Last Updated:** May 30, 2025 <!-- Replace with the actual date -->
+**Last Updated:** May 31, 2025 <!-- Replace with the actual date -->
 
 Thank you for using MDPI Filter (the "Extension"). This Privacy Policy explains how the Extension handles information. The MDPI Filter extension is designed to operate primarily locally within your browser.
 
@@ -18,7 +18,7 @@ The Extension handles the following types of information solely to provide its f
 *   **Website Content:**
     *   **Data Handled:** The text, HTML structure, and links (URLs) of the web pages you visit.
     *   **How Handled:** This information is processed locally and in-memory by the Extension's content scripts running within your browser on the active web page. This data is analyzed to identify MDPI-related publications, citations, Digital Object Identifiers (DOIs), PubMed IDs (PMIDs), and other relevant identifiers.
-    *   **Purpose:** To find MDPI-related content so the Extension can apply your chosen visual styles (highlighting or hiding) or extract identifiers for further checks. This data is not stored by the Extension after the page analysis is complete for the current view.
+    *   **Purpose:** To find MDPI-related content so the Extension can apply your chosen visual styles (highlighting or hiding) or extract identifiers for further checks. To fulfill its purpose of identifying MDPI content across diverse websites (including search engines, publisher sites, and general web articles), the Extension requires the ability to access and process content on the pages you visit. This access is strictly used for the features described and is not used for tracking your browsing history for unrelated purposes. This data is not stored by the Extension after the page analysis is complete for the current view.
 
 *   **Web Browsing Activity (URLs of Visited Pages):**
     *   **Data Handled:** The URLs of the web pages you navigate to.
@@ -37,6 +37,7 @@ We are committed to user privacy and limit data sharing to what is essential for
 *   **NCBI (National Center for Biotechnology Information) E-utilities API:**
     *   **Data Shared:** To determine if a publication is MDPI-affiliated, the Extension sends extracted publication identifiers (such as DOIs, PMIDs, or PMCIDs) to NCBI's E-utilities API services (specifically `efetch.fcgi` and `esummary.fcgi` hosted on `eutils.ncbi.nlm.nih.gov`). These requests include `tool` (application name) and `email` (developer contact) parameters as recommended by NCBI's usage guidelines.
     *   **Purpose of Sharing:** This is a core function of the Extension to retrieve publication metadata (such as DOIs) which is then used to accurately identify MDPI content, especially on search result pages or when direct MDPI indicators are not present.
+    *   **User Consent:** NCBI API lookups are enabled by default. You can opt out at any time via the “Advanced Settings” in the Extension’s options page. Disabling these lookups will reduce detection accuracy.
     *   **NCBI's Privacy Practices:** NCBI is a public service. According to their policies, they do not collect Personally Identifiable Information (PII) from API users and use access data to understand public use and improve their services. You can review NCBI's policies here:
         *   NCBI Specific Policy: [https://www.ncbi.nlm.nih.gov/home/about/policies/](https://www.ncbi.nlm.nih.gov/home/about/policies/)
         *   NLM Privacy Policy (NCBI is part of NLM): [https://www.nlm.nih.gov/privacy.html](https://www.nlm.nih.gov/privacy.html)

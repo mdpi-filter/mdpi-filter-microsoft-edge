@@ -13,7 +13,7 @@ Security fixes are applied to every version that is still published in the Chrom
 ## Reporting a Vulnerability
 
 To report a security issue, please use our private **security** tracker:  
-https://github.com/mdpi-filter/mdpi-filter-chrome/issues/new/choose → select **Security report**
+https://github.com/mdpi-filter/mdpi-filter-chrome/security/advisories/new
 
 Include in your report:
  - A clear description of the vulnerability

@@ -45,7 +45,7 @@ jobs:
             -x "SECURITY.md" \
             -x "PRIVACY_POLICY.md" \
             -x "docs/PRIVACY_POLICY.md" \
-            -x "index.html" \
+            -x "docs/index.html" \
             -x "*.zip"
 
       - name: Upload Extension Artifact

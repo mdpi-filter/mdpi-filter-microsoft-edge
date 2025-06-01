@@ -1,5 +1,7 @@
 name: Build Extension
 on: [push, pull_request]
+permissions: # Add this block
+  contents: read # Or more specific permissions if needed
 jobs:
   build:
     runs-on: ubuntu-latest

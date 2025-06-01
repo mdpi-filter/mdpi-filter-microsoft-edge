@@ -6,22 +6,179 @@
     <title>MDPI Filter Chrome Extension</title>
     <style>
         body {
-            font-family: sans-serif;
-            margin: 2em;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            color: #333;
             line-height: 1.6;
         }
-        h1 {
+        .container {
+            max-width: 900px;
+            margin: 2em auto;
+            padding: 2em;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        header {
             text-align: center;
+            margin-bottom: 2em;
+            padding-bottom: 1em;
+            border-bottom: 1px solid #eee;
+        }
+        header h1 {
+            color: #2c3e50;
+            margin-bottom: 0.2em;
+        }
+        header p {
+            font-size: 1.1em;
+            color: #555;
+        }
+        nav {
+            text-align: center;
+            margin-bottom: 2em;
+        }
+        nav a {
+            margin: 0 15px;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        h2 {
+            color: #2980b9;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.3em;
+            margin-top: 1.5em;
+        }
+        ul {
+            list-style-type: disc;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 0.5em;
+        }
+        .button-link {
+            display: inline-block;
+            background-color: #3498db;
+            color: #fff;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 1em;
+            transition: background-color 0.3s ease;
+        }
+        .button-link:hover {
+            background-color: #2980b9;
+            color: #fff; /* Ensure text color remains white on hover */
+        }
+        footer {
+            text-align: center;
+            margin-top: 3em;
+            padding-top: 1em;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
         }
     </style>
 </head>
 <body>
-    <h1>MDPI Filter Chrome Extension</h1>
-    <p>Welcome to the official page for the MDPI Filter Chrome Extension.</p>
-    <p>You can view our privacy policy here:</p>
-    <ul>
-        <li><a href="PRIVACY_POLICY.md">Privacy Policy</a></li>
-    </ul>
-    <p>For more information, please visit our <a href="https://github.com/mdpi-filter/mdpi-filter-chrome">GitHub repository</a>. The extension will be available on the Chrome Web Store soon.</p>
+    <div class="container">
+        <header>
+            <h1>MDPI Filter Chrome Extension</h1>
+            <p>Instantly identify and manage publications from the publisher MDPI.</p>
+        </header>
+
+        <nav>
+            <a href="#about">About</a>
+            <a href="#features">Features</a>
+            <a href="#installation">Installation</a>
+            <a href="#support">Support</a>
+            <a href="https://github.com/mdpi-filter/mdpi-filter-chrome" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="PRIVACY_POLICY.md">Privacy Policy</a>
+        </nav>
+
+        <section id="about">
+            <h2>About MDPI Filter</h2>
+            <p>
+                <strong>MDPI Filter</strong> is a Chrome extension that helps you identify and manage MDPI publications.
+                It enhances your literature search by allowing you to hide or highlight MDPI results on major search
+                engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API.
+                Furthermore, it universally styles MDPI citations on any scholarly article you read:
+                visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within
+                "Cited By" and "Similar Articles" sections. The extension popup provides a quick overview of
+                detected MDPI references, allowing you to see a count, a list, and click to scroll to them in the document.
+            </p>
+        </section>
+
+        <section id="features">
+            <h2>🔹 Key Features</h2>
+            <ul>
+                <li><strong>Search-site filtering:</strong>
+                    <ul>
+                        <li>Hide or Highlight MDPI links on Google Web Search, Google Scholar, PubMed, and Europe PMC.</li>
+                    </ul>
+                </li>
+                <li><strong>Universal in-page citation styling:</strong>
+                    <ul>
+                        <li>Styles MDPI reference numbers (inline footnotes) red.</li>
+                        <li>Outlines and bold-reds MDPI entries in bibliographies on any journal site.</li>
+                    </ul>
+                </li>
+                <li><strong>Popup Interaction & Overview:</strong>
+                    <ul>
+                        <li>Counts and lists MDPI references found on the current page.</li>
+                        <li>Allows clicking a reference in the popup to scroll directly to it.</li>
+                        <li>Styles MDPI entries in "Cited By" and "Similar Articles" sections.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+
+        <section id="installation">
+            <h2>📥 Installation</h2>
+            <p>The extension will be available on the Chrome Web Store soon. For now, you can install it manually:</p>
+            <ol>
+                <li>Go to the <a href="https://github.com/mdpi-filter/mdpi-filter-chrome/releases" target="_blank" rel="noopener noreferrer" class="button-link">Releases Page</a> on GitHub.</li>
+                <li>Download the <code>mdpi-filter.zip</code> file from the latest release.</li>
+                <li>Unzip the downloaded file.</li>
+                <li>Open Chrome and navigate to <code>chrome://extensions</code>.</li>
+                <li>Enable <strong>Developer mode</strong> (toggle in the top right).</li>
+                <li>Click <strong>Load unpacked</strong> and select the unzipped folder.</li>
+                <li>Pin the icon to your toolbar for easy access!</li>
+            </ol>
+            <p>
+                For developers: If you've cloned the repository, you can load the unpacked extension directly from the source folder.
+                Note that API credentials might be needed for full functionality if not using a pre-built release.
+            </p>
+        </section>
+
+        <section id="support">
+            <h2>❓ Support & Feedback</h2>
+            <p>
+                If you encounter any issues, have questions, or would like to suggest a feature, please visit our GitHub Issues page.
+                We appreciate your feedback to help improve the MDPI Filter extension!
+            </p>
+            <p>
+                <a href="https://github.com/mdpi-filter/mdpi-filter-chrome/issues" target="_blank" rel="noopener noreferrer" class="button-link">Go to GitHub Issues</a>
+            </p>
+        </section>
+
+        <footer>
+            <p>&copy; <span id="currentYear"></span> MDPI Filter Project. Licensed under AGPL-3.0 (Code) and CC-BY-SA-4.0 (Logo).</p>
+            <p>
+                View <a href="PRIVACY_POLICY.md">Privacy Policy</a> |
+                Visit on <a href="https://github.com/mdpi-filter/mdpi-filter-chrome" target="_blank" rel="noopener noreferrer">GitHub</a> |
+                <a href="https://github.com/mdpi-filter/mdpi-filter-chrome/issues" target="_blank" rel="noopener noreferrer">Get Support</a>
+            </p>
+        </footer>
+    </div>
+    <script>
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+    </script>
 </body>
 </html>

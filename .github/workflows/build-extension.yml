@@ -42,6 +42,7 @@ jobs:
             -x "package.json" \
             -x "package-lock.json" \
             -x "README.md" \
+            -x "SECURITY.md" \
             -x "PRIVACY_POLICY.md" \
             -x "docs/PRIVACY_POLICY.md" \
             -x "*.zip"

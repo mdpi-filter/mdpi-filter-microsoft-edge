@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MDPI Filter Chrome Extension</title>
+    <link rel="icon" type="image/svg+xml" href="logo.svg"> <!-- Added favicon link -->
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
@@ -53,6 +54,23 @@
             border-bottom: 2px solid #3498db;
             padding-bottom: 0.3em;
             margin-top: 1.5em;
+            position: relative; /* For positioning the anchor link */
+        }
+        /* Style for the section permalink */
+        .section-link {
+            font-size: 0.8em;
+            margin-left: 8px;
+            text-decoration: none;
+            color: #aaa;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.2s ease-in-out;
+        }
+        h2:hover .section-link {
+            opacity: 1; /* Show on hover */
+            color: #3498db;
+        }
+        .section-link:hover {
+            text-decoration: underline;
         }
         ul {
             list-style-type: disc;
@@ -103,7 +121,7 @@
         </nav>
 
         <section id="about">
-            <h2>About MDPI Filter</h2>
+            <h2>About MDPI Filter <a href="#about" class="section-link" title="Permalink to this section">#</a></h2>
             <p>
                 <strong>MDPI Filter</strong> is a Chrome extension that helps you identify and manage MDPI publications.
                 It enhances your literature search by allowing you to hide or highlight MDPI results on major search
@@ -116,7 +134,7 @@
         </section>
 
         <section id="features">
-            <h2>🔹 Key Features</h2>
+            <h2>🔹 Key Features <a href="#features" class="section-link" title="Permalink to this section">#</a></h2>
             <ul>
                 <li><strong>Search-site filtering:</strong>
                     <ul>
@@ -140,7 +158,7 @@
         </section>
 
         <section id="installation">
-            <h2>📥 Installation</h2>
+            <h2>📥 Installation <a href="#installation" class="section-link" title="Permalink to this section">#</a></h2>
             <p>The extension will be available on the Chrome Web Store soon. For now, you can install it manually:</p>
             <ol>
                 <li>Go to the <a href="https://github.com/mdpi-filter/mdpi-filter-chrome/releases" target="_blank" rel="noopener noreferrer" class="button-link">Releases Page</a> on GitHub.</li>
@@ -158,7 +176,7 @@
         </section>
 
         <section id="support">
-            <h2>❓ Support & Feedback</h2>
+            <h2>❓ Support & Feedback <a href="#support" class="section-link" title="Permalink to this section">#</a></h2>
             <p>
                 If you encounter any issues, have questions, or would like to suggest a feature, please visit our GitHub Issues page.
                 We appreciate your feedback to help improve the MDPI Filter extension!

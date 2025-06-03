@@ -1,14 +1,25 @@
 name: Build Extension
 on: [push, pull_request]
-permissions: # Add this block
-  contents: read # Or more specific permissions if needed
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with: { node-version: '16' }
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Bump manifest.json version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "🔖 Setting manifest.json version → $VERSION"
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" manifest.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
       - run: npm ci
       - run: npm run build
       - run: zip -r mdpi-filter.zip .

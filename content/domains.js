@@ -12,7 +12,7 @@ window.MDPIFilterDomains = {
     "pubmed.ncbi.nlm.nih.gov",// For PubMed search results
     "europepmc.org",          // For EuropePMC search results (matches subdomains like www.europepmc.org via .includes())
     // You can add other general search engines here, e.g.:
-    // "www.bing.com",
+    "www.bing.com",         // <-- added Bing
     // "duckduckgo.com"
   ],
 
@@ -45,6 +45,21 @@ window.MDPIFilterDomains = {
     // Consider adding useNcbiApi: true if NCBI checks are desired for Scholar in the future,
     // though MDPIFilterItemContentChecker would need access to PMID/PMCID extraction utilities or
     // the main content_script loop would need to handle it.
+  },
+
+  // Bing Web
+  bing: {
+    hostRegex: /^www\.bing\.com$/i,
+    isBingWeb: true,
+    path: /^\/search/,
+    // Bing “standard” results, carousel cards AND slide-only cards
+    // (includes both div.b_cards2.slide and div.slide[role="listitem"])
+    itemSelector: 'li.b_algo, div.b_cards2.slide, div.slide[role="listitem"]',
+    // MDPI domain links inside results
+    linkSelector: 'a[href*="mdpi.com"]',
+    useNcbiApi: true,
+    // full-item highlighting
+    highlightTargetSelector: null
   },
 
   // PubMed (no outbound links, only DOI in text)
@@ -91,6 +106,7 @@ window.MDPIFilterDomainUtils.getActiveSearchConfig = function(currentHostname, c
   const configsToConsider = [
     allDomainConfigs.googleWeb,
     allDomainConfigs.scholar,
+    allDomainConfigs.bing,       // <-- include Bing
     allDomainConfigs.pubmed,
     allDomainConfigs.europepmc
     // Add other specific search engine config objects here if defined directly in MDPIFilterDomains

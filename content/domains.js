@@ -13,7 +13,7 @@ window.MDPIFilterDomains = {
     "europepmc.org",          // For EuropePMC search results (matches subdomains like www.europepmc.org via .includes())
     // You can add other general search engines here, e.g.:
     "www.bing.com",         // <-- added Bing
-    // "duckduckgo.com"
+    "duckduckgo.com"          // <-- added DuckDuckGo
   ],
 
   // Google Web
@@ -81,6 +81,17 @@ window.MDPIFilterDomains = {
     path: /^\/search/, // Ensures itemSelector and htmlContains apply only to search result pages
     itemSelector: 'li.separated-list-item', // Specific to search results
     useNcbiApi: true // Enable NCBI API checks for EuropePMC domain
+  },
+
+  // NEW: DuckDuckGo Web
+  duckDuckGo: {
+    hostRegex: /^duckduckgo\.com$/i,
+    isDuckDuckGo: true,
+    path: /^\//, 
+    itemSelector: 'li[data-layout="organic"] article',
+    linkSelector: 'a[href*="mdpi.com"]',
+    useNcbiApi: true,
+    highlightTargetSelector: null
   }
 };
 
@@ -106,7 +117,8 @@ window.MDPIFilterDomainUtils.getActiveSearchConfig = function(currentHostname, c
   const configsToConsider = [
     allDomainConfigs.googleWeb,
     allDomainConfigs.scholar,
-    allDomainConfigs.bing,       // <-- include Bing
+    allDomainConfigs.bing,
+    allDomainConfigs.duckDuckGo,    // <-- include DuckDuckGo
     allDomainConfigs.pubmed,
     allDomainConfigs.europepmc
     // Add other specific search engine config objects here if defined directly in MDPIFilterDomains

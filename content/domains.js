@@ -13,7 +13,23 @@ window.MDPIFilterDomains = {
     "europepmc.org",          // For EuropePMC search results (matches subdomains like www.europepmc.org via .includes())
     // You can add other general search engines here, e.g.:
     "www.bing.com",         // <-- added Bing
-    "duckduckgo.com"          // <-- added DuckDuckGo
+    "duckduckgo.com",          // <-- added DuckDuckGo
+    // Yandex (all supported locales)
+    "yandex.com",
+    "yandex.ru",
+    "ya.ru",
+    "yandex.by",
+    "yandex.kz",
+    "yandex.uz",
+    "yandex.com.tr",
+    "yandex.az",
+    "yandex.com.ge",
+    "yandex.com.am",
+    "yandex.co.il",
+    "yandex.md",
+    "yandex.tm",
+    "yandex.tj",
+    "yandex.eu"
   ],
 
   // Google Web
@@ -92,6 +108,18 @@ window.MDPIFilterDomains = {
     linkSelector: 'a[href*="mdpi.com"]',
     useNcbiApi: true,
     highlightTargetSelector: null
+  },
+
+  // Yandex Web search configuration
+  yandex: {
+    // match www or non-www for all TLDs listed above
+    hostRegex: /^([a-z0-9-]+\.)?yandex\.(com(?:\.tr)?|ru|by|kz|uz|az|com\.ge|com\.am|co\.il|md|tm|tj|eu)$/i,
+    isYandex: true,
+    path: /^\/search/,                    // matches Yandex search pages
+    itemSelector: 'li[data-fast]',        // container for each result item
+    linkSelector: 'a[href*="mdpi.com"]',  // MDPI links within a result
+    useNcbiApi: true,
+    highlightTargetSelector: null         // style the whole item
   }
 };
 
@@ -118,7 +146,8 @@ window.MDPIFilterDomainUtils.getActiveSearchConfig = function(currentHostname, c
     allDomainConfigs.googleWeb,
     allDomainConfigs.scholar,
     allDomainConfigs.bing,
-    allDomainConfigs.duckDuckGo,    // <-- include DuckDuckGo
+    allDomainConfigs.duckDuckGo,
+    allDomainConfigs.yandex,        // <-- include Yandex here
     allDomainConfigs.pubmed,
     allDomainConfigs.europepmc
     // Add other specific search engine config objects here if defined directly in MDPIFilterDomains

@@ -99,11 +99,12 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0 && tabs[0].url) {
         const currentTabUrl = tabs[0].url;
-        const githubRepo = 'mdpi-filter/mdpi-filter-chrome';
+        const githubRepo = 'mdpi-filter/mdpi-filter-microsoft-edge';
         const currentMode = Array.from(radios).find(r => r.checked)?.value || 'N/A';
         const manifest = chrome.runtime.getManifest();
         const extensionName = manifest.name;
         const extensionVersion = manifest.version;
+        const browserInfo = navigator.userAgent;
 
         const issueTitle = encodeURIComponent(`Filter Issue on: ${currentTabUrl}`);
         const issueBody = encodeURIComponent(
@@ -132,7 +133,7 @@ ${currentTabUrl}
 *   **Extension Name:** ${extensionName}
 *   **Extension Version:** ${extensionVersion}
 *   **Current Filter Mode:** ${currentMode}
-*   **Browser:** [Please fill in - e.g., Chrome 123.0.6312.122]
+*   **Browser:** ${browserInfo}
 *   **Operating System:** [Please fill in - e.g., Windows 11 / macOS Sonoma]
 
 **Screenshots (Optional but helpful):**

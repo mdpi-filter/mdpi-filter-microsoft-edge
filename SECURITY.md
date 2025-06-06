@@ -2,8 +2,8 @@
 
 ## Supported Versions
 
-This document covers all maintained releases of the MDPI Filter Chrome extension.  
-Security fixes are applied to every version that is still published in the Chrome Web Store.
+This document covers all maintained releases of the MDPI Filter Microsoft Edge extension.  
+Security fixes are applied to every version that is still published in the Microsoft Edge Add-ons store.
 
 | Version    | Supported        |
 | ---------- | ---------------- |
@@ -13,7 +13,7 @@ Security fixes are applied to every version that is still published in the Chrom
 ## Reporting a Vulnerability
 
 To report a security issue, please use our private **security** tracker:  
-https://github.com/mdpi-filter/mdpi-filter-chrome/security/advisories/new
+https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/security/advisories/new
 
 Include in your report:
  - A clear description of the vulnerability
@@ -32,7 +32,7 @@ Include in your report:
 
 1. Assessment & triage  
 2. Patch development & review  
-3. Release to Chrome Web Store  
+3. Release to the Microsoft Edge Add-ons store and other applicable stores
 4. Public advisory & credit  
 
 ## Security Credits

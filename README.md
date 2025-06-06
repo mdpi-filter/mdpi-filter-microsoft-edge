@@ -1,6 +1,6 @@
-# mdpi-filter-chrome
+# mdpi-filter-microsoft-edge
 
-**MDPI Filter** is a Chrome extension that helps you identify and manage MDPI publications. It enhances your literature search by allowing you to hide or highlight MDPI results on major search engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API. Furthermore, it universally styles MDPI citations on any scholarly article you read: visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within "Cited By" and "Similar Articles" sections. The extension popup provides a quick overview of detected MDPI references, allowing you to see a count, a list, and click to scroll to them in the document.
+**MDPI Filter** is a Microsoft Edge extension that helps you identify and manage MDPI publications. It enhances your literature search by allowing you to hide or highlight MDPI results on major search engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API. Furthermore, it universally styles MDPI citations on any scholarly article you read: visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within "Cited By" and "Similar Articles" sections. The extension popup provides a quick overview of detected MDPI references, allowing you to see a count, a list, and click to scroll to them in the document.
 
 ---
 
@@ -26,20 +26,20 @@
 ## 📥 Installation
 
 1.  **Download the Extension:**
-    *   Go to the [**Releases**](https://github.com/mdpi-filter/mdpi-filter-chrome/releases) page of this repository.
-    *   Download the `mdpi-filter-extension.zip` file from the latest release.
+    *   Go to the [**Releases**](https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/releases) page of this repository.
+    *   Download the `mdpi-filter.zip` file from the latest release.
     *   Unzip the downloaded file. This will create a folder containing the extension files.
 
-2.  **Install in Chrome:**
-    *   Open Chrome and navigate to `chrome://extensions`.
-    *   Enable **Developer mode** (usually a toggle in the top right corner).
+2.  **Install in Microsoft Edge:**
+    *   Open Microsoft Edge and navigate to `edge://extensions`.
+    *   Enable **Developer mode** (usually a toggle in the bottom-left corner).
     *   Click the **Load unpacked** button.
     *   Select the unzipped folder (e.g., `mdpi-filter-extension`) that you extracted.
 
 3.  **Pin the Icon:**
     *   The MDPI Filter extension should now be installed. Pin its icon to your toolbar for easy access.
 
-**For Developers:** If you've cloned the repository and want to load the source code directly for development, you can use the "Load unpacked" button to select the `mdpi-filter-chrome/` root folder. Note that for full NCBI API functionality, you would need to manually add your API credentials to `content/ncbi_api_handler.js` if you are not using a pre-built release version.
+**For Developers:** If you've cloned the repository and want to load the source code directly for development, you can use the "Load unpacked" button to select the `mdpi-filter-microsoft-edge/` root folder. Note that for full NCBI API functionality, you would need to manually add your API credentials to `content/ncbi_api_handler.js` if you are not using a pre-built release version.
 
 ---
 
@@ -50,8 +50,8 @@ This extension is automatically built and packaged using GitHub Actions whenever
 The build process includes:
 1.  Checking out the source code.
 2.  Injecting necessary API credentials (NCBI API Email and Tool Name) from GitHub secrets into the `content/ncbi_api_handler.js` file. These secrets are `NCBI_API_EMAIL_SECRET` and `NCBI_TOOL_NAME_SECRET` respectively, and are configured in the repository's GitHub Actions secrets settings.
-3.  Packaging the extension into a `mdpi-filter-extension.zip` file.
-4.  Creating a new GitHub Release associated with the tag and attaching the `mdpi-filter-extension.zip` file as a downloadable asset.
+3.  Packaging the extension into a `mdpi-filter.zip` file.
+4.  Creating a new GitHub Release associated with the tag and attaching the `mdpi-filter.zip` file as a downloadable asset.
 
 ---
 

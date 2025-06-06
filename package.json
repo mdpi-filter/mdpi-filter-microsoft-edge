@@ -1,7 +1,7 @@
 {
-  "name": "mdpi-filter",
+  "name": "mdpi-filter-microsoft-edge",
   "version": "0.0.1",
-  "description": "**MDPI Filter** is a Chrome extension that helps you identify and manage MDPI publications. It enhances your literature search by allowing you to hide or highlight MDPI results on major search engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API. Furthermore, it universally styles MDPI citations on any scholarly article you read: visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within \"Cited By\" and \"Similar Articles\" sections. The extension popup provides a quick overview of detected MDPI references, allowing you to see a count, a list, and click to scroll to them in the document.",
+  "description": "**MDPI Filter** is a Microsoft Edge extension that helps you identify and manage MDPI publications. It enhances your literature search by allowing you to hide or highlight MDPI results on major search engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API. Furthermore, it universally styles MDPI citations on any scholarly article you read: visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within \"Cited By\" and \"Similar Articles\" sections. The extension popup provides a quick overview of detected MDPI references, allowing you to see a count, a list, and click to scroll to them in the document.",
   "main": "background.js",
   "scripts": {
     "build": "cp node_modules/dompurify/dist/purify.min.js content/dompurify.min.js",

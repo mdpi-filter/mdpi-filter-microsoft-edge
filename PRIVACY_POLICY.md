@@ -12,7 +12,7 @@ The Extension handles the following types of information solely to provide its f
 
 *   **User Preferences:**
     *   **Data Handled:** Your chosen mode for handling MDPI content (e.g., "highlight" or "hide"), preferences for highlighting potential MDPI sites (Google Search only), custom highlight colors, and whether debug logging is enabled.
-    *   **How Handled:** These settings are stored locally in your browser using the browser's storage sync feature (`browser.storage.sync`). If you have browser synchronization enabled (like Chrome Sync or Microsoft Edge Sync), these settings may be synced across your devices. The Extension uses these preferences to customize its behavior according to your choices.
+    *   **How Handled:** These settings are stored locally in your browser using the browser's storage sync feature (`browser.storage.sync`). If you have Microsoft Edge Sync enabled, these settings may be synced across your devices by Microsoft. The Extension uses these preferences to customize its behavior according to your choices.
     *   **Purpose:** To remember your settings across browsing sessions and provide a consistent user experience.
 
 *   **Website Content:**

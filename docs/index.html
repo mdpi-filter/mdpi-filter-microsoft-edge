@@ -2,85 +2,201 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MDPI Filter Microsoft Edge Extension</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="A browser extension for Microsoft Edge to identify and filter MDPI publications in literature search results and articles.">
-    <link rel="stylesheet" href="style.css">
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <title>MDPI Filter Microsoft Edge Extension</title>
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 2em auto;
+            padding: 2em;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 2em;
+            padding-bottom: 1em;
+            border-bottom: 1px solid #eee;
+        }
+        header h1 {
+            color: #2c3e50;
+            margin-bottom: 0.2em;
+        }
+        header p {
+            font-size: 1.1em;
+            color: #555;
+        }
+        nav {
+            text-align: center;
+            margin-bottom: 2em;
+        }
+        nav a {
+            margin: 0 15px;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        h2 {
+            color: #2980b9;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.3em;
+            margin-top: 1.5em;
+            position: relative; /* For positioning the anchor link */
+        }
+        /* Style for the section permalink */
+        .section-link {
+            font-size: 0.8em;
+            margin-left: 8px;
+            text-decoration: none;
+            color: #aaa;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.2s ease-in-out;
+        }
+        h2:hover .section-link {
+            opacity: 1; /* Show on hover */
+            color: #3498db;
+        }
+        .section-link:hover {
+            text-decoration: underline;
+        }
+        ul {
+            list-style-type: disc;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 0.5em;
+        }
+        .button-link {
+            display: inline-block;
+            background-color: #3498db;
+            color: #fff;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 1em;
+            transition: background-color 0.3s ease;
+        }
+        .button-link:hover {
+            background-color: #2980b9;
+            color: #fff; /* Ensure text color remains white on hover */
+        }
+        footer {
+            text-align: center;
+            margin-top: 3em;
+            padding-top: 1em;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <div class="logo">
-                <img src="logo.svg" alt="MDPI Filter Logo">
-            </div>
-            <h1>MDPI Filter Extension</h1>
-            <nav>
-                <ul>
-                    <li><a href="#about">About</a></li>
-                    <li><a href="#features">Features</a></li>
-                    <li><a href="#installation">Installation</a></li>
-                    <li><a href="#support">Support</a></li>
-                    <li><a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge" target="_blank" rel="noopener noreferrer">GitHub</a></li>
-                </ul>
-            </nav>
-        </div>
-    </header>
+    <div class="container">
+        <header>
+            <h1>MDPI Filter Microsoft Edge Extension</h1>
+            <p>Instantly identify and manage publications from the publisher MDPI.</p>
+        </header>
 
-    <main>
-        <section id="about" class="about-section">
-            <div class="container">
-                <h2>About MDPI Filter</h2>
-                <p>
-                    <strong>MDPI Filter</strong> is a Microsoft Edge extension that helps you identify and manage MDPI publications. It enhances your literature search by allowing you to hide or highlight MDPI results on major search engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API. Furthermore, it universally styles MDPI citations on any scholarly article you read: visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within "Cited By" and "Similar Articles" sections. The extension popup provides a quick overview of detected MDPI references, allowing you to see a count, a list, and click to scroll to them in the document.
-                </p>
-            </div>
-        </section>
+        <nav>
+            <a href="#about">About</a>
+            <a href="#features">Features</a>
+            <a href="#installation">Installation</a>
+            <a href="#support">Support</a>
+            <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="PRIVACY_POLICY.html">Privacy Policy</a>
+        </nav>
 
-        <section id="features" class="features-section">
-            <div class="container">
-                <h2>Features</h2>
-                <ul>
-                    <li><strong>Search-site filtering:</strong> Hide or Highlight MDPI links on Google, Google Scholar, PubMed, and Europe PMC.</li>
-                    <li><strong>Universal in-page citation styling:</strong> Styles MDPI references in footnotes and reference lists on any journal site.</li>
-                    <li><strong>"Cited By" and "Similar Articles" Styling:</strong> Identifies and styles MDPI content in related article sections.</li>
-                    <li><strong>Interactive Popup:</strong> See a count and a clickable list of all MDPI references on the page.</li>
-                </ul>
-            </div>
-        </section>
-
-        <section id="installation" class="installation-section">
-            <div class="container">
-                <h2>Installation</h2>
-                <p>The extension will be available on the Microsoft Edge Add-ons store soon. For now, you can install it manually:</p>
-                <ol>
-                    <li>Go to the <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/releases" target="_blank" rel="noopener noreferrer" class="button-link">Releases Page</a> on GitHub.</li>
-                    <li>Download the latest <code>mdpi-filter.zip</code> file.</li>
-                    <li>Unzip the file to a permanent location on your computer.</li>
-                    <li>Open Microsoft Edge and navigate to <code>edge://extensions</code>.</li>
-                    <li>Enable "Developer mode".</li>
-                    <li>Click on "Load unpacked" and select the unzipped folder.</li>
-                </ol>
-            </div>
-        </section>
-
-        <section id="support" class="support-section">
-            <div class="container">
-                <h2>Support & Feedback</h2>
-                <p>If you encounter any bugs, have feature requests, or need support, please raise an issue on our GitHub repository.</p>
-                <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/issues" target="_blank" rel="noopener noreferrer" class="button-link">Go to GitHub Issues</a>
-            </div>
-        </section>
-    </main>
-
-    <footer>
-        <div class="container">
+        <section id="about">
+            <h2>About MDPI Filter <a href="#about" class="section-link" title="Permalink to this section">#</a></h2>
             <p>
-                Visit on <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge" target="_blank" rel="noopener noreferrer">GitHub</a> |
-                <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/issues" target="_blank" rel="noopener noreferrer">Get Support</a> |
-                <a href="PRIVACY_POLICY.md" target="_blank">Privacy Policy</a>
+                <strong>MDPI Filter</strong> is a Microsoft Edge extension that helps you identify and manage MDPI publications.
+                It enhances your literature search by allowing you to hide or highlight MDPI results on major search
+                engines (Google, Google Scholar, PubMed, Europe PMC), using direct checks and the NCBI API.
+                Furthermore, it universally styles MDPI citations on any scholarly article you read:
+                visually distinguishing MDPI entries in bibliographies, their inline footnotes, and also within
+                "Cited By" and "Similar Articles" sections. The extension popup provides a quick overview of
+                detected MDPI references, allowing you to see a count, a list, and click to scroll to them in the document.
             </p>
-        </div>
-    </footer>
+        </section>
+
+        <section id="features">
+            <h2>🔹 Key Features <a href="#features" class="section-link" title="Permalink to this section">#</a></h2>
+            <ul>
+                <li><strong>Search-site filtering:</strong>
+                    <ul>
+                        <li>Hide or Highlight MDPI links on Google Web Search, Google Scholar, PubMed, and Europe PMC.</li>
+                    </ul>
+                </li>
+                <li><strong>Universal in-page citation styling:</strong>
+                    <ul>
+                        <li>Styles MDPI reference numbers (inline footnotes) red.</li>
+                        <li>Outlines and bold-reds MDPI entries in bibliographies on any journal site.</li>
+                    </ul>
+                </li>
+                <li><strong>Popup Interaction & Overview:</strong>
+                    <ul>
+                        <li>Counts and lists MDPI references found on the current page.</li>
+                        <li>Allows clicking a reference in the popup to scroll directly to it.</li>
+                        <li>Styles MDPI entries in "Cited By" and "Similar Articles" sections.</li>
+                    </ul>
+                </li>
+            </ul>
+        </section>
+
+        <section id="installation">
+            <h2>📥 Installation <a href="#installation" class="section-link" title="Permalink to this section">#</a></h2>
+            <p>The extension will be available on the Microsoft Edge Add-ons store soon. For now, you can install it manually:</p>
+            <ol>
+                <li>Go to the <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/releases" target="_blank" rel="noopener noreferrer" class="button-link">Releases Page</a> on GitHub.</li>
+                <li>Download the <code>mdpi-filter.zip</code> file from the latest release.</li>
+                <li>Unzip the downloaded file.</li>
+                <li>Open Microsoft Edge and navigate to <code>edge://extensions</code>.</li>
+                <li>Enable <strong>Developer mode</strong> (toggle in the bottom-left corner).</li>
+                <li>Click <strong>Load unpacked</strong> and select the unzipped folder.</li>
+                <li>Pin the icon to your toolbar for easy access!</li>
+            </ol>
+            <p>
+                For developers: If you've cloned the repository, you can load the unpacked extension directly from the source folder.
+                Note that API credentials might be needed for full functionality if not using a pre-built release.
+            </p>
+        </section>
+
+        <section id="support">
+            <h2>❓ Support & Feedback <a href="#support" class="section-link" title="Permalink to this section">#</a></h2>
+            <p>
+                If you encounter any issues, have questions, or would like to suggest a feature, please visit our GitHub Issues page.
+                We appreciate your feedback to help improve the MDPI Filter extension!
+            </p>
+            <p>
+                <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/issues" target="_blank" rel="noopener noreferrer" class="button-link">Go to GitHub Issues</a>
+            </p>
+        </section>
+
+        <footer>
+            <p>&copy; <span id="currentYear"></span> MDPI Filter Project. Licensed under AGPL-3.0 (Code) and CC-BY-SA-4.0 (Logo).</p>
+            <p>
+                View <a href="PRIVACY_POLICY.html">Privacy Policy</a> |
+                Visit on <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge" target="_blank" rel="noopener noreferrer">GitHub</a> |
+                <a href="https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/issues" target="_blank" rel="noopener noreferrer">Get Support</a>
+            </p>
+        </footer>
+    </div>
+    <script>
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+    </script>
 </body>
 </html>

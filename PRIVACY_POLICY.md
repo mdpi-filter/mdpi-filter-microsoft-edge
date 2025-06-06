@@ -1,6 +1,6 @@
 # Privacy Policy for MDPI Filter Browser Extension
 
-**Last Updated:** May 31, 2025 <!-- Replace with the actual date -->
+**Last Updated:** June 06, 2025 <!-- Replace with the actual date -->
 
 Thank you for using MDPI Filter (the "Extension"). This Privacy Policy explains how the Extension handles information. The MDPI Filter extension is designed to operate primarily locally within your browser.
 

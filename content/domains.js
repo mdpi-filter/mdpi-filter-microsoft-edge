@@ -2,6 +2,9 @@
 // Define the four search‐site configurations
 window.MDPIFilterDomains = {
 
+  // NEW: Central list of MDPI domains
+  mdpiDomains: ["mdpi.com", "mdpi.org"],
+
   // Search Engine Domains:
   // Domains listed here are considered search engine pages.
   // The getActiveSearchConfig function will use specific configurations below
@@ -43,7 +46,7 @@ window.MDPIFilterDomains = {
     // 2. Individual image items (div[jsname="qQjpJ"]) within an image carousel (div#iur).
     itemSelector: 'div.MjjYud:not(:has(div#iur)), div#iur div[jsname="qQjpJ"]',
     // General link selector to find MDPI links within the item.
-    linkSelector: 'a[href*="mdpi.com"]', // Used by GoogleContentChecker if needed, but its primary checks are more robust
+    linkSelector: 'a[href*="mdpi.com"], a[href*="mdpi.org"]', // Used by GoogleContentChecker if needed, but its primary checks are more robust
     useNcbiApi: true, // Enable NCBI API checks within GoogleContentChecker
     // highlightTargetSelector for standard results (within div.MjjYud).
     // For image items (div[jsname="qQjpJ"]), these selectors are not expected to match,
@@ -55,8 +58,8 @@ window.MDPIFilterDomains = {
   scholar: {
     host: 'scholar.google.com', // Should match an entry or be covered by an entry in searchEngineDomains
     itemSelector: 'div.gs_r', // Changed 'container' to 'itemSelector' and confirmed selector
-    // broadened to include PMC/NCBI and EuropePMC links so Scholar items with pmcid/pmid aren’t skipped
-    linkSelector: 'a[href*="mdpi.com"]',
+    // broadened to include PMC/NCBI and EuropePMC links so Scholar items with pmcid/pmid aren't skipped
+    linkSelector: 'a[href*="mdpi.com"], a[href*="mdpi.org"]',
     useNcbiApi: true // Enable NCBI API checks for Google Scholar
     // Consider adding useNcbiApi: true if NCBI checks are desired for Scholar in the future,
     // though MDPIFilterItemContentChecker would need access to PMID/PMCID extraction utilities or
@@ -68,11 +71,11 @@ window.MDPIFilterDomains = {
     hostRegex: /^www\.bing\.com$/i,
     isBingWeb: true,
     path: /^\/search/,
-    // Bing “standard” results, carousel cards AND slide-only cards
+    // Bing "standard" results, carousel cards AND slide-only cards
     // (includes both div.b_cards2.slide and div.slide[role="listitem"])
     itemSelector: 'li.b_algo, div.b_cards2.slide, div.slide[role="listitem"]',
     // MDPI domain links inside results
-    linkSelector: 'a[href*="mdpi.com"]',
+    linkSelector: 'a[href*="mdpi.com"], a[href*="mdpi.org"]',
     useNcbiApi: true,
     // full-item highlighting
     highlightTargetSelector: null
@@ -105,7 +108,7 @@ window.MDPIFilterDomains = {
     isDuckDuckGo: true,
     path: /^\//, 
     itemSelector: 'li[data-layout="organic"] article',
-    linkSelector: 'a[href*="mdpi.com"]',
+    linkSelector: 'a[href*="mdpi.com"], a[href*="mdpi.org"]',
     useNcbiApi: true,
     highlightTargetSelector: null
   },
@@ -117,7 +120,7 @@ window.MDPIFilterDomains = {
     isYandex: true,
     path: /^\/search/,                    // matches Yandex search pages
     itemSelector: 'li[data-fast]',        // container for each result item
-    linkSelector: 'a[href*="mdpi.com"]',  // MDPI links within a result
+    linkSelector: 'a[href*="mdpi.com"], a[href*="mdpi.org"]',  // MDPI links within a result
     useNcbiApi: true,
     highlightTargetSelector: null         // style the whole item
   }

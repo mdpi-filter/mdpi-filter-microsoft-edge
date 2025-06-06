@@ -65,7 +65,7 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
     // Main function to check item content for MDPI indicators
     // It takes the DOM item, a runCache (Map), and the current MDPI_DOI and MDPI_DOMAIN strings
     // And optionally, the primary DOI and URL extracted by link_extractor.js, and an idExtractorInstance
-    function checkItemContent(item, runCache, currentMdpiDoi, currentMdpiDomain, primaryLinkDoi, primaryLinkUrl, idExtractorInstance) {
+    function checkItemContent(item, runCache, currentMdpiDoi, currentMdpiDomains, primaryLinkDoi, primaryLinkUrl, idExtractorInstance) {
       // --- REMOVED: Skip all logic if on Google search results ---
       // (No early return for Google search pages)
 
@@ -115,9 +115,11 @@ if (typeof window.MDPIFilterItemContentChecker === 'undefined') {
         if (link.href && typeof link.href === 'string') {
           try {
             const linkHostname = new URL(link.href).hostname;
-            if (linkHostname.endsWith(currentMdpiDomain)) {
-              console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P3: Link to MDPI domain FOUND: ${link.href}. Returning TRUE.`);
-              return true;
+            for (const domain of currentMdpiDomains) {
+                if (linkHostname.endsWith(domain)) {
+                  console.log(`[MDPI Filter ItemChecker DEBUG ${itemIdentifier}] P3: Link to MDPI domain FOUND: ${link.href}. Returning TRUE.`);
+                  return true;
+                }
             }
           } catch (e) { /* ignore invalid URLs */ }
         }

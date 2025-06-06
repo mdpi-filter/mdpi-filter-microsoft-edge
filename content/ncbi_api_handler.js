@@ -3,7 +3,7 @@
 if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
   // console.log("[MDPI Filter NCBI API] Initializing NCBI API Handler module...");
 
-  const MDPI_DOMAIN = 'mdpi.com'; // Needed for checking journal names, though not directly used in API call itself for MDPI status
+  const MDPI_DOMAINS = ['mdpi.com', 'mdpi.org']; // Needed for checking journal names, though not directly used in API call itself for MDPI status
   const MDPI_DOI_PREFIX = '10.3390'; // For identifying MDPI DOIs
 
   async function checkNcbiIdsForMdpi(ids, idType, runCache, ncbiApiCache) {
@@ -102,8 +102,11 @@ if (typeof window.MDPIFilterNcbiApiHandler === 'undefined') {
                   }
                 } else if (record.journal && typeof record.journal === 'string') {
                   const journalHost = record.journal.toLowerCase();
-                  if (journalHost === MDPI_DOMAIN || journalHost.endsWith('.' + MDPI_DOMAIN)) {
-                    isMdpi = true;
+                  for (const domain of MDPI_DOMAINS) {
+                    if (journalHost === domain || journalHost.endsWith('.' + domain)) {
+                      isMdpi = true;
+                      break; // Found a match, no need to check other domains
+                    }
                   }
                 }
 

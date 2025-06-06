@@ -84,13 +84,13 @@ class GoogleContentChecker {
    * @param {HTMLElement} item The search result item element.
    * @param {Map} runCache Per-run cache for this execution.
    * @param {string} mdpiDoiPrefix The MDPI DOI prefix (e.g., "10.3390").
-   * @param {string} mdpiDomain The MDPI domain (e.g., "mdpi.com").
+   * @param {string[]} mdpiDomains The MDPI domains (e.g., ["mdpi.com", "mdpi.org"]).
    * @param {object} activeConfig The domain configuration.
    * @param {object} currentSettings Extension settings.
    * @param {Map} ncbiApiCache Global NCBI API cache.
    * @returns {object} Result object with isMdpi, isPotential, source, details.
    */
-  async checkGoogleItem(item, runCache, mdpiDoiPrefix, mdpiDomain, activeConfig, currentSettings, ncbiApiCache) {
+  async checkGoogleItem(item, runCache, mdpiDoiPrefix, mdpiDomains, activeConfig, currentSettings, ncbiApiCache) {
     if (!item) {
       return { isMdpi: false, isPotential: false, source: 'no-item', details: 'No item provided' };
     }
@@ -108,24 +108,28 @@ class GoogleContentChecker {
         try {
           const url = new URL(href);
           const hostname = url.hostname.toLowerCase();
-          if (hostname === mdpiDomain || hostname.endsWith('.' + mdpiDomain)) {
-            console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] SECURE: Direct MDPI link found: ${hostname}`);
-            return {
-              isMdpi: true,
-              isPotential: false,
-              source: 'direct-mdpi-link',
-              details: `Direct link to ${mdpiDomain}: ${href}`
-            };
+          for (const domain of mdpiDomains) {
+            if (hostname === domain || hostname.endsWith('.' + domain)) {
+              console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] SECURE: Direct MDPI link found: ${hostname}`);
+              return {
+                isMdpi: true,
+                isPotential: false,
+                source: 'direct-mdpi-link',
+                details: `Direct link to ${domain}: ${href}`
+              };
+            }
           }
         } catch (e) {
-          if (href.includes(`.${mdpiDomain}/`) || href.includes(`//${mdpiDomain}/`) || href.startsWith(`https://${mdpiDomain}/`)) {
-            console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] SECURE: Direct MDPI link found (fallback): ${href}`);
-            return {
-              isMdpi: true,
-              isPotential: false,
-              source: 'direct-mdpi-link-fallback',
-              details: `Direct link (fallback match) to ${mdpiDomain}: ${href}`
-            };
+          for (const domain of mdpiDomains) {
+            if (href.includes(`.${domain}/`) || href.includes(`//${domain}/`) || href.startsWith(`https://${domain}/`)) {
+              console.log(`[MDPI Filter GoogleChecker DEBUG ${itemIdentifier}] SECURE: Direct MDPI link found (fallback): ${href}`);
+              return {
+                isMdpi: true,
+                isPotential: false,
+                source: 'direct-mdpi-link-fallback',
+                details: `Direct link (fallback match) to ${domain}: ${href}`
+              };
+            }
           }
         }
       }

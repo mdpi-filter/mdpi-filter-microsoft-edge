@@ -114,7 +114,7 @@
       console.log("[MDPI Filter CS] All dependencies met. Content script executing (mdpiFilterInjected set).");
 
       // --- Constants, Selectors, State ---
-      const MDPI_DOMAIN_CONST = 'mdpi.com'; // Renamed to avoid conflict if settings also has mdpiDomain
+      const MDPI_DOMAINS_CONST = ['mdpi.com', 'mdpi.org']; // Renamed to avoid conflict and now an array
       const MDPI_DOI_CONST = '10.3390';   // Renamed
       // Escape user-controlled DOI prefix before building regex
       function escapeRegex(str) {
@@ -159,7 +159,7 @@
       // Store settings globally within the script
       let currentRunSettings = {
           mode: 'highlight', // Default
-          mdpiDomain: MDPI_DOMAIN_CONST,
+          mdpiDomains: MDPI_DOMAINS_CONST,
           mdpiDoiPrefix: MDPI_DOI_CONST,
           highlightPotentialMdpiSites: true // ADD THIS - Enable potential highlighting by default
       };
@@ -295,7 +295,7 @@
             item,
             window.MDPIFilterCaches.citationProcessCache,
             currentRunSettings.mdpiDoiPrefix,
-            currentRunSettings.mdpiDomain
+            currentRunSettings.mdpiDomains
           );
 
           if (isMdpi) {
@@ -584,7 +584,7 @@
               item,
               runCache,
               currentRunSettings.mdpiDoiPrefix,
-              currentRunSettings.mdpiDomain,
+              currentRunSettings.mdpiDomains,
               null, // primaryLinkDoi (typically not pre-extracted for this generic call)
               null, // primaryLinkUrl
               idExtractor // Pass it through
@@ -668,7 +668,7 @@
                 if (mdpiLinkElement && mdpiLinkElement.href) {
                   // For current googleWeb, config.linkSelector is 'a[href*="mdpi.com"]'.
                   // This check ensures the link actually matches MDPI_DOMAIN or MDPI_DOI_REGEX.
-                  if (mdpiLinkElement.href.includes(currentRunSettings.mdpiDomain) || MDPI_DOI_REGEX.test(mdpiLinkElement.href)) {
+                  if (currentRunSettings.mdpiDomains.some(domain => mdpiLinkElement.href.includes(domain)) || MDPI_DOI_REGEX.test(mdpiLinkElement.href)) {
                     isMdpiResult = true;
                     // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (direct MDPI link via config.linkSelector).`);
                   }
@@ -769,7 +769,8 @@
               // Final fallback: check if any link within the item (not just the primary one identified by config.linkSelector) points to MDPI.
               if (!isMdpiResult) {
                 // Check for any link containing MDPI domain or the MDPI DOI prefix.
-                const anyMdpiLinkInItem = item.querySelector(`a[href*="${currentRunSettings.mdpiDomain}"], a[href*="${currentRunSettings.mdpiDoiPrefix}"]`);
+                const selectors = currentRunSettings.mdpiDomains.map(domain => `a[href*="${domain}"]`).join(', ');
+                const anyMdpiLinkInItem = item.querySelector(`${selectors}, a[href*="${currentRunSettings.mdpiDoiPrefix}"]`);
                 if (anyMdpiLinkInItem) {
                   isMdpiResult = true;
                   // console.log(`[MDPI Filter CS Search] Item "${itemPreviewText}..." is MDPI (fallback general MDPI link in item).`);
@@ -911,7 +912,7 @@
                 }
                 // console.log(`${logPrefix} Processing with GoogleContentChecker (isGoogleWeb).`);
                 const googleCheckResult = await googleCheckerInstance.checkGoogleItem(
-                  item, runCache, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomain,
+                  item, runCache, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomains,
                   activeConfig, settingsToUse, MDPIFilterCaches.ncbiApiCache
                 );
                 isMdpi = googleCheckResult.isMdpi;
@@ -923,7 +924,8 @@
                 // console.log(`${logPrefix} Processing as non-GoogleWeb. Config host: ${activeConfig.host || activeConfig.hostRegex || 'N/A'}`);
                 let itemIsMdpiByDirectIdentification = false;
 
-                const mdpiDomainLinks = item.querySelectorAll(`a[href*="${settingsToUse.mdpiDomain}"]`);
+                const domainSelectors = settingsToUse.mdpiDomains.map(domain => `a[href*="${domain}"]`).join(', ');
+                const mdpiDomainLinks = item.querySelectorAll(domainSelectors);
                 if (mdpiDomainLinks.length > 0) {
                   itemIsMdpiByDirectIdentification = true;
                   sourceOfDetection = `Direct MDPI domain link (${mdpiDomainLinks[0].getAttribute('href')})`;
@@ -1006,7 +1008,7 @@
                 if (!isMdpi) {
                   // console.log(`${logPrefix} MDPI not yet confirmed. Calling ItemContentChecker.`);
                   const contentCheckResult = MDPIFilterItemContentChecker.checkItemContent(
-                    item, runCache, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomain,
+                    item, runCache, settingsToUse.mdpiDoiPrefix, settingsToUse.mdpiDomains,
                     null, null, googleCheckerInstance // Pass googleCheckerInstance
                   );
                   if (contentCheckResult) {

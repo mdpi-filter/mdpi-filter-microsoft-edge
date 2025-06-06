@@ -1,6 +1,6 @@
-# Privacy Policy for MDPI Filter Chrome Extension
+# Privacy Policy for MDPI Filter Microsoft Edge Extension
 
-**Last Updated:** May 31, 2025 <!-- Replace with the actual date -->
+**Last Updated:** June 06, 2025 <!-- Replace with the actual date -->
 
 Thank you for using MDPI Filter (the "Extension"). This Privacy Policy explains how the Extension handles information. The MDPI Filter extension is designed to operate primarily locally within your browser.
 
@@ -12,7 +12,7 @@ The Extension handles the following types of information solely to provide its f
 
 *   **User Preferences:**
     *   **Data Handled:** Your chosen mode for handling MDPI content (e.g., "highlight" or "hide"), preferences for highlighting potential MDPI sites (Google Search only), custom highlight colors, and whether debug logging is enabled.
-    *   **How Handled:** These settings are stored locally in your browser using `chrome.storage.sync`. If you have Chrome Sync enabled, these settings may be synced across your devices by Google. The Extension uses these preferences to customize its behavior according to your choices.
+    *   **How Handled:** These settings are stored locally in your browser using `chrome.storage.sync`. If you have Microsoft Edge Sync enabled, these settings may be synced across your devices by Microsoft. The Extension uses these preferences to customize its behavior according to your choices.
     *   **Purpose:** To remember your settings across browsing sessions and provide a consistent user experience.
 
 *   **Website Content:**
@@ -37,7 +37,7 @@ We are committed to user privacy and limit data sharing to what is essential for
 *   **NCBI (National Center for Biotechnology Information) E-utilities API:**
     *   **Data Shared:** To determine if a publication is MDPI-affiliated, the Extension sends extracted publication identifiers (such as DOIs, PMIDs, or PMCIDs) to NCBI's E-utilities API services (specifically `efetch.fcgi` and `esummary.fcgi` hosted on `eutils.ncbi.nlm.nih.gov`). These requests include `tool` (application name) and `email` (developer contact) parameters as recommended by NCBI's usage guidelines.
     *   **Purpose of Sharing:** This is a core function of the Extension to retrieve publication metadata (such as DOIs) which is then used to accurately identify MDPI content, especially on search result pages or when direct MDPI indicators are not present.
-    *   **User Consent:** NCBI API lookups are enabled by default. You can opt out at any time via the “Advanced Settings” in the Extension’s options page. Disabling these lookups will reduce detection accuracy.
+    *   **User Consent:** NCBI API lookups are enabled by default. You can opt out at any time via the "Advanced Settings" in the Extension's options page. Disabling these lookups will reduce detection accuracy.
     *   **NCBI's Privacy Practices:** NCBI is a public service. According to their policies, they do not collect Personally Identifiable Information (PII) from API users and use access data to understand public use and improve their services. You can review NCBI's policies here:
         *   NCBI Specific Policy: [https://www.ncbi.nlm.nih.gov/home/about/policies/](https://www.ncbi.nlm.nih.gov/home/about/policies/)
         *   NLM Privacy Policy (NCBI is part of NLM): [https://www.nlm.nih.gov/privacy.html](https://www.nlm.nih.gov/privacy.html)
@@ -56,7 +56,7 @@ We are committed to user privacy and limit data sharing to what is essential for
 
 ## 4. Data Retention
 
-*   **User Preferences:** Stored via `chrome.storage.sync` and retained as long as the Extension is installed, or until you clear them or reset your Chrome sync data.
+*   **User Preferences:** Stored via `browser.storage.sync` and retained as long as the Extension is installed, or until you clear them or reset your browser sync data.
 *   **In-Memory Caches:** Data cached in memory (e.g., NCBI API responses, processed citation status) is temporary and is cleared when the browser tab is closed or the browser session ends.
 *   **Other Processed Data:** Information like website content or URLs processed for a page view is not retained by the Extension after its immediate use.
 
@@ -65,9 +65,9 @@ We are committed to user privacy and limit data sharing to what is essential for
 *   You can manage your preferences for the Extension (mode, highlight colors, logging) through the Extension's popup interface.
 *   You can disable or uninstall the MDPI Filter Extension at any time through your browser's extension management page.
 
-## 6. Compliance with Chrome Web Store Policies
+## 6. Compliance with Browser Store Policies
 
-The MDPI Filter Extension adheres to the Chrome Web Store User Data Policy, including its Limited Use requirements. We are committed to:
+The MDPI Filter Extension adheres to the user data policies of the browser stores it is published on, including their Limited Use requirements. We are committed to:
 *   Only using user data to provide or improve the Extension's single, user-facing purpose described above.
 *   Not transferring user data for purposes like personalized advertising, credit-worthiness, or to data brokers.
 *   Not allowing humans to read user data, except with explicit user consent for specific data, for security purposes (e.g., investigating abuse), to comply with applicable laws, or if the data is aggregated and anonymized for internal operations.
@@ -78,6 +78,6 @@ We may update this Privacy Policy from time to time. We will notify you of any c
 
 ## 8. Contact Us
 
-If you have any questions or concerns about this Privacy Policy or our data handling practices, please contact us through the support contact information provided on the MDPI Filter Chrome Web Store listing page.
+If you have any questions or concerns about this Privacy Policy or our data handling practices, please contact us through the support contact information provided on the MDPI Filter listing page on the Microsoft Edge Add-ons store or other browser stores where it is available.
 
-Alternatively, you can raise an issue on our GitHub repository: [https://github.com/mdpi-filter/mdpi-filter-chrome/issues](https://github.com/mdpi-filter/mdpi-filter-chrome/issues)
+Alternatively, you can raise an issue on our GitHub repository: [https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/issues](https://github.com/mdpi-filter/mdpi-filter-microsoft-edge/issues)

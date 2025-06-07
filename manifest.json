@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "MDPI Filter",
   "version": "0.0.1",
-  "description": "Instantly identify MDPI content. Hide/highlight MDPI papers in literature searches & visually mark their citations in any article.",
+  "description": "Tired of manually sifting through academic search results? MDPI Filter streamlines your literature review by giving you clear control over how MDPI publications appear. Features: Smart search filtering on Google, PubMed, etc.; Universal in-page citation styling for reference lists and footnotes; Interactive popup with counts and scroll-to-reference functionality.",
+  "short_description": "Instantly identify MDPI content. Hide/highlight MDPI papers in literature searches & visually mark their citations in any article.",
   "permissions": [
     "storage",
     "scripting",

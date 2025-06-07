@@ -34,6 +34,7 @@
     "default_popup": "popup.html"
   },
   "options_page": "options.html",
+  "homepage_url": "https://mdpi-filter.github.io/mdpi-filter-microsoft-edge/",
   "content_scripts": [
     {
       "matches": [

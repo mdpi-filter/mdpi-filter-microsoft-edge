@@ -51,8 +51,8 @@ jobs:
             -x "README.md" \
             -x "SECURITY.md" \
             -x "PRIVACY_POLICY.md" \
-            -x "docs/PRIVACY_POLICY.md" \
-            -x "docs/index.html" \
+            -x "docs/*" \
+            -x "logo.svg" \
             -x "*.zip"
 
       - name: Upload Extension Artifact

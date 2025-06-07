@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "MDPI Filter",
+    "description": "The name of the extension."
+  },
+  "extDesc": {
+    "message": "Instantly identify MDPI content. Hide/highlight MDPI papers in literature searches & visually mark their citations in any article.",
+    "description": "A short description of the extension's purpose."
+  }
+} 

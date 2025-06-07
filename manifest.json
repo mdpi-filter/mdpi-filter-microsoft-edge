@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "MDPI Filter",
+  "name": "__MSG_extName__",
   "version": "0.0.1",
-  "description": "Instantly identify MDPI content. Hide/highlight MDPI papers in literature searches & visually mark their citations in any article.",
+  "description": "__MSG_extDesc__",
+  "default_locale": "en",
   "permissions": [
     "storage",
     "scripting",

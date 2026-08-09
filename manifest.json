@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "__MSG_extDesc__",
   "default_locale": "en",
   "permissions": [
@@ -59,7 +59,8 @@
         "content/reference_id_extractor.js",
         "content/ncbi_api_handler.js",
         "content/content_script.js",
-        "content/secure_message_handler.js"
+        "content/secure_message_handler.js",
+        "content/integrity_scanner.js"
       ],
       "run_at": "document_idle"
     }

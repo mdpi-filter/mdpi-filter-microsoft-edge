@@ -1,250 +1,239 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --surface: #ffffff;
+  --surface-subtle: #f8fafc;
+  --text: #101828;
+  --muted: #667085;
+  --border: #d0d5dd;
+  --brand: #36406b;
+  --brand-hover: #2a324f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #101828;
+    --surface-subtle: #1d2939;
+    --text: #f2f4f7;
+    --muted: #98a2b3;
+    --border: #344054;
+    --brand: #98a2d8;
+    --brand-hover: #b6bee8;
+  }
+}
+
+* { box-sizing: border-box; }
+
 body {
   margin: 0;
-  font-family: sans-serif;
-  width: 320px; /* Increased width for references */
-  max-height: 500px; /* Limit popup height */
-  overflow-y: auto; /* Allow scrolling if content exceeds height */
-  background: #f9f9f9;
+  width: 390px;
+  max-height: 620px;
+  overflow-y: auto;
+  background: var(--surface-subtle);
+  color: var(--text);
 }
 
-.container {
-  position: relative;
-  padding-top: 8px;
-}
+.container { padding: 16px; }
 
-.container {
-  padding: 16px;
-}
-
-h1 {
-  font-size: 20px;       /* Slightly bigger */
-  margin: 0 0 8px 0;     /* No top margin, small bottom */
-  color: #36406B;
-  text-align: left;
-}
-
-p {
-  font-size: 14px;
-  margin-bottom: 12px;
-}
-
-.radio {
+.popup-header,
+.section-heading-row,
+.integrity-item-heading,
+.setting-item,
+.radio,
+.checkbox-label {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
-  font-size: 14px;
 }
 
-.radio input {
-  margin-right: 8px;
+.popup-header,
+.section-heading-row,
+.integrity-item-heading { justify-content: space-between; gap: 12px; }
+
+h1 {
+  margin: 0;
+  color: var(--brand);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.product-subtitle,
+.coverage-text,
+.signal-disclaimer,
+.integrity-item p,
+small {
+  color: var(--muted);
+}
+
+.product-subtitle { margin: 3px 0 0; font-size: 12px; }
+
+h2 {
+  margin: 0 0 8px;
+  color: var(--brand);
+  font-size: 15px;
 }
 
 button {
   width: 100%;
-  padding: 8px;
-  font-size: 14px;
-  background: #36406B;
-  color: white;
-  border: none;
-  border-radius: 4px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--brand);
+  color: #fff;
   cursor: pointer;
-  margin-top: 8px; /* Add some margin between elements */
+  font: inherit;
+  font-size: 13px;
 }
 
-button:hover {
-  background: #2a324f;
+button:hover { background: var(--brand-hover); }
+button:focus-visible, [tabindex="0"]:focus-visible, input:focus-visible {
+  outline: 3px solid #84adff;
+  outline-offset: 2px;
 }
 
-/* Style for the secondary report button */
-button.secondary {
-  background-color: #6c757d; /* Grey background */
+.icon-button,
+.text-button {
+  width: auto;
+  background: transparent;
+  color: var(--brand);
 }
 
-button.secondary:hover {
-  background-color: #5a6268; /* Darker grey on hover */
+.icon-button {
+  width: 32px;
+  height: 32px;
+  padding: 5px;
 }
 
-#status {
-  margin-top: 8px;
+.text-button {
+  padding: 4px 6px;
   font-size: 12px;
-  color: #226622;
-  min-height: 1em; /* Prevent layout shift when empty */
 }
 
-/* Style for the separator */
+.icon-button:hover,
+.text-button:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); }
+
+button.secondary { background: #475467; }
+button.secondary:hover { background: #344054; }
+
 .separator {
-  border: none;
-  border-top: 1px solid #ccc;
-  margin: 16px 0; /* Increased margin */
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
 }
 
-/* --- Reference List Styles --- */
-h2 {
-  font-size: 16px;
-  margin-bottom: 8px;
-  color: #36406B;
+.settings-panel {
+  display: none;
+  margin: 12px 0 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 4px 14px rgb(16 24 40 / 10%);
+}
+.settings-panel.open { display: block; }
+.settings-title { margin: 8px 0 10px; font-size: 13px; font-weight: 650; color: var(--brand); }
+.radio, .checkbox-label { align-items: flex-start; gap: 8px; margin: 9px 0; font-size: 13px; }
+.radio input, .checkbox-label input { margin: 2px 0 0; flex: 0 0 auto; }
+.checkbox-label span { display: grid; gap: 3px; line-height: 1.35; }
+.checkbox-label small { font-size: 11px; line-height: 1.35; }
+.setting-item { gap: 10px; margin: 10px 0; font-size: 13px; }
+.color-picker-input { margin-left: auto; width: 44px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 5px; }
+#status { min-height: 16px; margin-top: 8px; color: #067647; font-size: 12px; }
+
+.integrity-section {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.coverage-text { margin: 0; font-size: 11px; line-height: 1.4; }
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 12px;
+}
+.status-card {
+  min-height: 70px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 1px 7px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--signal-color, var(--border));
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  opacity: .72;
+}
+.status-card.has-signal { opacity: 1; box-shadow: 0 0 0 1px color-mix(in srgb, var(--signal-color) 25%, transparent); }
+.status-card .status-icon { grid-row: 1 / 3; font-weight: 800; font-size: 20px; color: var(--signal-color); }
+.status-card strong { font-size: 18px; line-height: 1; }
+.status-card > span:last-child { font-size: 10px; color: var(--muted); line-height: 1.1; }
+.status-retracted { --signal-color: #b42318; }
+.status-concern { --signal-color: #b54708; }
+.status-corrected { --signal-color: #175cd3; }
+.status-reinstated { --signal-color: #067647; }
+.status-duplicate { --signal-color: #6941c6; }
+.status-withdrawn { --signal-color: #475467; }
+.signal-disclaimer { margin: 10px 0 8px; font-size: 10px; line-height: 1.35; }
+
+.integrity-list,
+#referencesList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.integrity-list { max-height: 245px; overflow-y: auto; }
+.integrity-item {
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+  cursor: default;
+}
+.integrity-item[data-ref-id] { cursor: pointer; }
+.integrity-item[data-ref-id]:hover { background: color-mix(in srgb, var(--brand) 5%, transparent); }
+.integrity-item-heading { align-items: baseline; }
+.integrity-item-heading strong { font-size: 12px; }
+.integrity-item-heading code { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }
+.integrity-item p { margin: 5px 0; font-size: 11px; line-height: 1.35; }
+.signal-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.signal-chip {
+  padding: 3px 6px;
+  border: 1px solid var(--signal-color);
+  border-radius: 999px;
+  color: var(--signal-color);
+  background: color-mix(in srgb, var(--signal-color) 8%, transparent);
+  font-size: 10px;
+  font-weight: 650;
 }
 
 #referencesListContainer {
-  max-height: 200px; /* Limit height of the list container */
-  overflow-y: auto;   /* Allow scrolling within the list */
-  border: 1px solid #ddd;
-  background-color: #fff;
-  padding: 4px 0; /* Padding top/bottom */
-  border-radius: 4px;
-  margin-bottom: 12px; /* Space below the list */
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
 }
-
-#referencesList {
-  list-style: none; /* Remove default bullets */
-  padding: 0 12px; /* Padding left/right inside the list */
-  margin: 0;
-}
-
+#referencesList { padding: 0 11px; }
 #referencesList li {
-  font-size: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid #eee;
-  line-height: 1.4;
-  cursor: pointer; /* Make it look clickable */
-  transition: background-color 0.15s ease-in-out; /* Smooth hover effect */
-}
-
-#referencesList li:hover {
-  background-color: #f0f0f0; /* Slight background change on hover */
-}
-
-#referencesList li:last-child {
-  border-bottom: none; /* Remove border from last item */
-}
-
-#referencesList li .ref-number {
-  font-weight: bold;
-  color: #555;
-  margin-right: 4px;
-}
-
-#referencesList li .ref-text {
-  color: #333;
-}
-
-/* Remove or comment out .ref-link styles as it's no longer used */
-/*
-#referencesList li .ref-link {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
   font-size: 11px;
-  color: #007bff;
-  text-decoration: none;
-  margin-left: 4px;
+  line-height: 1.4;
+  cursor: pointer;
 }
-#referencesList li .ref-link:hover {
-  text-decoration: underline;
-}
-*/
-
-/* Style for placeholder/error messages */
-#referencesList li.placeholder,
-#referencesList li.error {
-  font-style: italic;
-  color: #777;
+#referencesList li:last-child { border-bottom: 0; }
+#referencesList li:hover { background: color-mix(in srgb, var(--brand) 5%, transparent); }
+.ref-number { font-weight: 700; color: var(--muted); }
+.ref-text { color: var(--text); }
+.placeholder, .error {
+  padding: 12px !important;
+  border: 0 !important;
+  color: var(--muted);
   text-align: center;
-  padding: 10px;
-  border-bottom: none;
+  font-size: 11px;
+  font-style: italic;
+  cursor: default !important;
 }
-#referencesList li.error {
-    color: #dc3545; /* Red for errors */
-}
-/* --- End Reference List Styles --- */
-
-/* Settings Icon */
-#settingsIcon {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: transparent;
-  border: none;
-  padding: 2px;
-  cursor: pointer;
-  z-index: 10;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#settingsIcon svg {
-  display: block;
-}
-
-/* Settings Panel */
-.settings-panel {
-  display: none;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 14px 12px 8px 12px;
-  margin-bottom: 14px;
-  margin-top: 2px;
-  box-shadow: 0 2px 10px rgba(54,64,107,0.07);
-  position: relative;
-}
-
-.settings-panel.open {
-  display: block;
-}
-
-.settings-title {
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 10px;
-  color: #36406B;
-  margin-top: 10px; /* Add some space above new section title */
-}
-
-/* Styles for new settings in popup */
-.setting-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px; /* Increased margin */
-  font-size: 14px;
-}
-
-.setting-item .color-label { /* Class for the "Highlight Color:" text */
-  margin-right: 8px;
-  flex-shrink: 0; /* Prevent shrinking if space is tight */
-}
-
-.checkbox-label { /* For aligning checkbox and its text */
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  flex-grow: 1; /* Allow text to take available space */
-}
-
-.checkbox-label input[type="checkbox"] {
-  margin-right: 8px; /* Increased margin */
-  flex-shrink: 0;
-}
-
-.checkbox-label span {
-  line-height: 1.3; /* Improve readability */
-}
-
-.color-picker-input {
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 0; /* Remove padding if it affects appearance */
-  height: 28px;
-  width: 45px; /* Adjust as needed */
-  cursor: pointer;
-  background-color: #fff; /* Ensure background for color swatch */
-  margin-left: auto; /* Push color picker to the right if in flex container */
-}
-
-/* Warning text style */
-.setting-warning {
-  color: red;
-  font-size: 0.85em;
-  margin-left: 8px;
-}
-/* End Styles for new settings */
+.error { color: #b42318; }

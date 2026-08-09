@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdpi-filter.github.io/schemas/integrity-record.schema.json",
+  "title": "Research integrity evidence record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "recordId", "entity", "assessments", "lastReviewed"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "recordId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{2,127}$" },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "canonicalName"],
+      "properties": {
+        "type": { "enum": ["work", "journal", "publisher", "service"] },
+        "canonicalName": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "dois": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "issns": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "doiPrefixes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "domains": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "aliases": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+      }
+    },
+    "assessments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "scope", "confidence", "evidence"],
+        "properties": {
+          "status": {
+            "enum": [
+              "retracted",
+              "expression-of-concern",
+              "corrected",
+              "reinstated",
+              "withdrawn",
+              "duplicate-publication",
+              "documented-deceptive-practices",
+              "strong-concerns",
+              "questionable-transparency",
+              "mixed-record",
+              "historical-concern",
+              "hijacked-or-impersonated",
+              "unverified-metric-claim"
+            ]
+          },
+          "scope": { "enum": ["work", "journal", "publisher", "claim"] },
+          "confidence": { "enum": ["low", "medium", "high"] },
+          "effectiveFrom": { "type": ["string", "null"], "format": "date" },
+          "effectiveTo": { "type": ["string", "null"], "format": "date" },
+          "summary": { "type": "string", "maxLength": 2000 },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "retrievedAt"],
+              "properties": {
+                "source": { "type": "string", "minLength": 1, "maxLength": 200 },
+                "recordId": { "type": ["string", "number", "null"] },
+                "url": { "type": ["string", "null"], "format": "uri" },
+                "archivedUrl": { "type": ["string", "null"], "format": "uri" },
+                "revisionId": { "type": ["string", "number", "null"] },
+                "retrievedAt": { "type": "string", "format": "date-time" },
+                "license": { "type": ["string", "null"], "maxLength": 100 },
+                "note": { "type": ["string", "null"], "maxLength": 1000 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "value", "reason"],
+        "properties": {
+          "type": { "enum": ["doi", "issn", "domain", "title", "date-range"] },
+          "value": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "lastReviewed": { "type": "string", "format": "date-time" },
+    "reviewer": { "type": ["string", "null"] }
+  }
+}

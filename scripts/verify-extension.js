@@ -45,6 +45,9 @@ for (const relativePath of referencedFiles) {
   if (!fs.existsSync(path.join(root, relativePath))) fail(`manifest references missing file: ${relativePath}`);
 }
 
+if (!fs.existsSync(path.join(root, 'shared', 'integrity.mjs'))) {
+  fail('shared integrity normalization module is missing');
+}
 if (fs.existsSync(path.join(root, 'content', 'dompurify.min.js'))) {
   fail('vendored DOMPurify must not be reintroduced into the text-only runtime');
 }
@@ -103,7 +106,7 @@ function walk(directory) {
     if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === 'docs') continue;
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) walk(absolutePath);
-    else if (entry.name.endsWith('.js')) verifyJavaScript(absolutePath);
+    else if (/\.(?:c|m)?js$/i.test(entry.name)) verifyJavaScript(absolutePath);
     else if (entry.name.endsWith('.html')) verifyHtml(absolutePath);
     else if (/\.ya?ml$/i.test(entry.name) && absolutePath.includes(`${path.sep}.github${path.sep}workflows${path.sep}`)) {
       verifyWorkflow(absolutePath);
